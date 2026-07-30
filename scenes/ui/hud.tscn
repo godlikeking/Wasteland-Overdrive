@@ -1,0 +1,82 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[sub_resource type="Gradient" id="Gradient_bar_bg"]
+colors = PackedColorArray(0.15, 0.15, 0.15, 0.7, 0.15, 0.15, 0.15, 0.7)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_bar_bg"]
+gradient = SubResource("Gradient_bar_bg")
+
+[node name="HUD" type="CanvasLayer"]
+layer = 5
+script = ExtResource("1_hud")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="TopBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="HealthBar" type="TextureProgressBar" parent="MarginContainer/VBoxContainer/TopBar"]
+custom_minimum_size = Vector2(300, 22)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+texture_under = SubResource("GradientTexture1D_bar_bg")
+texture_progress = SubResource("GradientTexture1D_bar_bg")
+tint_under = Color(0.15, 0.05, 0.05, 0.85)
+tint_progress = Color(0.85, 0.25, 0.25, 1)
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/TopBar/HealthBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "100 / 100"
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/TopBar"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+
+[node name="TimerLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+text = "00:00"
+theme_override_font_sizes/font_size = 22
+
+[node name="MidSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BottomBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="LevelLabel" type="Label" parent="MarginContainer/VBoxContainer/BottomBar"]
+layout_mode = 2
+text = "Lv.1"
+theme_override_font_sizes/font_size = 22
+
+[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/BottomBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+
+[node name="XPBar" type="TextureProgressBar" parent="MarginContainer/VBoxContainer/BottomBar"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 5.0
+texture_under = SubResource("GradientTexture1D_bar_bg")
+texture_progress = SubResource("GradientTexture1D_bar_bg")
+tint_under = Color(0.05, 0.1, 0.2, 0.85)
+tint_progress = Color(0.3, 0.85, 1.0, 1)

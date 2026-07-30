@@ -1,0 +1,57 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/level_up.gd" id="1_lvlup"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.08, 0.08, 0.08, 0.92)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.95, 0.75, 0.35, 1)
+
+[node name="LevelUp" type="CanvasLayer"]
+layer = 10
+process_mode = 3
+script = ExtResource("1_lvlup")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(720, 340)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "等级提升 · 选择一项强化"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 26
+theme_override_colors/font_color = Color(0.98, 0.85, 0.45, 1)
+
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/MarginContainer/VBox"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="CardRow" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 20

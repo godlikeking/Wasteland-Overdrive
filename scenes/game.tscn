@@ -1,0 +1,43 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/enemy_spawner.gd" id="3_spawner"]
+[ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="4_enemy"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/level_up.tscn" id="6_lvlup"]
+[ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="7_gameover"]
+
+[sub_resource type="Gradient" id="Gradient_ground"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.24, 0.19, 0.14, 1, 0.14, 0.11, 0.09, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_ground"]
+gradient = SubResource("Gradient_ground")
+width = 2048
+height = 2048
+fill_from = Vector2(0.5, 0)
+fill_to = Vector2(0.5, 1)
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1_game")
+
+[node name="Background" type="Sprite2D" parent="."]
+texture = SubResource("GradientTexture2D_ground")
+centered = true
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector2(0, 0)
+
+[node name="EnemySpawner" type="Node2D" parent="."]
+script = ExtResource("3_spawner")
+enemy_scene = ExtResource("4_enemy")
+player_path = NodePath("../Player")
+base_interval = 1.4
+min_interval = 0.2
+
+[node name="HUD" parent="." instance=ExtResource("5_hud")]
+
+[node name="LevelUp" parent="." instance=ExtResource("6_lvlup")]
+
+[node name="GameOver" parent="." instance=ExtResource("7_gameover")]

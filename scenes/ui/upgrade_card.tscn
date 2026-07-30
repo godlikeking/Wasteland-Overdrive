@@ -1,0 +1,50 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/upgrade_card.gd" id="1_card"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.14, 0.11, 0.08, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.75, 0.35, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="UpgradeCard" type="PanelContainer"]
+custom_minimum_size = Vector2(200, 240)
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+script = ExtResource("1_card")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+text = "Upgrade"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.98, 0.85, 0.45, 1)
+
+[node name="DescLabel" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Description"
+autowrap_mode = 3
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="PickButton" type="Button" parent="Margin/VBox"]
+layout_mode = 2
+text = "选择"
