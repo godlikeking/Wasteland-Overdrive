@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_config.gd" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = "chaser"
+display_name = "拾荒者"
+behavior = 0
+scene = null
+sprite_color = Color(0.85, 0.3, 0.3, 1)
+sprite_size = Vector2(20, 20)
+collision_radius = 12.0
+max_hp = 20.0
+speed = 90.0
+contact_damage = 10.0
+contact_cooldown = 0.6
+xp_value = 1.0
+xp_gem_scene = null
+dash_interval = 2.5
+dash_speed_multiplier = 3.0
+dash_duration = 0.35
+shoot_range = 220.0
+shoot_cooldown = 1.6
+projectile_scene = null
+projectile_speed = 260.0
+projectile_damage = 8.0
+elite_shake = 7.0
+elite_xp_multiplier = 4.0

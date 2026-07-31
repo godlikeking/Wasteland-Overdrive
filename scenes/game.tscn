@@ -1,8 +1,8 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
-[ext_resource type="Script" path="res://scripts/enemy_spawner.gd" id="3_spawner"]
+[ext_resource type="Script" path="res://scripts/spawn_director.gd" id="3_spawn"]
 [ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="4_enemy"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/level_up.tscn" id="6_lvlup"]
@@ -11,6 +11,8 @@
 [ext_resource type="PackedScene" path="res://scenes/fx/floating_label.tscn" id="9_floatlabel"]
 [ext_resource type="PackedScene" path="res://scenes/fx/enemy_death_particles.tscn" id="10_edeath"]
 [ext_resource type="PackedScene" path="res://scenes/fx/bullet_hit_particles.tscn" id="11_bhit"]
+[ext_resource type="PackedScene" path="res://scenes/xp_gem.tscn" id="12_xp"]
+[ext_resource type="PackedScene" path="res://scenes/enemy_projectile.tscn" id="13_eproj"]
 
 [sub_resource type="Gradient" id="Gradient_ground"]
 offsets = PackedFloat32Array(0, 1)
@@ -40,12 +42,17 @@ bullet_hit_particles_scene = ExtResource("11_bhit")
 [node name="Player" parent="." instance=ExtResource("2_player")]
 position = Vector2(0, 0)
 
-[node name="EnemySpawner" type="Node2D" parent="."]
-script = ExtResource("3_spawner")
+[node name="SpawnDirector" type="Node2D" parent="."]
+script = ExtResource("3_spawn")
 enemy_scene = ExtResource("4_enemy")
+xp_gem_scene = ExtResource("12_xp")
+enemy_projectile_scene = ExtResource("13_eproj")
 player_path = NodePath("../Player")
-base_interval = 1.4
-min_interval = 0.2
+base_interval = 1.2
+min_interval = 0.18
+difficulty_ramp_time = 240.0
+burst_growth = 0.02
+elite_interval = 30.0
 
 [node name="HUD" parent="." instance=ExtResource("5_hud")]
 

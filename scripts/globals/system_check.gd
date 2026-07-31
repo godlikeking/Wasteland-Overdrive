@@ -21,7 +21,9 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/auto_gun.gd",
 	"res://scripts/bullet.gd",
 	"res://scripts/enemy.gd",
+	"res://scripts/enemy_projectile.gd",
 	"res://scripts/enemy_spawner.gd",
+	"res://scripts/spawn_director.gd",
 	"res://scripts/xp_gem.gd",
 	"res://scripts/game.gd",
 	"res://scripts/hud.gd",
@@ -32,6 +34,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/floating_label.gd",
 	"res://scripts/burst_particles.gd",
 	"res://scripts/shake_camera.gd",
+	"res://scripts/enemies/enemy_config.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -39,6 +42,7 @@ const REQUIRED_SCENES := [
 	"res://scenes/game.tscn",
 	"res://scenes/player.tscn",
 	"res://scenes/enemy.tscn",
+	"res://scenes/enemy_projectile.tscn",
 	"res://scenes/bullet.tscn",
 	"res://scenes/xp_gem.tscn",
 	"res://scenes/ui/hud.tscn",
@@ -48,6 +52,13 @@ const REQUIRED_SCENES := [
 	"res://scenes/fx/floating_label.tscn",
 	"res://scenes/fx/enemy_death_particles.tscn",
 	"res://scenes/fx/bullet_hit_particles.tscn",
+]
+
+const REQUIRED_RESOURCES := [
+	"res://data/enemies/chaser.tres",
+	"res://data/enemies/dasher.tres",
+	"res://data/enemies/shooter.tres",
+	"res://data/enemies/elite_brute.tres",
 ]
 
 const REQUIRED_INPUTS := ["move_up", "move_down", "move_left", "move_right", "pause"]
@@ -65,6 +76,7 @@ func _ready() -> void:
 	_check_autoloads()
 	_check_scripts()
 	_check_scenes()
+	_check_resources()
 	_check_inputs()
 	_check_upgrade_db()
 	_check_theme()
@@ -115,6 +127,14 @@ func _check_scenes() -> void:
 			_fail("Resource is not a PackedScene: %s" % path)
 		else:
 			print("[SystemCheck] scene %s OK" % path)
+
+func _check_resources() -> void:
+	for path in REQUIRED_RESOURCES:
+		var res := ResourceLoader.load(path)
+		if res == null:
+			_fail("Resource failed to load: %s" % path)
+		else:
+			print("[SystemCheck] resource %s OK" % path)
 
 func _check_inputs() -> void:
 	for action in REQUIRED_INPUTS:

@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_config.gd" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = "dasher"
+display_name = "突袭者"
+behavior = 2
+scene = null
+sprite_color = Color(0.95, 0.5, 0.2, 1)
+sprite_size = Vector2(20, 20)
+collision_radius = 11.0
+max_hp = 24.0
+speed = 70.0
+contact_damage = 16.0
+contact_cooldown = 0.8
+xp_value = 2.0
+xp_gem_scene = null
+dash_interval = 2.2
+dash_speed_multiplier = 3.5
+dash_duration = 0.4
+shoot_range = 220.0
+shoot_cooldown = 1.6
+projectile_scene = null
+projectile_speed = 260.0
+projectile_damage = 8.0
+elite_shake = 7.0
+elite_xp_multiplier = 4.0

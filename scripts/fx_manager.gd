@@ -11,6 +11,7 @@ extends Node2D
 var _camera: Node
 
 func _ready() -> void:
+	add_to_group("fx_manager")
 	# Resolve camera lazily; the player scene may not be fully ready yet.
 	call_deferred("_resolve_camera")
 	GameState.enemy_died.connect(_on_enemy_died)
