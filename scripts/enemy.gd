@@ -12,6 +12,7 @@ var _attack_timer: float = 0.0
 var _player: Node2D
 var _flash_tw: Tween
 var _last_hit_dir: Vector2 = Vector2.ZERO
+var swamp_slow: float = 1.0   # toxic swamp slow multiplier
 
 # Behavior runtime state
 var _dash_timer: float = 0.0
@@ -79,7 +80,7 @@ func _physics_process(delta: float) -> void:
 
 func _behavior_chaser(_delta: float) -> void:
 	var dir: Vector2 = (_player.global_position - global_position).normalized()
-	velocity = dir * config.speed
+	velocity = dir * _effective_speed()
 	move_and_slide()
 	_apply_contact_damage()
 
@@ -90,7 +91,7 @@ func _behavior_dasher(delta: float) -> void:
 		if _dash_time_left <= 0.0:
 			_dashing = false
 		var dir: Vector2 = (_player.global_position - global_position).normalized()
-		velocity = dir * config.speed * config.dash_speed_multiplier
+		velocity = dir * _effective_speed() * config.dash_speed_multiplier
 		move_and_slide()
 	elif _dash_timer <= 0.0:
 		_dashing = true
@@ -99,7 +100,7 @@ func _behavior_dasher(delta: float) -> void:
 		GameState.request_camera_shake.emit(1.5, 0.10)
 	else:
 		var dir: Vector2 = (_player.global_position - global_position).normalized()
-		velocity = dir * config.speed * 0.35
+		velocity = dir * _effective_speed() * 0.35
 		move_and_slide()
 	_apply_contact_damage()
 
@@ -108,7 +109,7 @@ func _behavior_shooter(delta: float) -> void:
 	var to_player: Vector2 = _player.global_position - global_position
 	var dist: float = to_player.length()
 	var dir: Vector2 = to_player / max(0.001, dist)
-	var target_speed: float = config.speed
+	var target_speed: float = _effective_speed()
 	if dist > config.shoot_range + 30.0:
 		velocity = dir * target_speed
 	elif dist < config.shoot_range - 30.0:
@@ -156,6 +157,13 @@ func take_damage(amount: float, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	_flash()
 	if hp <= 0.0:
 		_die()
+
+# --- ToxicSwamp hook ---
+func set_swamp_slow(factor: float) -> void:
+	swamp_slow = maxf(0.05, factor)
+
+func _effective_speed() -> float:
+	return config.speed * swamp_slow
 
 func _flash() -> void:
 	if _flash_tw and _flash_tw.is_valid():

@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -13,6 +13,8 @@
 [ext_resource type="PackedScene" path="res://scenes/fx/bullet_hit_particles.tscn" id="11_bhit"]
 [ext_resource type="PackedScene" path="res://scenes/xp_gem.tscn" id="12_xp"]
 [ext_resource type="PackedScene" path="res://scenes/enemy_projectile.tscn" id="13_eproj"]
+[ext_resource type="Script" path="res://scripts/world/world.gd" id="14_world"]
+[ext_resource type="Resource" path="res://data/world/default_wasteland.tres" id="15_wcfg"]
 
 [sub_resource type="Gradient" id="Gradient_ground"]
 offsets = PackedFloat32Array(0, 1)
@@ -28,9 +30,9 @@ fill_to = Vector2(0.5, 1)
 [node name="Game" type="Node2D"]
 script = ExtResource("1_game")
 
-[node name="Background" type="Sprite2D" parent="."]
-texture = SubResource("GradientTexture2D_ground")
-centered = true
+[node name="World" type="Node2D" parent="."]
+script = ExtResource("14_world")
+wasteland_config = ExtResource("15_wcfg")
 
 [node name="FX" type="Node2D" parent="."]
 script = ExtResource("8_fx")

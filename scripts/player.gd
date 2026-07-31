@@ -18,6 +18,7 @@ var max_hp: float
 var hp: float
 var invulnerable: bool = false
 var alive: bool = true
+var swamp_slow: float = 1.0   # 1.0 = full speed, 0.5 = half
 
 func _ready() -> void:
 	add_to_group("player")
@@ -42,7 +43,7 @@ func _physics_process(delta: float) -> void:
 		dir = dir.normalized()
 
 	var speed_mult: float = float(GameState.move_speed_mult)
-	velocity = dir * base_speed * speed_mult
+	velocity = dir * base_speed * speed_mult * swamp_slow
 	move_and_slide()
 
 	# Regen and dynamic max_hp adjustments each frame
@@ -84,3 +85,7 @@ func _die() -> void:
 	velocity = Vector2.ZERO
 	died.emit()
 	GameState.player_died.emit()
+
+# --- ToxicSwamp hook ---
+func set_swamp_slow(factor: float) -> void:
+	swamp_slow = maxf(0.05, factor)

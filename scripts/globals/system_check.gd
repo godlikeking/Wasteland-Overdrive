@@ -41,6 +41,10 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/weapons/orbiting_blades.gd",
 	"res://scripts/weapons/chain_lightning.gd",
 	"res://scripts/weapons/blade.gd",
+	"res://scripts/world/wasteland_config.gd",
+	"res://scripts/world/tilemap_builder.gd",
+	"res://scripts/world/world.gd",
+	"res://scripts/world/toxic_swamp.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -72,6 +76,7 @@ const REQUIRED_RESOURCES := [
 	"res://data/weapons/bullet_volley.tres",
 	"res://data/weapons/orbiting_blades.tres",
 	"res://data/weapons/chain_lightning.tres",
+	"res://data/world/default_wasteland.tres",
 ]
 
 const REQUIRED_INPUTS := ["move_up", "move_down", "move_left", "move_right", "pause"]
