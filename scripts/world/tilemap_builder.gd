@@ -67,10 +67,11 @@ func _build_tileset() -> void:
 	atlas.separation = Vector2.ZERO
 	atlas.use_texture_padding = false
 	ts.add_source(atlas, 0)
-	# Create one tile per column.
+	# Create one tile per column. create_tile() is on TileSetAtlasSource,
+	# not on TileSet itself (Godot 4.x).
 	for tid in ATLAS_COLS:
 		var at: Vector2i = Vector2i(tid, 0)
-		ts.create_tile(at)
+		atlas.create_tile(at)
 		# Per-tile physics + navigation only for blockers.
 		if tid == T_RUBBLE or tid == T_SCRAP or tid == T_PIT:
 			var td: TileData = atlas.get_tile_data(at, 0)
