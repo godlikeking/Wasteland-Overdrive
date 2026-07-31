@@ -42,7 +42,9 @@ func _apply_visuals() -> void:
 	# Always give the enemy an opaque gradient sprite at the configured size.
 	if sprite.texture == null:
 		var grad: Gradient = Gradient.new()
-		grad.colors = PackedColorArray(config.sprite_color, config.sprite_color)
+		grad.colors = PackedColorArray()
+		grad.colors.append(config.sprite_color)
+		grad.colors.append(config.sprite_color)
 		var tex: GradientTexture2D = GradientTexture2D.new()
 		tex.gradient = grad
 		tex.width = int(config.sprite_size.x)
