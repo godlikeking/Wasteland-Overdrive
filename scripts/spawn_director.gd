@@ -43,22 +43,17 @@ func _ready() -> void:
 
 func _cache_configs() -> void:
 	_configs.clear()
-	if _configs_root == null:
-		# Fallback: load known configs by resource path.
-		for path in [
-			"res://data/enemies/chaser.tres",
-			"res://data/enemies/dasher.tres",
-			"res://data/enemies/shooter.tres",
-			"res://data/enemies/elite_brute.tres",
-		]:
-			var res: Resource = ResourceLoader.load(path)
-			if res is EnemyConfig:
-				_configs.append(res as EnemyConfig)
-		_inject_runtime_refs(_configs)
-		return
-	for child in _configs_root.get_children():
-		if child is EnemyConfig:
-			_configs.append(child as EnemyConfig)
+	# Always load from resource paths — keeps the type system happy and
+	# avoids a Node-vs-Resource mismatch on the children of configs_root.
+	for path in [
+		"res://data/enemies/chaser.tres",
+		"res://data/enemies/dasher.tres",
+		"res://data/enemies/shooter.tres",
+		"res://data/enemies/elite_brute.tres",
+	]:
+		var res: Resource = ResourceLoader.load(path)
+		if res is EnemyConfig:
+			_configs.append(res as EnemyConfig)
 	_inject_runtime_refs(_configs)
 
 func _inject_runtime_refs(list: Array) -> void:
