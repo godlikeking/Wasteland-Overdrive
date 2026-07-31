@@ -218,12 +218,16 @@ func _maybe_repath(delta: float) -> void:
 	nav_agent.target_position = _player.global_position
 
 func _steer_dir() -> Vector2:
-	# During the warmup window (NavigationServer syncing TileMap polygons),
-	# fall back to direct chase so enemies don't freeze on spawn.
+	# Fallbacks (in priority order):
+	# 1. Warmup window -> direct chase
+	# 2. No nav / no player -> direct chase
+	# 3. Nav path not ready or next point == self -> direct chase
 	if _nav_warmup > 0.0 or nav_agent == null or _player == null or not is_instance_valid(_player):
+		return (_player.global_position - global_position).normalized()
+	if nav_agent.is_navigation_finished():
 		return (_player.global_position - global_position).normalized()
 	var next: Vector2 = nav_agent.get_next_path_position()
 	var d: Vector2 = next - global_position
 	if d.length_squared() < 1.0:
-		return Vector2.ZERO
+		return (_player.global_position - global_position).normalized()
 	return d.normalized()

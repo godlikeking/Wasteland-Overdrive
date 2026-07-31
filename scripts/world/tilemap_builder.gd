@@ -237,9 +237,11 @@ func _is_swamp_cell(cell: Vector2i, noise_val: float) -> bool:
 	var spawn_clear: int = config.spawn_no_swamp_radius
 	if absi(cell.x) <= spawn_clear and absi(cell.y) <= spawn_clear:
 		return false
-	# density = 0.05 -> bottom 5% of [-1,1] range, threshold = -0.90.
-	var thr: float = -1.0 + 2.0 * config.swamp_density
-	return noise_val < thr
+	# Direct density gate: swamp_density = 0.05 -> 5% of cells. simplex
+	# noise's [-1,1] range is unreliable for tight thresholds, so use a
+	# deterministic hash on (cell.x, cell.y) against density.
+	var n: float = _hash2(cell.x + 53, cell.y + 71, 11)
+	return n < config.swamp_density
 
 func _is_obstacle_cell(cell: Vector2i, noise_val: float, cluster: float) -> bool:
 	var spawn_clear: int = config.spawn_clear_radius
@@ -248,12 +250,17 @@ func _is_obstacle_cell(cell: Vector2i, noise_val: float, cluster: float) -> bool
 	var total: float = config.rubble_density + config.scrap_density + config.pit_density
 	if total <= 0.0:
 		return false
-	# Cluster > 0.3 = inside a "potential obstacle blob". Without clustering
-	# we'd just have a flat Poisson scatter; the cluster mask groups them.
-	if cluster < 0.3:
+	# Cellular RETURN_DISTANCE: 0 = on top of a feature point, 1 = far away.
+	# Use the cluster mask as a direct on/off gate — gates obstacles to
+	# inside-blob regions. The actual fraction of obstacle cells vs sand
+	# is tuned by `total` (the sum of obstacle densities): the lower the
+	# total, the smaller the in-cluster area that ends up as an obstacle.
+	# Concretely: we keep the cell as obstacle iff it's inside the blob
+	# AND a deterministic hash falls below `total`.
+	if cluster > 0.5:
 		return false
-	var thr: float = -1.0 + 2.0 * total
-	return noise_val < thr
+	var n: float = _hash2(cell.x + 17, cell.y + 31, 7)
+	return n < total
 
 func _pick_obstacle_tile(cell: Vector2i) -> Vector2i:
 	var total: float = config.rubble_density + config.scrap_density + config.pit_density
