@@ -219,9 +219,9 @@ func _paint_map() -> void:
 			var is_swamp: bool = _is_swamp_cell(cell, n_swamp)
 			var is_obs: bool = _is_obstacle_cell(cell, n_obs, cluster)
 			if is_obs and not is_swamp:
-				tilemap.set_cell(cell, 0, _pick_obstacle_tile(cell))
+				tilemap.set_cell(0, cell, 0, _pick_obstacle_tile(cell))
 			elif is_swamp:
-				tilemap.set_cell(cell, 0, _atlas(T_SWAMP))
+				tilemap.set_cell(0, cell, 0, _atlas(T_SWAMP))
 				swamp_cells[cell] = true
 			# else: leave as SAND (tile id 0, default; nothing to set)
 
@@ -268,16 +268,16 @@ func _paint_borders() -> void:
 		for dy in range(2):
 			var t1: Vector2i = Vector2i(x, -size / 2 + dy)
 			var t2: Vector2i = Vector2i(x, size / 2 - 1 - dy)
-			tilemap.set_cell(t1, 0, _atlas(T_PIT))
-			tilemap.set_cell(t2, 0, _atlas(T_PIT))
+			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
+			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
 			swamp_cells.erase(t1)
 			swamp_cells.erase(t2)
 	for y in range(-size / 2, size / 2):
 		for dx in range(2):
 			var t1: Vector2i = Vector2i(-size / 2 + dx, y)
 			var t2: Vector2i = Vector2i(size / 2 - 1 - dx, y)
-			tilemap.set_cell(t1, 0, _atlas(T_PIT))
-			tilemap.set_cell(t2, 0, _atlas(T_PIT))
+			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
+			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
 			swamp_cells.erase(t1)
 			swamp_cells.erase(t2)
 
