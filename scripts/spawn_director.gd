@@ -53,24 +53,25 @@ func _cache_configs() -> void:
 		]:
 			var res: Resource = ResourceLoader.load(path)
 			if res is EnemyConfig:
-				(_configs as Array).append(res)
+				_configs.append(res as EnemyConfig)
 		_inject_runtime_refs(_configs)
 		return
 	for child in _configs_root.get_children():
 		if child is EnemyConfig:
-			(_configs as Array).append(child)
+			_configs.append(child as EnemyConfig)
 	_inject_runtime_refs(_configs)
 
 func _inject_runtime_refs(list: Array) -> void:
 	for c in list:
 		if not (c is EnemyConfig):
 			continue
-		if c.scene == null:
-			c.scene = enemy_scene
-		if c.xp_gem_scene == null:
-			c.xp_gem_scene = xp_gem_scene
-		if c.behavior == EnemyConfig.Behavior.SHOOTER and c.projectile_scene == null:
-			c.projectile_scene = enemy_projectile_scene
+		var ec: EnemyConfig = c as EnemyConfig
+		if ec.scene == null:
+			ec.scene = enemy_scene
+		if ec.xp_gem_scene == null:
+			ec.xp_gem_scene = xp_gem_scene
+		if ec.behavior == EnemyConfig.Behavior.SHOOTER and ec.projectile_scene == null:
+			ec.projectile_scene = enemy_projectile_scene
 
 func _process(delta: float) -> void:
 	if _configs.is_empty():
@@ -131,8 +132,8 @@ func _pick_archetype(force_elite: bool) -> EnemyConfig:
 
 func _find_config(id: String) -> EnemyConfig:
 	for c in _configs:
-		if c is EnemyConfig and c.id == id:
-			return c
+		if c is EnemyConfig and (c as EnemyConfig).id == id:
+			return c as EnemyConfig
 	# Hard fallback.
 	return _configs[0] if not _configs.is_empty() else null
 

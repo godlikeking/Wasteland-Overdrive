@@ -34,7 +34,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/floating_label.gd",
 	"res://scripts/burst_particles.gd",
 	"res://scripts/shake_camera.gd",
-	"res://scripts/enemies/enemy_config.gd",
+	"res://scripts/enemy_config.gd",
 ]
 
 const REQUIRED_SCENES := [
