@@ -16,6 +16,7 @@ var _last_hit_dir: Vector2 = Vector2.ZERO
 var swamp_slow: float = 1.0   # toxic swamp slow multiplier
 var _repath_accum: float = 0.0
 var _nav_warmup: float = 0.4
+var _debug_printed: bool = false
 const REPATH_INTERVAL: float = 0.3
 
 # Behavior runtime state
@@ -92,6 +93,15 @@ func _behavior_chaser(delta: float) -> void:
 	_maybe_repath(delta)
 	var dir: Vector2 = _steer_dir()
 	velocity = dir * _effective_speed()
+	if not _debug_printed:
+		_debug_printed = true
+		print("[Enemy] pos=%s player=%s dir=%s vel=%s speed=%s nav_agent=%s path_size=%d warmup=%s hp=%s" % [
+			str(global_position), str(_player.global_position), str(dir),
+			str(velocity), str(_effective_speed()),
+			"null" if nav_agent == null else "ok",
+			nav_agent.get_current_navigation_path().size() if nav_agent else -1,
+			str(_nav_warmup), str(hp)
+		])
 	move_and_slide()
 	_apply_contact_damage()
 
@@ -225,12 +235,16 @@ func _steer_dir() -> Vector2:
 	# Always refresh the target every frame — cheap, and avoids the
 	# 0.3s-stale target issue when the player moves.
 	nav_agent.target_position = _player.global_position
-	if nav_agent.is_navigation_finished():
+	# Trust get_current_navigation_path().size() over is_navigation_finished():
+	# the latter can return false while get_next_path_position() still
+	# returns the agent's own position (mid-computation). If the path
+	# array has fewer than 2 points (no start + end), we don't have a
+	# real path yet.
+	var path: PackedVector2Array = nav_agent.get_current_navigation_path()
+	if path.size() < 2:
 		return (_player.global_position - global_position).normalized()
 	var next: Vector2 = nav_agent.get_next_path_position()
 	var d: Vector2 = next - global_position
 	if d.length_squared() < 1.0:
-		# First-frame or path-empty: chase directly. The next frame will
-		# have a real path because target_position was just set.
 		return (_player.global_position - global_position).normalized()
 	return d.normalized()
