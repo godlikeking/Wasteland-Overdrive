@@ -17,6 +17,7 @@ var swamp_slow: float = 1.0   # toxic swamp slow multiplier
 var _repath_accum: float = 0.0
 var _nav_warmup: float = 0.4
 var _debug_printed: bool = false
+var _t: float = 0.0
 const REPATH_INTERVAL: float = 0.3
 
 # Behavior runtime state
@@ -75,6 +76,11 @@ func _physics_process(delta: float) -> void:
 		return
 	if _nav_warmup > 0.0:
 		_nav_warmup -= delta
+	# DEBUG: every 0.5s print this enemy's pos+vel to confirm motion.
+	_t += delta
+	if _t >= 0.5:
+		_t = 0.0
+		print("[Enemy tick] pos=%s vel=%s warmup=%s" % [str(global_position), str(velocity), str(_nav_warmup)])
 
 	if _attack_timer > 0.0:
 		_attack_timer -= delta
@@ -248,3 +254,10 @@ func _steer_dir() -> Vector2:
 	if d.length_squared() < 1.0:
 		return (_player.global_position - global_position).normalized()
 	return d.normalized()
+
+# Returns the agent's currently-published next path position (or the
+# raw fallback). Useful for one-off debug prints.
+func _debug_steer_target() -> Vector2:
+	if _player and is_instance_valid(_player):
+		return _player.global_position
+	return Vector2.ZERO
