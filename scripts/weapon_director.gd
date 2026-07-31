@@ -2,10 +2,40 @@ extends Node
 ## Autoloaded. Owns the set of active weapons. When `add_weapon` is called,
 ## the weapon scene is instanced and added under the player (so it follows
 ## movement). This lets all weapons share the same world-space origin.
+##
+## NOTE: this autoload persists across scene reloads (death -> restart
+## reuses the autoload). Its state must be cleared when the player /
+## weapons are torn down, otherwise stale references to freed weapons
+## crash on the next add_weapon_by_id.
 
 var _weapons: Dictionary = {}      # config_id -> BaseWeapon
 var _weapon_levels: Dictionary = {}  # config_id -> int
 var _world_container: Node2D = null
+
+func _ready() -> void:
+	# Reset state when the tree becomes empty (after a death and before
+	# the next scene finishes loading). This drops freed refs.
+	get_tree().node_removed.connect(_on_node_removed)
+	get_tree().tree_changed.connect(_on_tree_changed)
+
+func _on_node_removed(node: Node) -> void:
+	# Player got freed on death/restart. Drop our weapon refs.
+	if node.is_in_group("player"):
+		_reset()
+
+func _on_tree_changed() -> void:
+	# Belt + suspenders: prune any entries whose target was freed.
+	for id in _weapons.keys():
+		var w: BaseWeapon = _weapons[id] as BaseWeapon
+		if w == null or not is_instance_valid(w):
+			_weapons.erase(id)
+			_weapon_levels.erase(id)
+
+func _reset() -> void:
+	_weapons.clear()
+	_weapon_levels.clear()
+	_world_container = null
+	print("[WeaponDirector] reset on player death")
 
 const WEAPON_CATALOG := {
 	"bullet_volley": {
@@ -117,9 +147,16 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 func level_up_weapon_by_id(id: String, by: int = 1) -> void:
 	if not _weapons.has(id):
 		return
+	# Stale ref guard: in case the weapon node was freed between add and now
+	# (e.g. scene reload while autoload persisted). Drop and bail.
+	var stored: BaseWeapon = _weapons[id] as BaseWeapon
+	if stored == null or not is_instance_valid(stored):
+		_weapons.erase(id)
+		_weapon_levels.erase(id)
+		return
 	var new_level: int = int(_weapon_levels.get(id, 1)) + by
 	_weapon_levels[id] = new_level
-	var w: BaseWeapon = _weapons[id] as BaseWeapon
+	var w: BaseWeapon = stored
 	if w and w.config:
 		w.level = new_level
 		w._recompute_stats()
