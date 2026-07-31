@@ -195,9 +195,8 @@ func _draw_blob(img: Image, cx: int, cy: int, r: int, c: Color, alpha: float) ->
 
 func _paint_map() -> void:
 	var size: int = config.map_size_tiles
-	# Center the map so world origin is in the middle of the level.
-	var offset: Vector2i = Vector2i(-size / 2, -size / 2)
-	tilemap.position = Vector2(offset) * TS
+	# World (0,0) sits at cell (0,0) — no offset. Player spawns at (0,0).
+	tilemap.position = Vector2.ZERO
 	# Use two independent noise fields:
 	#   - swamp_field: a regular simplex noise. Cells where the value falls
 	#     into the bottom `swamp_density` of [-1,1] become swamp.
@@ -207,16 +206,21 @@ func _paint_map() -> void:
 	var swamp_field: FastNoiseLite = _make_density_noise(config.seed_value, config.swamp_cluster_scale)
 	var obstacle_field: FastNoiseLite = _make_density_noise(config.seed_value + 100, config.obstacle_cluster_scale)
 	var cluster_mask: FastNoiseLite = _make_cluster_mask(config.seed_value + 200, config.obstacle_cluster_scale)
+	# Center the noise around world origin so the spawn point sits in the
+	# middle of the noise field (more interesting terrain around player).
+	var half: int = size / 2
 	for y in size:
 		for x in size:
-			var cell: Vector2i = Vector2i(x - size / 2, y - size / 2)
+			var wx: int = x - half
+			var wy: int = y - half
+			var cell: Vector2i = Vector2i(wx, wy)
 			# Spawn safety: no swamp within N tiles, no obstacles within M.
-			if absi(cell.x) <= config.spawn_clear_radius and absi(cell.y) <= config.spawn_clear_radius:
+			if absi(wx) <= config.spawn_clear_radius and absi(wy) <= config.spawn_clear_radius:
 				continue
 			# Compute per-cell flags.
-			var n_swamp: float = swamp_field.get_noise_2d(x, y)
-			var n_obs: float = obstacle_field.get_noise_2d(x, y)
-			var cluster: float = cluster_mask.get_noise_2d(x, y)
+			var n_swamp: float = swamp_field.get_noise_2d(wx, wy)
+			var n_obs: float = obstacle_field.get_noise_2d(wx, wy)
+			var cluster: float = cluster_mask.get_noise_2d(wx, wy)
 			var is_swamp: bool = _is_swamp_cell(cell, n_swamp)
 			var is_obs: bool = _is_obstacle_cell(cell, n_obs, cluster)
 			if is_obs and not is_swamp:
@@ -224,7 +228,9 @@ func _paint_map() -> void:
 			elif is_swamp:
 				tilemap.set_cell(0, cell, 0, _atlas(T_SWAMP))
 				swamp_cells[cell] = true
-			# else: leave as SAND (tile id 0, default; nothing to set)
+			else:
+				# Explicitly paint SAND so it has visual + a tile presence.
+				tilemap.set_cell(0, cell, 0, _atlas(T_SAND))
 
 func _is_swamp_cell(cell: Vector2i, noise_val: float) -> bool:
 	# Spawn safety: never put a swamp underfoot.
@@ -263,20 +269,24 @@ func _pick_obstacle_tile(cell: Vector2i) -> Vector2i:
 	return _atlas(T_PIT)
 
 func _paint_borders() -> void:
-	# Edge band = pit so enemies/player can't escape.
+	# Edge band = pit so enemies/player can't escape. The map occupies
+	# cells (-size/2 .. size/2-1, ...). We write the two outermost cells
+	# on each side; spawn_clear_radius is well inside that.
 	var size: int = config.map_size_tiles
-	for x in range(-size / 2, size / 2):
+	var lo: int = -size / 2
+	var hi: int = size / 2 - 1
+	for x in range(lo, hi + 1):
 		for dy in range(2):
-			var t1: Vector2i = Vector2i(x, -size / 2 + dy)
-			var t2: Vector2i = Vector2i(x, size / 2 - 1 - dy)
+			var t1: Vector2i = Vector2i(x, lo + dy)
+			var t2: Vector2i = Vector2i(x, hi - dy)
 			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
 			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
 			swamp_cells.erase(t1)
 			swamp_cells.erase(t2)
-	for y in range(-size / 2, size / 2):
+	for y in range(lo, hi + 1):
 		for dx in range(2):
-			var t1: Vector2i = Vector2i(-size / 2 + dx, y)
-			var t2: Vector2i = Vector2i(size / 2 - 1 - dx, y)
+			var t1: Vector2i = Vector2i(lo + dx, y)
+			var t2: Vector2i = Vector2i(hi - dx, y)
 			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
 			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
 			swamp_cells.erase(t1)
