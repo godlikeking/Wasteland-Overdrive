@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/floating_label.gd" id="1_float"]
+
+[node name="FloatingLabel" type="Node2D"]
+z_index = 100
+script = ExtResource("1_float")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -60.0
+offset_top = -20.0
+offset_right = 60.0
+offset_bottom = 12.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "+1"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4

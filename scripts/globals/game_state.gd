@@ -11,6 +11,14 @@ signal player_health_changed(current: float, maximum: float)
 signal player_died
 signal upgrade_applied(id: String)
 
+# --- Juice / feedback events (fired by gameplay, consumed by FX layer) ---
+signal enemy_died(position: Vector2, hit_direction: Vector2)
+signal bullet_hit(position: Vector2)
+signal player_hurt(position: Vector2)
+signal xp_collected(position: Vector2, amount: float)
+signal request_camera_shake(strength: float, duration: float)
+signal request_hit_stop(duration: float)
+
 # --- Run state ---
 var time_alive: float = 0.0
 var is_running: bool = false

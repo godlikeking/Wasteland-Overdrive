@@ -28,6 +28,10 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/level_up.gd",
 	"res://scripts/upgrade_card.gd",
 	"res://scripts/game_over.gd",
+	"res://scripts/fx_manager.gd",
+	"res://scripts/floating_label.gd",
+	"res://scripts/burst_particles.gd",
+	"res://scripts/shake_camera.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -41,6 +45,9 @@ const REQUIRED_SCENES := [
 	"res://scenes/ui/level_up.tscn",
 	"res://scenes/ui/upgrade_card.tscn",
 	"res://scenes/ui/game_over.tscn",
+	"res://scenes/fx/floating_label.tscn",
+	"res://scenes/fx/enemy_death_particles.tscn",
+	"res://scenes/fx/bullet_hit_particles.tscn",
 ]
 
 const REQUIRED_INPUTS := ["move_up", "move_down", "move_left", "move_right", "pause"]

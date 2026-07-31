@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/burst_particles.gd" id="1_burst"]
+
+[node name="EnemyDeathParticles" type="CPUParticles2D"]
+z_index = 10
+emitting = false
+amount = 18
+lifetime = 0.45
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+direction = Vector2(1, 0)
+spread = 180.0
+gravity = Vector2(0, 40)
+initial_velocity_min = 90.0
+initial_velocity_max = 200.0
+scale_amount_min = 2.0
+scale_amount_max = 4.0
+color = Color(0.95, 0.4, 0.35, 1)
+script = ExtResource("1_burst")

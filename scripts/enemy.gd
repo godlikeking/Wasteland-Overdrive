@@ -15,6 +15,7 @@ var hp: float
 var _attack_timer: float = 0.0
 var _player: Node2D
 var _flash_tw: Tween
+var _last_hit_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -44,8 +45,10 @@ func _physics_process(delta: float) -> void:
 				collider.take_damage(contact_damage)
 				_attack_timer = attack_cooldown
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	hp -= amount
+	if hit_dir != Vector2.ZERO:
+		_last_hit_dir = hit_dir
 	_flash()
 	if hp <= 0.0:
 		_die()
@@ -53,11 +56,12 @@ func take_damage(amount: float) -> void:
 func _flash() -> void:
 	if _flash_tw and _flash_tw.is_valid():
 		_flash_tw.kill()
-	sprite.modulate = Color(2.0, 2.0, 2.0)
+	sprite.modulate = Color(2.5, 2.5, 2.5)
 	_flash_tw = create_tween()
-	_flash_tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.12)
+	_flash_tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.14)
 
 func _die() -> void:
+	GameState.enemy_died.emit(global_position, _last_hit_dir)
 	if xp_gem_scene:
 		var gem: Node = xp_gem_scene.instantiate()
 		if gem is Node2D:

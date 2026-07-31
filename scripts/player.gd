@@ -61,6 +61,7 @@ func take_damage(amount: float) -> void:
 	invulnerable = true
 	invuln_timer.start()
 	_flash_damage()
+	GameState.player_hurt.emit(global_position)
 	GameState.player_health_changed.emit(hp, max_hp)
 	if hp <= 0.0:
 		_die()

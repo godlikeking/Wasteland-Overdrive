@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -7,6 +7,10 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/level_up.tscn" id="6_lvlup"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="7_gameover"]
+[ext_resource type="Script" path="res://scripts/fx_manager.gd" id="8_fx"]
+[ext_resource type="PackedScene" path="res://scenes/fx/floating_label.tscn" id="9_floatlabel"]
+[ext_resource type="PackedScene" path="res://scenes/fx/enemy_death_particles.tscn" id="10_edeath"]
+[ext_resource type="PackedScene" path="res://scenes/fx/bullet_hit_particles.tscn" id="11_bhit"]
 
 [sub_resource type="Gradient" id="Gradient_ground"]
 offsets = PackedFloat32Array(0, 1)
@@ -25,6 +29,13 @@ script = ExtResource("1_game")
 [node name="Background" type="Sprite2D" parent="."]
 texture = SubResource("GradientTexture2D_ground")
 centered = true
+
+[node name="FX" type="Node2D" parent="."]
+script = ExtResource("8_fx")
+camera_path = NodePath("../Player/Camera2D")
+floating_label_scene = ExtResource("9_floatlabel")
+enemy_death_particles_scene = ExtResource("10_edeath")
+bullet_hit_particles_scene = ExtResource("11_bhit")
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
 position = Vector2(0, 0)

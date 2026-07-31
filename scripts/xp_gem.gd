@@ -25,6 +25,7 @@ func _physics_process(delta: float) -> void:
 	global_position += _velocity * delta
 	if global_position.distance_to(_target.global_position) < 10.0:
 		GameState.add_xp(value)
+		GameState.xp_collected.emit(global_position, value)
 		queue_free()
 
 func _on_area_entered(area: Area2D) -> void:
