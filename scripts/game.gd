@@ -10,6 +10,7 @@ extends Node2D
 
 var _pending_level_ups: int = 0
 var _wired: bool = false
+var _weapon_director: Node
 
 func _ready() -> void:
 	print("[Game] _ready — validating scene wiring")
@@ -19,6 +20,10 @@ func _ready() -> void:
 
 	GameState.reset()
 	GameState.is_running = true
+
+	# Grant starter weapon via the autoloaded WeaponDirector.
+	# We defer so the player group is fully populated by the time WD looks it up.
+	call_deferred("_grant_default_weapons")
 
 	GameState.leveled_up.connect(_on_leveled_up)
 	GameState.player_died.connect(_on_player_died)
@@ -31,6 +36,10 @@ func _ready() -> void:
 	GameState.xp_changed.emit(0.0, GameState.xp_needed_for_level(1))
 	GameState.level_changed.emit(1)
 	print("[Game] ready OK")
+
+func _grant_default_weapons() -> void:
+	if WeaponDirector and WeaponDirector.has_method("add_weapon_by_id"):
+		WeaponDirector.add_weapon_by_id("bullet_volley")
 
 func _validate_children() -> bool:
 	var ok := true

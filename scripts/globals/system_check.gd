@@ -18,7 +18,7 @@ const REQUIRED_AUTOLOADS := ["GameState", "UpgradeDB"]
 
 const REQUIRED_SCRIPTS := [
 	"res://scripts/player.gd",
-	"res://scripts/auto_gun.gd",
+	"res://scripts/enemy_config.gd",
 	"res://scripts/bullet.gd",
 	"res://scripts/enemy.gd",
 	"res://scripts/enemy_projectile.gd",
@@ -34,7 +34,13 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/floating_label.gd",
 	"res://scripts/burst_particles.gd",
 	"res://scripts/shake_camera.gd",
-	"res://scripts/enemy_config.gd",
+	"res://scripts/weapon_director.gd",
+	"res://scripts/weapons/weapon.gd",
+	"res://scripts/weapons/weapon_config.gd",
+	"res://scripts/weapons/bullet_volley.gd",
+	"res://scripts/weapons/orbiting_blades.gd",
+	"res://scripts/weapons/chain_lightning.gd",
+	"res://scripts/weapons/blade.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -52,6 +58,10 @@ const REQUIRED_SCENES := [
 	"res://scenes/fx/floating_label.tscn",
 	"res://scenes/fx/enemy_death_particles.tscn",
 	"res://scenes/fx/bullet_hit_particles.tscn",
+	"res://scenes/weapons/bullet_volley.tscn",
+	"res://scenes/weapons/orbiting_blades.tscn",
+	"res://scenes/weapons/chain_lightning.tscn",
+	"res://scenes/weapons/blade.tscn",
 ]
 
 const REQUIRED_RESOURCES := [
@@ -59,6 +69,9 @@ const REQUIRED_RESOURCES := [
 	"res://data/enemies/dasher.tres",
 	"res://data/enemies/shooter.tres",
 	"res://data/enemies/elite_brute.tres",
+	"res://data/weapons/bullet_volley.tres",
+	"res://data/weapons/orbiting_blades.tres",
+	"res://data/weapons/chain_lightning.tres",
 ]
 
 const REQUIRED_INPUTS := ["move_up", "move_down", "move_left", "move_right", "pause"]

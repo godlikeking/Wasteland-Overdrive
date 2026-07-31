@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/orbiting_blades.gd" id="1_ob"]
+
+[node name="OrbitingBlades" type="Node2D"]
+script = ExtResource("1_ob")
+
+[node name="Blades" type="Node2D" parent="."]
+
+[node name="DashTimer" type="Timer" parent="."]
+one_shot = false

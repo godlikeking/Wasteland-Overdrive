@@ -24,6 +24,7 @@ config/icon="res://icon.svg"
 GameState="*res://scripts/globals/game_state.gd"
 UpgradeDB="*res://scripts/globals/upgrade_db.gd"
 SystemCheck="*res://scripts/globals/system_check.gd"
+WeaponDirector="*res://scripts/weapon_director.gd"
 
 [display]
 

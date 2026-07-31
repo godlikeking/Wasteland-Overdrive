@@ -1,9 +1,7 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
-[ext_resource type="Script" path="res://scripts/auto_gun.gd" id="2_gun"]
-[ext_resource type="PackedScene" path="res://scenes/bullet.tscn" id="3_bullet"]
-[ext_resource type="Script" path="res://scripts/shake_camera.gd" id="4_shake"]
+[ext_resource type="Script" path="res://scripts/shake_camera.gd" id="2_shake"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 14.0
@@ -46,11 +44,4 @@ position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 zoom = Vector2(1.2, 1.2)
 enabled = true
-script = ExtResource("4_shake")
-
-[node name="AutoGun" type="Node2D" parent="."]
-script = ExtResource("2_gun")
-bullet_scene = ExtResource("3_bullet")
-
-[node name="Timer" type="Timer" parent="AutoGun"]
-wait_time = 0.4
+script = ExtResource("2_shake")

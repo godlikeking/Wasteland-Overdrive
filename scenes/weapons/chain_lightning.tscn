@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/chain_lightning.gd" id="1_cl"]
+
+[node name="ChainLightning" type="Node2D"]
+script = ExtResource("1_cl")
+
+[node name="Timer" type="Timer" parent="."]
+one_shot = false
