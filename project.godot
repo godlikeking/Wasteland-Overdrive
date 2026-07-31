@@ -25,6 +25,8 @@ GameState="*res://scripts/globals/game_state.gd"
 UpgradeDB="*res://scripts/globals/upgrade_db.gd"
 SystemCheck="*res://scripts/globals/system_check.gd"
 WeaponDirector="*res://scripts/weapon_director.gd"
+SfxPlayer="*res://scripts/globals/sfx_player.gd"
+MetaProgress="*res://scripts/globals/meta_progress.gd"
 
 [display]
 

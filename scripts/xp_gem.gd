@@ -5,13 +5,29 @@ extends Area2D
 @export var pickup_scene_speed: float = 320.0
 @export var seek_accel: float = 900.0
 
+@onready var sprite: Sprite2D = $Sprite2D
+
 var value: float = 1.0
 var _seeking: bool = false
 var _target: Node2D
 var _velocity: Vector2 = Vector2.ZERO
 
+const XP_GEM_SPRITE: String = "res://assets/sprites/gems/xp_gem.png"
+const XP_GEM_SPRITE_SCALE: float = 2.0
+
+func _apply_sprite() -> void:
+	if sprite == null:
+		return
+	var tex: Texture2D = load(XP_GEM_SPRITE) as Texture2D
+	if tex:
+		sprite.texture = tex
+		sprite.scale = Vector2(XP_GEM_SPRITE_SCALE, XP_GEM_SPRITE_SCALE)
+		# Gem png is upright; undo the 45° rotation used by the placeholder.
+		sprite.rotation = 0.0
+
 func _ready() -> void:
 	add_to_group("xp_gems")
+	_apply_sprite()
 	area_entered.connect(_on_area_entered)
 
 func set_value(v: float) -> void:

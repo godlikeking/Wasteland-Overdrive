@@ -24,6 +24,7 @@ func _ready() -> void:
 	add_to_group("player")
 	max_hp = base_max_hp + float(GameState.max_hp_bonus)
 	hp = max_hp
+	_apply_sprite()
 	_update_pickup_radius()
 	invuln_timer.wait_time = invuln_time
 	invuln_timer.one_shot = true
@@ -79,6 +80,17 @@ func _update_pickup_radius() -> void:
 	var r: float = base_pickup_radius * float(GameState.pickup_radius_mult)
 	if pickup_shape.shape is CircleShape2D:
 		(pickup_shape.shape as CircleShape2D).radius = r
+
+func _apply_sprite() -> void:
+	# Load real Kenney pixel art (16x16 source, scale up 3x for readability).
+	var tex: Texture2D = load("res://assets/sprites/player/player.png") as Texture2D
+	if tex:
+		sprite.texture = tex
+		# Centre the sprite on the body so the camera follows the visual centre.
+		var cs: Node = get_node_or_null("CollisionShape2D")
+		if cs and cs.shape is CircleShape2D:
+			sprite.scale = Vector2(3.0, 3.0)  # 16px -> 48px visual
+			sprite.position = Vector2(0, 0)
 
 func _die() -> void:
 	alive = false

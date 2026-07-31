@@ -55,6 +55,19 @@ layout_mode = 2
 text = "00:00"
 theme_override_font_sizes/font_size = 22
 
+[node name="Spacer2" type="Control" parent="MarginContainer/VBoxContainer/TopBar"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ComboLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 8
+text = ""
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+
 [node name="MidSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3

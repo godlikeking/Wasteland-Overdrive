@@ -66,6 +66,16 @@ func _ready() -> void:
 		"每秒回血 +0.5",
 		func(): GameState.hp_regen_per_sec += 0.5
 	))
+	_all.append(Upgrade.new(
+		"crit_rate_up", "暴击瞄准镜",
+		"暴击率 +5%",
+		func(): GameState.crit_rate = minf(1.0, GameState.crit_rate + 0.05)
+	))
+	_all.append(Upgrade.new(
+		"crit_damage_up", "穿甲弹头",
+		"暴击伤害倍率 +0.5×",
+		func(): GameState.crit_damage_mult += 0.5
+	))
 	# --- Weapon "unlock" upgrades (only one of each, only when not yet owned) ---
 	_all.append(Upgrade.new(
 		"unlock_orbiting_blades", "解锁 · 刀阵",

@@ -19,6 +19,7 @@ func _ready() -> void:
 	GameState.player_hurt.connect(_on_player_hurt)
 	GameState.xp_collected.connect(_on_xp_collected)
 	GameState.leveled_up.connect(_on_leveled_up)
+	GameState.combo_changed.connect(_on_combo_changed)
 	GameState.request_camera_shake.connect(_on_shake)
 	GameState.request_hit_stop.connect(_on_hit_stop)
 
@@ -33,21 +34,35 @@ func _resolve_camera() -> void:
 
 # --- Signal handlers ---
 
-func _on_enemy_died(pos: Vector2, dir: Vector2) -> void:
-	_spawn_particles(enemy_death_particles_scene, pos, dir)
+func _on_enemy_died(pos: Vector2, dir: Vector2, was_elite: bool = false) -> void:
+	var p: Node = _spawn_particles(enemy_death_particles_scene, pos, dir)
+	if p and p.has_method("configure_kill"):
+		if was_elite:
+			p.configure_kill(Color(1.0, 0.35, 0.6, 1))
+		else:
+			p.configure_kill(Color(0.95, 0.4, 0.35, 1))
+	SfxPlayer.play("kill")
 	GameState.request_camera_shake.emit(3.0, 0.12)
 	GameState.request_hit_stop.emit(0.04)
 
-func _on_bullet_hit(pos: Vector2) -> void:
+func _on_bullet_hit(pos: Vector2, was_crit: bool, damage: float) -> void:
 	_spawn_particles(bullet_hit_particles_scene, pos, Vector2.ZERO)
-	GameState.request_camera_shake.emit(1.2, 0.06)
+	if was_crit:
+		# 暴击标签：大号黄色，飘出 0.5s
+		_spawn_label(pos, "暴击！", Color(1.0, 0.9, 0.3), 32, 0.6)
+		GameState.request_camera_shake.emit(2.0, 0.08)
+	else:
+		GameState.request_camera_shake.emit(1.2, 0.06)
+	SfxPlayer.play("hit")
 
 func _on_player_hurt(_pos: Vector2) -> void:
+	SfxPlayer.play("hit")
 	GameState.request_camera_shake.emit(6.0, 0.35)
 	GameState.request_hit_stop.emit(0.08)
 
 func _on_xp_collected(pos: Vector2, amount: float) -> void:
 	_spawn_label(pos, "+%d XP" % max(1, int(amount)), Color(0.4, 0.9, 1.0))
+	SfxPlayer.play("xp")
 
 func _on_leveled_up(level: int) -> void:
 	# Show over player (found via group).
@@ -56,7 +71,24 @@ func _on_leveled_up(level: int) -> void:
 	if not players.is_empty() and players[0] is Node2D:
 		player_pos = (players[0] as Node2D).global_position
 	_spawn_label(player_pos, "Lv. %d!" % level, Color(1.0, 0.85, 0.3), 36, 1.2)
+	SfxPlayer.play("levelup")
 	GameState.request_camera_shake.emit(4.0, 0.25)
+
+func _on_combo_changed(count: int, lvl: int) -> void:
+	# 1/2/3 级分别给个 8/14/22 号大标签
+	if lvl <= 0:
+		return
+	var players: Array = get_tree().get_nodes_in_group("player")
+	if players.is_empty() or not (players[0] is Node2D):
+		return
+	var pos: Vector2 = (players[0] as Node2D).global_position + Vector2(0, -40)
+	var txt: String = ""
+	var col: Color = Color.WHITE
+	match lvl:
+		1: txt = "连击 ×%d" % count; col = Color(1.0, 0.95, 0.6)
+		2: txt = "连击爆发 ×%d" % count; col = Color(1.0, 0.7, 0.3)
+		3: txt = "烈焰连击 ×%d" % count; col = Color(1.0, 0.4, 0.4)
+	_spawn_label(pos, txt, col, 26, 0.55)
 
 func _on_shake(strength: float, duration: float) -> void:
 	if _camera == null:
@@ -72,15 +104,16 @@ func _on_hit_stop(duration: float) -> void:
 
 # --- Helpers ---
 
-func _spawn_particles(scene: PackedScene, pos: Vector2, dir: Vector2) -> void:
+func _spawn_particles(scene: PackedScene, pos: Vector2, dir: Vector2) -> Node:
 	if scene == null:
-		return
+		return null
 	var p: Node = scene.instantiate()
 	add_child(p)
 	if p is Node2D:
 		(p as Node2D).global_position = pos
 	if p.has_method("set_hit_direction"):
 		p.set_hit_direction(dir)
+	return p
 
 func _spawn_label(pos: Vector2, text: String, color: Color,
 		font_size: int = 20, life: float = 0.7) -> void:

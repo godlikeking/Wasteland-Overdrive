@@ -14,12 +14,25 @@ var _lifetime: float = 0.6
 var _dashing: bool = false
 var _owner_weapon: Node = null
 
+const BLADE_SPRITE: String = "res://assets/sprites/weapons/blade.png"
+const BLADE_SPRITE_SCALE: float = 1.5
+
+func _apply_sprite() -> void:
+	if sprite == null:
+		return
+	var tex: Texture2D = load(BLADE_SPRITE) as Texture2D
+	if tex:
+		sprite.texture = tex
+		sprite.scale = Vector2(BLADE_SPRITE_SCALE, BLADE_SPRITE_SCALE)
+		sprite.modulate = Color(0.85, 0.95, 1, 1)
+
 func _ready() -> void:
 	body_entered.connect(_on_hit)
 	area_entered.connect(_on_hit)
 	if hit_shape:
 		hit_shape.disabled = true
 	add_to_group("blades")
+	_apply_sprite()
 
 func launch_dash(direction: Vector2, damage: float, lifetime: float, owner_weapon: Node) -> void:
 	_velocity = direction
@@ -45,8 +58,10 @@ func _on_hit(node: Node) -> void:
 	if not _dashing:
 		return
 	if node.is_in_group("enemies") and node.has_method("take_damage"):
-		node.take_damage(_damage, _velocity.normalized())
-		GameState.bullet_hit.emit(global_position)
+		var mult: float = GameState.roll_crit()
+		var final_dmg: float = _damage * mult
+		node.take_damage(final_dmg, _velocity.normalized())
+		GameState.bullet_hit.emit(global_position, mult > 1.001, final_dmg)
 		_return_to_orbit()
 
 func _return_to_orbit() -> void:
@@ -54,7 +69,7 @@ func _return_to_orbit() -> void:
 	_age = 0.0
 	if hit_shape:
 		hit_shape.disabled = true
-	sprite.modulate = Color(1, 1, 1)
+	sprite.modulate = Color(0.85, 0.95, 1, 1)
 	if _owner_weapon and is_instance_valid(_owner_weapon):
 		var root: Node2D = _owner_weapon.get_node_or_null("Blades")
 		if root and root.is_inside_tree():

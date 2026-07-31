@@ -1,11 +1,24 @@
 extends Area2D
 ## Enemy-fired bullet. Slow, decent damage, despawns on lifetime or player hit.
 
+@onready var sprite: Sprite2D = $Sprite2D
+
 var velocity: Vector2 = Vector2.ZERO
 var damage: float = 8.0
 var lifetime: float = 1.4
 var _age: float = 0.0
 var _enemy_bullet: bool = true
+
+const ENEMY_BULLET_SPRITE: String = "res://assets/sprites/bullets/enemy_bullet.png"
+const ENEMY_BULLET_SPRITE_SCALE: float = 2.0
+
+func _apply_sprite() -> void:
+	if sprite == null:
+		return
+	var tex: Texture2D = load(ENEMY_BULLET_SPRITE) as Texture2D
+	if tex:
+		sprite.texture = tex
+		sprite.scale = Vector2(ENEMY_BULLET_SPRITE_SCALE, ENEMY_BULLET_SPRITE_SCALE)
 
 func setup(p_velocity: Vector2, p_damage: float, p_lifetime: float) -> void:
 	velocity = p_velocity
@@ -19,7 +32,9 @@ func set_enemy_bullet(v: bool) -> void:
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
+	_apply_sprite()
 	modulate = Color(1.0, 0.5, 0.5, 1)
+	SfxPlayer.play("fire")
 
 func _physics_process(delta: float) -> void:
 	global_position += velocity * delta

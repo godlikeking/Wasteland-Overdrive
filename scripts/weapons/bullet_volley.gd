@@ -46,6 +46,7 @@ func _fire() -> void:
 		var angle: float = deg_to_rad(config.projectile_spread_deg) * offset_index
 		var dir: Vector2 = to_target.rotated(angle)
 		_spawn_bullet(dir, damage)
+	SfxPlayer.play("fire")
 
 func _spawn_bullet(dir: Vector2, damage: float) -> void:
 	var b: Node = config.projectile_scene.instantiate()
