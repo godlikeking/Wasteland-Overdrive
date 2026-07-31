@@ -16,7 +16,6 @@ var _last_hit_dir: Vector2 = Vector2.ZERO
 var swamp_slow: float = 1.0   # toxic swamp slow multiplier
 var _repath_accum: float = 0.0
 var _nav_warmup: float = 0.4
-var _debug_printed: bool = false
 const REPATH_INTERVAL: float = 0.3
 
 # Behavior runtime state
@@ -93,12 +92,6 @@ func _behavior_chaser(delta: float) -> void:
 	_maybe_repath(delta)
 	var dir: Vector2 = _steer_dir()
 	velocity = dir * _effective_speed()
-	if not _debug_printed:
-		_debug_printed = true
-		print("[Enemy chaser] pos=%s player=%s dir=%s vel=%s warmup=%s nav_finished=%s" % [
-			str(global_position), str(_player.global_position), str(dir),
-			str(velocity), str(_nav_warmup), str(nav_agent.is_navigation_finished() if nav_agent else "no agent")
-		])
 	move_and_slide()
 	_apply_contact_damage()
 

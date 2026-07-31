@@ -55,6 +55,7 @@ min_interval = 0.18
 difficulty_ramp_time = 240.0
 burst_growth = 0.02
 elite_interval = 30.0
+spawn_padding = 200.0
 
 [node name="HUD" parent="." instance=ExtResource("5_hud")]
 
