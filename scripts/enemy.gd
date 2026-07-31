@@ -16,8 +16,6 @@ var _last_hit_dir: Vector2 = Vector2.ZERO
 var swamp_slow: float = 1.0   # toxic swamp slow multiplier
 var _repath_accum: float = 0.0
 var _nav_warmup: float = 0.4
-var _debug_printed: bool = false
-var _t: float = 0.0
 const REPATH_INTERVAL: float = 0.3
 
 # Behavior runtime state
@@ -76,11 +74,6 @@ func _physics_process(delta: float) -> void:
 		return
 	if _nav_warmup > 0.0:
 		_nav_warmup -= delta
-	# DEBUG: every 0.5s print this enemy's pos+vel to confirm motion.
-	_t += delta
-	if _t >= 0.5:
-		_t = 0.0
-		print("[Enemy tick] pos=%s vel=%s warmup=%s" % [str(global_position), str(velocity), str(_nav_warmup)])
 
 	if _attack_timer > 0.0:
 		_attack_timer -= delta
@@ -99,15 +92,6 @@ func _behavior_chaser(delta: float) -> void:
 	_maybe_repath(delta)
 	var dir: Vector2 = _steer_dir()
 	velocity = dir * _effective_speed()
-	if not _debug_printed:
-		_debug_printed = true
-		print("[Enemy] pos=%s player=%s dir=%s vel=%s speed=%s nav_agent=%s path_size=%d warmup=%s hp=%s" % [
-			str(global_position), str(_player.global_position), str(dir),
-			str(velocity), str(_effective_speed()),
-			"null" if nav_agent == null else "ok",
-			nav_agent.get_current_navigation_path().size() if nav_agent else -1,
-			str(_nav_warmup), str(hp)
-		])
 	move_and_slide()
 	_apply_contact_damage()
 
@@ -254,10 +238,3 @@ func _steer_dir() -> Vector2:
 	if d.length_squared() < 1.0:
 		return (_player.global_position - global_position).normalized()
 	return d.normalized()
-
-# Returns the agent's currently-published next path position (or the
-# raw fallback). Useful for one-off debug prints.
-func _debug_steer_target() -> Vector2:
-	if _player and is_instance_valid(_player):
-		return _player.global_position
-	return Vector2.ZERO
