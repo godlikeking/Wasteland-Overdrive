@@ -7,14 +7,21 @@ class_name BulletVolleyWeapon
 
 func _ready() -> void:
 	super._ready()
-	timer.one_shot = false
-	timer.timeout.connect(_on_fire)
+	# Hook up the signal now, but DON'T start the timer until setup() injects
+	# the config. Otherwise the first wait_time = 0/0 = ~20s.
+	if timer:
+		timer.one_shot = false
+		timer.timeout.connect(_on_fire)
+
+func _post_setup() -> void:
+	if timer == null:
+		return
 	timer.wait_time = get_fire_interval()
 	timer.start()
 
 func _process(_delta: float) -> void:
 	# Keep fire interval in sync with dynamic multipliers.
-	if timer and abs(timer.wait_time - get_fire_interval()) > 0.02:
+	if timer and config != null and abs(timer.wait_time - get_fire_interval()) > 0.02:
 		timer.wait_time = get_fire_interval()
 		if timer.is_stopped():
 			timer.start()

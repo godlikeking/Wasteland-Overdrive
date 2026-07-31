@@ -14,18 +14,24 @@ var _angle: float = 0.0
 var _next_dash_index: int = 0
 
 func setup(config: WeaponConfig, level: int = 1) -> void:
-	# Local stub kept to mirror Weapon.setup() — the real setup is on the
-	# base class. Provided here so WeaponDirector can call it safely if it
-	# dispatches to subclasses directly.
-	pass
+	# Delegate to base so config/level are stored and _post_setup() is called.
+	super.setup(config, level)
 
 func setup_blade_scene(scene: PackedScene) -> void:
 	blade_scene = scene
 
 func _ready() -> void:
 	super._ready()
-	_timer.wait_time = config.blade_dash_interval if config else 1.6
 	_timer.timeout.connect(_on_dash)
+	# Build initial blades in case blade_scene is injected BEFORE add_child
+	# (via setup_blade_scene in WeaponDirector).
+	if _ready_called and blade_scene != null and config != null and _blades.is_empty():
+		_build_blades()
+
+func _post_setup() -> void:
+	if _timer == null:
+		return
+	_timer.wait_time = config.blade_dash_interval
 	_timer.start()
 	_build_blades()
 

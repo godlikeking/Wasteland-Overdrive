@@ -10,17 +10,28 @@ var level: int = 1
 var _damage: float = 0.0
 var _fire_rate: float = 0.0
 var _owner: Node2D            # the player body; we read its group
+var _ready_called: bool = false
 
 func _ready() -> void:
+	_ready_called = true
 	_owner = get_tree().get_first_node_in_group("player")
-	_recompute_stats()
+	# Only recompute if config has been injected before _ready ran. WeaponDirector
+	# calls setup() AFTER add_child, so subclasses should defer real work to
+	# setup() (or check _ready_called there).
+	if config != null:
+		_recompute_stats()
+		_post_setup()
+
+# Called by subclasses after the weapon is fully configured. Default is a no-op.
+func _post_setup() -> void:
+	pass
 
 func setup(p_config: WeaponConfig, p_level: int = 1) -> void:
 	config = p_config
 	level = p_level
 	_recompute_stats()
-	if is_node_ready():
-		_recompute_stats()
+	if _ready_called:
+		_post_setup()
 
 func _recompute_stats() -> void:
 	if config == null:

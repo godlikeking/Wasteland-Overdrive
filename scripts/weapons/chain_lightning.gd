@@ -10,9 +10,13 @@ var _last_targets: Array = []
 
 func _ready() -> void:
 	super._ready()
-	timer.wait_time = config.chain_cooldown if config else 1.6
 	timer.one_shot = false
 	timer.timeout.connect(_on_tick)
+
+func _post_setup() -> void:
+	if timer == null:
+		return
+	timer.wait_time = config.chain_cooldown
 	timer.start()
 
 func _process(_delta: float) -> void:
