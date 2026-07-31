@@ -24,6 +24,11 @@ var _dashing: bool = false
 var _dash_time_left: float = 0.0
 var _shoot_timer: float = 0.0
 
+# BOSS-specific runtime
+var _boss_summon_accum: float = 0.0
+var _boss_bullet_accum: float = 0.0
+var _boss_phase: int = 1   # 1, 2, 3
+
 func setup_config(p_config: EnemyConfig) -> void:
 	config = p_config
 	if is_node_ready():
@@ -48,22 +53,46 @@ func _ready() -> void:
 func _apply_visuals() -> void:
 	if config == null:
 		return
-	# Always give the enemy an opaque gradient sprite at the configured size.
-	if sprite.texture == null:
-		var grad: Gradient = Gradient.new()
-		grad.colors = PackedColorArray()
-		grad.colors.append(config.sprite_color)
-		grad.colors.append(config.sprite_color)
-		var tex: GradientTexture2D = GradientTexture2D.new()
-		tex.gradient = grad
-		tex.width = int(config.sprite_size.x)
-		tex.height = int(config.sprite_size.y)
-		sprite.texture = tex
+	# Real Kenney pixel art (16x16 source, scale up to 48x48 for readability).
+	var path: String = _sprite_path_for(config.id)
+	if ResourceLoader.exists(path):
+		sprite.texture = load(path)
+		# Boss is 4.5× (72px), elites stay 3× (48px) with a red tint.
+		if config.behavior == EnemyConfig.Behavior.BOSS:
+			sprite.scale = Vector2(4.5, 4.5)
+			sprite.modulate = Color(1.2, 0.6, 0.6)
+		elif config.behavior == EnemyConfig.Behavior.ELITE:
+			sprite.scale = Vector2(3.0, 3.0)
+			sprite.modulate = Color(1.4, 0.6, 0.6)
+		else:
+			sprite.scale = Vector2(3.0, 3.0)
+			sprite.modulate = Color(1, 1, 1)
 	else:
-		sprite.modulate = config.sprite_color
+		# Fallback: gradient texture (original placeholder behaviour).
+		if sprite.texture == null:
+			var grad: Gradient = Gradient.new()
+			grad.colors = PackedColorArray()
+			grad.colors.append(config.sprite_color)
+			grad.colors.append(config.sprite_color)
+			var tex: GradientTexture2D = GradientTexture2D.new()
+			tex.gradient = grad
+			tex.width = int(config.sprite_size.x)
+			tex.height = int(config.sprite_size.y)
+			sprite.texture = tex
+		else:
+			sprite.modulate = config.sprite_color
 	var cs: Node = get_node_or_null("CollisionShape2D")
 	if cs and cs.shape is CircleShape2D:
 		(cs.shape as CircleShape2D).radius = config.collision_radius
+
+func _sprite_path_for(id: String) -> String:
+	match id:
+		"chaser": return "res://assets/sprites/enemies/chaser.png"
+		"dasher": return "res://assets/sprites/enemies/dasher.png"
+		"shooter": return "res://assets/sprites/enemies/shooter.png"
+		"elite_brute": return "res://assets/sprites/enemies/elite.png"
+		"boss": return "res://assets/sprites/enemies/boss.png"
+	return ""
 
 func _physics_process(delta: float) -> void:
 	if config == null:
@@ -87,6 +116,8 @@ func _physics_process(delta: float) -> void:
 			_behavior_shooter(delta)
 		EnemyConfig.Behavior.ELITE:
 			_behavior_chaser(delta)  # elites just chase but are tanky
+		EnemyConfig.Behavior.BOSS:
+			_behavior_boss(delta)
 
 func _behavior_chaser(delta: float) -> void:
 	_maybe_repath(delta)
@@ -142,15 +173,107 @@ func _behavior_shooter(delta: float) -> void:
 		_shoot_timer = config.shoot_cooldown
 		_fire_projectile(dir)
 
-func _fire_projectile(dir: Vector2) -> void:
+# --- BOSS ----------------------------------------------------------
+# 3 阶段基于当前 HP 比例：
+#   P1 (>60%):    慢追 + 每 4s 召唤 2 只 chaser
+#   P2 (30-60%):  稍快追 + 每 3s 召唤 3 只 + 每 1.2s 1 发面向玩家
+#   P3 (<30%):    再快 + 每 2.5s 召唤 4 只 + 每 0.8s 3 发扇形弹幕
+func _behavior_boss(delta: float) -> void:
+	_maybe_repath(delta)
+	# 更新阶段
+	var hp_frac: float = clampf(hp / max(1.0, config.max_hp), 0.0, 1.0)
+	var prev_phase: int = _boss_phase
+	if hp_frac <= config.boss_phase3_hp_frac:
+		_boss_phase = 3
+	elif hp_frac <= config.boss_phase2_hp_frac:
+		_boss_phase = 2
+	else:
+		_boss_phase = 1
+	if _boss_phase != prev_phase:
+		GameState.request_camera_shake.emit(4.0, 0.25)
+		GameState.request_hit_stop.emit(0.05)
+		_announce_phase(prev_phase, _boss_phase)
+
+	# 速度：P1 1.0×  P2 1.2×  P3 1.4×
+	var speed_mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
+	var dir: Vector2 = _steer_dir()
+	velocity = dir * _effective_speed() * speed_mult
+	move_and_slide()
+	_apply_contact_damage()
+
+	# 召唤节奏
+	var summon_int: float = config.boss_summon_interval
+	var summon_n: int = config.boss_summon_count
+	match _boss_phase:
+		2: summon_int *= 0.75; summon_n += 1
+		3: summon_int *= 0.6;  summon_n += 2
+	_boss_summon_accum += delta
+	if _boss_summon_accum >= summon_int:
+		_boss_summon_accum = 0.0
+		_boss_summon_minions(summon_n)
+
+	# 弹幕（P2 / P3）
+	if _boss_phase >= 2:
+		_boss_bullet_accum += delta
+		var bullet_int: float = config.boss_bullet_interval
+		if _boss_phase == 3:
+			bullet_int *= 0.65
+		if _boss_bullet_accum >= bullet_int:
+			_boss_bullet_accum = 0.0
+			_boss_volley()
+
+func _announce_phase(prev: int, cur: int) -> void:
+	var list: Array = get_tree().get_nodes_in_group("fx_manager")
+	if list.is_empty():
+		return
+	var fx: Node = list[0]
+	var label: String = "阶段 %d" % cur
+	var col: Color = Color(1, 0.7, 0.3)
+	if cur == 3: col = Color(1, 0.3, 0.3)
+	if fx.has_method("_spawn_label"):
+		fx._spawn_label(global_position, label, col, 30, 1.2)
+
+func _boss_summon_minions(n: int) -> void:
+	# 通过 BossSpawner 注册的 _summon_minion 回调（如果存在），否则跳过。
+	# 简化实现：直接在 Boss 周围生成 chaser 配置的实例。
+	var directors: Array = get_tree().get_nodes_in_group("boss_spawner")
+	if directors.is_empty():
+		return
+	var sp: Node = directors[0]
+	if sp and sp.has_method("spawn_minion_around"):
+		sp.spawn_minion_around(global_position, config.boss_minion_id, n)
+
+func _boss_volley() -> void:
+	# 面向玩家发射 boss_bullet_count 发均匀分布的弹
+	if _player == null or not is_instance_valid(_player):
+		return
+	var to_player: Vector2 = _player.global_position - global_position
+	if to_player.length_squared() < 0.01:
+		return
+	var base: float = to_player.angle()
+	var n: int = max(1, config.boss_bullet_count)
+	if _boss_phase == 3:
+		# 三路：再补 2 个偏 ±18°
+		for i in range(3):
+			var off: float = [-0.32, 0.0, 0.32][i]
+			_fire_projectile(Vector2.RIGHT.rotated(base + off),
+				config.boss_bullet_speed, 8.0)
+	else:
+		# 1 发正对玩家
+		_fire_projectile(Vector2.RIGHT.rotated(base),
+			config.boss_bullet_speed, 8.0)
+
+func _fire_projectile(dir: Vector2, speed: float = -1.0, damage: float = -1.0) -> void:
 	if config.projectile_scene == null:
 		return
 	var p: Node = config.projectile_scene.instantiate()
 	get_tree().current_scene.add_child(p)
 	if p is Node2D:
 		(p as Node2D).global_position = global_position
+	var sp: float = speed if speed > 0.0 else config.projectile_speed
+	var dm: float = damage if damage > 0.0 else config.projectile_damage
 	if p.has_method("setup"):
-		p.setup(dir * config.projectile_speed, config.projectile_damage, 1.4)
+		p.setup(dir * sp, dm, 1.4)
 	# Mark the projectile as enemy bullet — see scripts/enemy_projectile.gd.
 	if p.has_method("set_enemy_bullet"):
 		p.set_enemy_bullet(true)
@@ -171,6 +294,8 @@ func take_damage(amount: float, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	if hit_dir != Vector2.ZERO:
 		_last_hit_dir = hit_dir
 	_flash()
+	# 维护连击（任何玩家命中都算）
+	GameState.register_hit()
 	if hp <= 0.0:
 		_die()
 
@@ -189,8 +314,19 @@ func _flash() -> void:
 	_flash_tw.tween_property(sprite, "modulate", config.sprite_color if config else Color(1, 1, 1), 0.14)
 
 func _die() -> void:
-	GameState.enemy_died.emit(global_position, _last_hit_dir)
-	if config and config.behavior == EnemyConfig.Behavior.ELITE:
+	var was_elite: bool = config != null and config.behavior == EnemyConfig.Behavior.ELITE
+	var was_boss: bool = config != null and config.behavior == EnemyConfig.Behavior.BOSS
+	GameState.enemy_died.emit(global_position, _last_hit_dir, was_elite or was_boss)
+	if has_node("/root/MetaProgress"):
+		MetaProgress.record_kill()
+	if was_boss:
+		GameState.request_camera_shake.emit(config.boss_shake_on_death, 0.8)
+		GameState.request_hit_stop.emit(0.18)
+		# 额外震屏
+		GameState.request_camera_shake.emit(6.0, 0.5)
+		if has_node("/root/MetaProgress"):
+			MetaProgress.record_boss_kill()
+	elif was_elite:
 		GameState.request_camera_shake.emit(config.elite_shake, 0.45)
 		GameState.request_hit_stop.emit(0.12)
 	# Drop XP
@@ -201,6 +337,8 @@ func _die() -> void:
 		var gem_xp: float = config.xp_value
 		if config.behavior == EnemyConfig.Behavior.ELITE:
 			gem_xp *= config.elite_xp_multiplier
+		elif config.behavior == EnemyConfig.Behavior.BOSS:
+			gem_xp *= config.boss_xp_multiplier
 		if gem.has_method("set_value"):
 			gem.set_value(gem_xp)
 		get_tree().current_scene.add_child(gem)

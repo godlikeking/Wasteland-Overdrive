@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=2 format=3]
+[gd_resource type="Theme" format=3 uid="uid://bw3swnajevtnw"]
 
 [sub_resource type="SystemFont" id="SystemFont_default"]
 font_names = PackedStringArray("Microsoft YaHei", "Noto Sans CJK SC", "Sans-serif")

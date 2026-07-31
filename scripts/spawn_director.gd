@@ -7,7 +7,7 @@ extends Node2D
 ##   1:00 -> introduce dasher (20% chance at any non-elite spawn)
 ##   2:00 -> introduce shooter (30% chance)
 ##   3:30 -> mixed: chaser/dasher/shooter at 50/20/30
-##   5:00 -> every 30s, an elite spawns in addition to the normal cadence
+##   5:00 -> every 30s, an elite spawns in addition to the normal cadenced
 ##
 ## Difficulty: spawn interval shrinks from `base_interval` to `min_interval`
 ## over `difficulty_ramp_time`, mirroring the original EnemySpawner.
@@ -25,12 +25,14 @@ extends Node2D
 @export var burst_growth: float = 0.02
 @export var start_wave_shake: float = 5.0
 @export var elite_interval: float = 30.0
+@export var boss_spawn_time: float = 300.0   # 5 分钟触发 Boss
 
 var _spawn_accum: float = 0.0
 var _elite_accum: float = 0.0
 var _player: Node2D
 var _configs_root: Node
 var _configs: Array = []  # Array[EnemyConfig]
+var _boss_spawned: bool = false
 
 func _ready() -> void:
 	if player_path != NodePath():
@@ -39,6 +41,7 @@ func _ready() -> void:
 		_configs_root = get_node_or_null(configs_path)
 	_cache_configs()
 	GameState.leveled_up.connect(_on_leveled_up)
+	add_to_group("boss_spawner")
 	print("[SpawnDirector] ready with %d configs" % _configs.size())
 
 func _cache_configs() -> void:
@@ -50,6 +53,7 @@ func _cache_configs() -> void:
 		"res://data/enemies/dasher.tres",
 		"res://data/enemies/shooter.tres",
 		"res://data/enemies/elite_brute.tres",
+		"res://data/enemies/boss.tres",
 	]:
 		var res: Resource = ResourceLoader.load(path)
 		if res is EnemyConfig:
@@ -100,6 +104,13 @@ func _process(delta: float) -> void:
 		var player_pos: Vector2 = _player.global_position
 		_spawn_label(player_pos, "ELITE WAVE", Color(1, 0.4, 0.4), 30, 1.4)
 
+	# --- Boss check (5 min, once per run) ---
+	if not _boss_spawned and t >= boss_spawn_time:
+		_boss_spawned = true
+		var boss_cfg: EnemyConfig = _find_config("boss")
+		if boss_cfg:
+			_spawn_boss(boss_cfg)
+
 func _pick_archetype(force_elite: bool) -> EnemyConfig:
 	if force_elite:
 		return _find_config("elite_brute")
@@ -145,6 +156,43 @@ func _spawn_one(cfg: EnemyConfig, announce: bool = false) -> void:
 	get_tree().current_scene.add_child(enemy)
 	if announce:
 		print("[SpawnDirector] spawned %s" % cfg.id)
+
+func _spawn_boss(cfg: EnemyConfig) -> void:
+	if cfg == null or cfg.scene == null:
+		return
+	var enemy: Node = cfg.scene.instantiate()
+	# Boss appears near player, but in line of sight.
+	var dir: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+	if dir.length_squared() < 0.01:
+		dir = Vector2.RIGHT
+	var pos: Vector2 = _player.global_position + dir * 360.0
+	if enemy is Node2D:
+		(enemy as Node2D).global_position = pos
+	if enemy.has_method("setup_config"):
+		enemy.setup_config(cfg)
+	get_tree().current_scene.add_child(enemy)
+	# Warning + SFX
+	_spawn_label(pos, "⚠ BOSS ⚠", Color(1.0, 0.2, 0.2), 48, 1.6)
+	_spawn_label(_player.global_position, "废土巨兽降临！", Color(1.0, 0.4, 0.2), 28, 1.4)
+	GameState.request_camera_shake.emit(10.0, 0.6)
+	GameState.request_hit_stop.emit(0.12)
+	SfxPlayer.play("levelup")   # 警报感用琶音
+	print("[SpawnDirector] BOSS spawned at %s" % str(pos))
+
+## Used by Boss._boss_summon_minions to spawn N chasers around the boss.
+func spawn_minion_around(center: Vector2, minion_id: String, n: int) -> void:
+	var cfg: EnemyConfig = _find_config(minion_id)
+	if cfg == null or cfg.scene == null:
+		return
+	for i in range(n):
+		var enemy: Node = cfg.scene.instantiate()
+		var ang: float = TAU * float(i) / float(max(1, n)) + randf() * 0.4
+		var radius: float = 80.0 + randf() * 30.0
+		if enemy is Node2D:
+			(enemy as Node2D).global_position = center + Vector2(cos(ang), sin(ang)) * radius
+		if enemy.has_method("setup_config"):
+			enemy.setup_config(cfg)
+		get_tree().current_scene.add_child(enemy)
 
 func _random_offscreen_point() -> Vector2:
 	var vp: Vector2 = get_viewport_rect().size

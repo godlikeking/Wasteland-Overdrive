@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -15,6 +15,7 @@
 [ext_resource type="PackedScene" path="res://scenes/enemy_projectile.tscn" id="13_eproj"]
 [ext_resource type="Script" path="res://scripts/world/world.gd" id="14_world"]
 [ext_resource type="Resource" path="res://data/world/default_wasteland.tres" id="15_wcfg"]
+[ext_resource type="PackedScene" path="res://scenes/ui/shop.tscn" id="16_shop"]
 
 [sub_resource type="Gradient" id="Gradient_ground"]
 offsets = PackedFloat32Array(0, 1)
@@ -62,3 +63,5 @@ spawn_padding = 200.0
 [node name="LevelUp" parent="." instance=ExtResource("6_lvlup")]
 
 [node name="GameOver" parent="." instance=ExtResource("7_gameover")]
+
+[node name="Shop" parent="." instance=ExtResource("16_shop")]

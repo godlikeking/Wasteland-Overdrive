@@ -3,7 +3,7 @@ class_name EnemyConfig
 ## Data resource describing one enemy archetype. Create instances under
 ## res://data/enemies/ and pass them to SpawnDirector.
 
-enum Behavior { CHASER, SHOOTER, DASHER, ELITE }
+enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 
 @export var id: String = "chaser"
 @export var display_name: String = "拾荒者"
@@ -38,3 +38,15 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE }
 ## ELITE: extra drops / on-death shake
 @export var elite_shake: float = 7.0
 @export var elite_xp_multiplier: float = 4.0
+
+## BOSS: 3-phase giant with high HP
+@export var boss_summon_interval: float = 4.0    # 召唤小怪间隔
+@export var boss_summon_count: int = 2           # 每次召唤小怪数
+@export var boss_minion_id: String = "chaser"    # 召唤的小怪 id
+@export var boss_bullet_count: int = 3           # 弹幕路数
+@export var boss_bullet_interval: float = 1.2    # 弹幕间隔
+@export var boss_bullet_speed: float = 200.0     # 弹幕速度
+@export var boss_phase2_hp_frac: float = 0.6     # 进入 P2 阈值
+@export var boss_phase3_hp_frac: float = 0.3     # 进入 P3 阈值
+@export var boss_xp_multiplier: float = 20.0     # Boss 击杀经验倍率
+@export var boss_shake_on_death: float = 14.0

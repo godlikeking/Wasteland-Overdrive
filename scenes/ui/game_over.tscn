@@ -64,9 +64,33 @@ text = "达到等级: 1"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 18
 
+[node name="KillsLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "击杀: 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="CurrencyLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "本次收益: 0 废金属"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+
+[node name="TotalLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "总废金属: 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+
 [node name="Spacer2" type="Control" parent="CenterContainer/Panel/MarginContainer/VBox"]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+
+[node name="ShopButton" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "模块商店"
 
 [node name="RestartButton" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox"]
 layout_mode = 2

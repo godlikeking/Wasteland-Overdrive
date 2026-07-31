@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_ec"]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/enemies/boss.png" id="2_tex"]
+
+[resource]
+script = ExtResource("1_ec")
+id = "boss"
+display_name = "废土巨兽"
+behavior = 4
+sprite_color = Color(0.85, 0.15, 0.15, 1)
+sprite_size = Vector2(64, 64)
+collision_radius = 36.0
+max_hp = 1000.0
+speed = 70.0
+contact_damage = 25.0
+contact_cooldown = 1.0
+xp_value = 1.0
+dash_interval = 0.0
+dash_speed_multiplier = 0.0
+dash_duration = 0.0
+shoot_range = 0.0
+shoot_cooldown = 0.0
+projectile_speed = 0.0
+projectile_damage = 0.0
+elite_shake = 0.0
+elite_xp_multiplier = 0.0
+boss_summon_interval = 4.0
+boss_summon_count = 2
+boss_minion_id = "chaser"
+boss_bullet_count = 3
+boss_bullet_interval = 1.2
+boss_bullet_speed = 200.0
+boss_phase2_hp_frac = 0.6
+boss_phase3_hp_frac = 0.3
+boss_xp_multiplier = 20.0
+boss_shake_on_death = 14.0
