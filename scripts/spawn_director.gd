@@ -142,10 +142,10 @@ func _spawn_one(cfg: EnemyConfig, announce: bool = false) -> void:
 	var enemy: Node = cfg.scene.instantiate()
 	if enemy is Node2D:
 		(enemy as Node2D).global_position = _random_offscreen_point()
-	if enemy is CharacterBody2D:
-		# Push config into the freshly-instantiated scene.
-		(enemy as CharacterBody2D).set("config", cfg)
-	# Reset collision_layer/mask for ranged shooter (uses enemy_projectile Scene)
+	# Pass config via a typed method to avoid `set()` Variant assignment
+	# tripping the @export strong-typed setter.
+	if enemy.has_method("setup_config"):
+		enemy.setup_config(cfg)
 	get_tree().current_scene.add_child(enemy)
 	if announce:
 		print("[SpawnDirector] spawned %s" % cfg.id)

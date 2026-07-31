@@ -18,16 +18,23 @@ var _dash_timer: float = 0.0
 var _dashing: bool = false
 var _dash_time_left: float = 0.0
 var _shoot_timer: float = 0.0
-var _shot_fired: bool = false
+
+func setup_config(p_config: EnemyConfig) -> void:
+	config = p_config
+	if is_node_ready():
+		_apply_visuals()
+		hp = config.max_hp
 
 func _ready() -> void:
 	add_to_group("enemies")
-	hp = config.max_hp if config else 20.0
-	_apply_visuals()
+	if config:
+		hp = config.max_hp
+		_apply_visuals()
 	_player = get_tree().get_first_node_in_group("player")
 	# Randomize phase a bit so they don't sync up.
-	_dash_timer = randf_range(0.5, max(0.5, config.dash_interval)) if config else 0.0
-	_shoot_timer = randf_range(0.2, 1.0) if config else 0.0
+	if config:
+		_dash_timer = randf_range(0.5, max(0.5, config.dash_interval))
+		_shoot_timer = randf_range(0.2, 1.0)
 
 func _apply_visuals() -> void:
 	if config == null:
