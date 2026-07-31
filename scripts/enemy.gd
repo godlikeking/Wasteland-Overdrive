@@ -6,6 +6,7 @@ extends CharacterBody2D
 @export var config: EnemyConfig
 
 @onready var sprite: Sprite2D = $Sprite2D
+@onready var nav_agent: NavigationAgent2D = $NavigationAgent2D
 
 var hp: float
 var _attack_timer: float = 0.0
@@ -13,6 +14,9 @@ var _player: Node2D
 var _flash_tw: Tween
 var _last_hit_dir: Vector2 = Vector2.ZERO
 var swamp_slow: float = 1.0   # toxic swamp slow multiplier
+var _repath_accum: float = 0.0
+var _nav_warmup: float = 0.4
+const REPATH_INTERVAL: float = 0.3
 
 # Behavior runtime state
 var _dash_timer: float = 0.0
@@ -36,6 +40,10 @@ func _ready() -> void:
 	if config:
 		_dash_timer = randf_range(0.5, max(0.5, config.dash_interval))
 		_shoot_timer = randf_range(0.2, 1.0)
+	# Initial target. The first frame's nav path may be empty if the agent
+	# hasn't synced with the world navigation map yet; that's fine.
+	if nav_agent and _player and is_instance_valid(_player):
+		nav_agent.target_position = _player.global_position
 
 func _apply_visuals() -> void:
 	if config == null:
@@ -64,6 +72,8 @@ func _physics_process(delta: float) -> void:
 		_player = get_tree().get_first_node_in_group("player")
 	if _player == null:
 		return
+	if _nav_warmup > 0.0:
+		_nav_warmup -= delta
 
 	if _attack_timer > 0.0:
 		_attack_timer -= delta
@@ -78,8 +88,9 @@ func _physics_process(delta: float) -> void:
 		EnemyConfig.Behavior.ELITE:
 			_behavior_chaser(delta)  # elites just chase but are tanky
 
-func _behavior_chaser(_delta: float) -> void:
-	var dir: Vector2 = (_player.global_position - global_position).normalized()
+func _behavior_chaser(delta: float) -> void:
+	_maybe_repath(delta)
+	var dir: Vector2 = _steer_dir()
 	velocity = dir * _effective_speed()
 	move_and_slide()
 	_apply_contact_damage()
@@ -90,7 +101,9 @@ func _behavior_dasher(delta: float) -> void:
 		_dash_time_left -= delta
 		if _dash_time_left <= 0.0:
 			_dashing = false
-		var dir: Vector2 = (_player.global_position - global_position).normalized()
+		# Dash: still steer around walls, but the next path point.
+		_maybe_repath(delta)
+		var dir: Vector2 = _steer_dir()
 		velocity = dir * _effective_speed() * config.dash_speed_multiplier
 		move_and_slide()
 	elif _dash_timer <= 0.0:
@@ -99,21 +112,24 @@ func _behavior_dasher(delta: float) -> void:
 		_dash_timer = config.dash_interval
 		GameState.request_camera_shake.emit(1.5, 0.10)
 	else:
-		var dir: Vector2 = (_player.global_position - global_position).normalized()
+		_maybe_repath(delta)
+		var dir: Vector2 = _steer_dir()
 		velocity = dir * _effective_speed() * 0.35
 		move_and_slide()
 	_apply_contact_damage()
 
 func _behavior_shooter(delta: float) -> void:
-	# Keep preferred range: move toward or away to maintain shoot_range distance.
+	_maybe_repath(delta)
+	# Keep preferred range: steer toward or away to maintain shoot_range.
 	var to_player: Vector2 = _player.global_position - global_position
 	var dist: float = to_player.length()
 	var dir: Vector2 = to_player / max(0.001, dist)
+	var steer: Vector2 = _steer_dir()
 	var target_speed: float = _effective_speed()
 	if dist > config.shoot_range + 30.0:
-		velocity = dir * target_speed
+		velocity = steer * target_speed
 	elif dist < config.shoot_range - 30.0:
-		velocity = -dir * target_speed
+		velocity = -steer * target_speed
 	else:
 		# Strafe: small lateral motion so it doesn't feel static.
 		var perp: Vector2 = Vector2(-dir.y, dir.x)
@@ -189,3 +205,25 @@ func _die() -> void:
 			gem.set_value(gem_xp)
 		get_tree().current_scene.add_child(gem)
 	queue_free()
+
+# --- Navigation ---
+
+func _maybe_repath(delta: float) -> void:
+	_repath_accum += delta
+	if _repath_accum < REPATH_INTERVAL:
+		return
+	_repath_accum = 0.0
+	if nav_agent == null or _player == null or not is_instance_valid(_player):
+		return
+	nav_agent.target_position = _player.global_position
+
+func _steer_dir() -> Vector2:
+	# During the warmup window (NavigationServer syncing TileMap polygons),
+	# fall back to direct chase so enemies don't freeze on spawn.
+	if _nav_warmup > 0.0 or nav_agent == null or _player == null or not is_instance_valid(_player):
+		return (_player.global_position - global_position).normalized()
+	var next: Vector2 = nav_agent.get_next_path_position()
+	var d: Vector2 = next - global_position
+	if d.length_squared() < 1.0:
+		return Vector2.ZERO
+	return d.normalized()
