@@ -73,7 +73,7 @@ func _build_tileset() -> void:
 		ts.create_tile(at)
 		# Per-tile physics + navigation only for blockers.
 		if tid == T_RUBBLE or tid == T_SCRAP or tid == T_PIT:
-			var td: TileData = atlas.get_tile_data(at)
+			var td: TileData = atlas.get_tile_data(at, 0)
 			if td:
 				td.set_collision_polygons_count(0, 1)
 				td.set_collision_polygon_points(0, 0, _square_polygon())
