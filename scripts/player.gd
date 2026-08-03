@@ -9,6 +9,14 @@ signal died
 @export var invuln_time: float = 0.4
 @export var base_pickup_radius: float = 60.0
 
+## 玩家精灵底色。普通敌人也是 16×16 Kenney 图 + scale 3.0 + 不染色，
+## 其中 chaser 同样是钢色主导，光换贴图会撞；冷蓝把玩家单独拉出来
+## （原色 = 杂兵，红染 = 精英/BOSS）。_flash_damage 必须补间回这个值，
+## 不是回 Color(1,1,1)，否则挨一下之后底色就永久丢了。
+## 蓝通道故意 >1：只压暗红绿的话（0.62,0.82,1.0）和 chaser 的平均色距只有 32，
+## 抬蓝之后是 52。亮钢会溢出成纯蓝白，但亮钢/暗钢/轮廓三层明度仍然分得开。
+const BASE_TINT: Color = Color(0.5, 0.75, 1.35)
+
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var pickup_area: Area2D = $PickupArea
 @onready var pickup_shape: CollisionShape2D = $PickupArea/CollisionShape2D
@@ -71,7 +79,7 @@ func take_damage(amount: float) -> void:
 func _flash_damage() -> void:
 	sprite.modulate = Color(1.6, 0.4, 0.4)
 	var tw: Tween = create_tween()
-	tw.tween_property(sprite, "modulate", Color(1, 1, 1), 0.25)
+	tw.tween_property(sprite, "modulate", BASE_TINT, 0.25)
 
 func _on_invuln_end() -> void:
 	invulnerable = false
@@ -82,10 +90,11 @@ func _update_pickup_radius() -> void:
 		(pickup_shape.shape as CircleShape2D).radius = r
 
 func _apply_sprite() -> void:
-	# Load real Kenney pixel art (16x16 source, scale up 3x for readability).
+	# Kenney Tiny Dungeon tile_0087（板甲骑士），16x16 原始尺寸，scale 3x 到 48px。
 	var tex: Texture2D = load("res://assets/sprites/player/player.png") as Texture2D
 	if tex:
 		sprite.texture = tex
+		sprite.modulate = BASE_TINT
 		# Centre the sprite on the body so the camera follows the visual centre.
 		var cs: Node = get_node_or_null("CollisionShape2D")
 		if cs and cs.shape is CircleShape2D:

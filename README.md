@@ -54,7 +54,7 @@
 - [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
 - [x] **SystemCheck 启动诊断：autoload / 脚本 / 场景 / 资源 / 输入 / 升级库**
-- [x] **真实像素素材 (Kenney Tiny Dungeon 16×16)**：玩家 / 4 敌人 / 子弹 / 经验宝石 / 旋转刀 / 7 把武器挂件
+- [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；7 把武器挂件 + 2 种子弹手画（同调色板，`tools/` 下可复现）
 - [x] **程序化音效 SfxPlayer**：开火 / 命中 / 击杀 / 拾取 / 升级 共 5 短音（无外部 wav）
 - [x] **连击系统**：连续击杀累积连击、1.5s 无击杀归零、3/8/15 三级（连击/爆发/烈焰）
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
@@ -123,29 +123,61 @@ godot --headless res://scenes/dev/fusion_selftest.tscn
 
 **武器列表来源**是 Player 的 `BaseWeapon` 子节点，不经过 `WeaponDirector`。因为武器一律 `add_child` 到玩家身上，读节点树就让融合消耗基础武器、死亡重开、director 剪枝这三条路径全部自动同步，不需要额外信号。
 
-**贴图**：7 把武器全部用上了真实像素图，取自 Kenney Tiny Dungeon（和玩家 / 敌人 / 子弹同一套素材，风格统一）。`WeaponConfig.icon: Texture2D` 指向 `assets/sprites/weapons/mount_*.png`；`icon` 为 null 时才回退成按 `icon_size` + `sprite_color` 生成的渐变占位条（握把亮、枪口暗）。
+**贴图**：7 把武器全部用上了真实像素图，手画的枪械/冷兵器，用 Kenney Tiny Dungeon 的调色板（和玩家 / 敌人 / 子弹风格统一）。`WeaponConfig.icon: Texture2D` 指向 `assets/sprites/weapons/mount_*.png`；`icon` 为 null 时才回退成按 `icon_size` + `sprite_color` 生成的渐变占位条（握把亮、枪口暗）。
 
 **枢轴**用的是贴图自己的尺寸（`icon.get_size()`），不是 `icon_size`——后者只描述占位条。`offset.x = 宽度/2`，图形从挂点往前延伸，所以转起来是"枪管甩向目标"而不是绕中心打转。换任意尺寸的图都不用改 `.tres`。
 
-**朝向已烘进 PNG**：源瓦片是竖着的（刃尖朝上），生成时旋转成朝右（+X），对应 `rotation = 0`，握把落在挂点上。代码里没有朝向修正常数、也没有额外的枢轴节点。生成流程（`tile → 裁掉透明留白 → ROTATE_270 → 2× 最近邻放大`）：
+**朝向已烘进 PNG**：一律握把在左端、前端在右端，对应 `rotation = 0`（+X）。代码里没有朝向修正常数、也没有额外的枢轴节点。左右还必须**撑满画布**——枢轴按整张图宽度算，留白会把握把推离挂点。
 
-| 武器 | 源瓦片 | 挂件贴图 | 尺寸 |
+挂件由 `tools/gen_weapon_mounts.py` 生成，源数据是脚本里的半分辨率字符画（一个字符一格，落盘时 2× 最近邻放大，和其他 Kenney 素材同样的像素颗粒度）：
+
+```bash
+python tools/gen_weapon_mounts.py          # 重新生成到 assets/sprites/weapons/ 并校验
+python tools/gen_weapon_mounts.py --check  # 只校验现有文件
+```
+
+脚本自带格式校验，不满足就报错退出：RGBA / alpha 只有 0|255 / 颜色全在调色板内 / 每 2×2 一个同色块 / bbox 撑满画布 / 尺寸逐张匹配。
+
+| 武器 | 挂件贴图 | 尺寸 | 造型 |
 |---|---|---|---|
-| `bullet_volley` 弹雨 | `tile_0125` 银灰法杖 | `mount_bullet_volley.png` | 26×16 |
-| `chain_lightning` 闪电链 | `tile_0128` 蓝宝石杖 | `mount_chain_lightning.png` | 26×16 |
-| `orbiting_blades` 刀阵 | `tile_0104` 剑（同 `blade.png`） | `mount_orbiting_blades.png` | 32×16 |
-| `storm_volley` 雷暴弹雨 | `tile_0129` 紫雷杖 | `mount_storm_volley.png` | 32×16 |
-| `blade_barrage` 刀刃弹幕 | `tile_0106` 阔剑 | `mount_blade_barrage.png` | 32×16 |
-| `lightning_blade` 闪电刀阵 | `tile_0130` 青光斧 | `mount_lightning_blade.png` | 32×16 |
-| `apocalypse` 启示录 | `tile_0107` 红焰巨刃 | `mount_apocalypse.png` | 32×20 |
+| `bullet_volley` 弹雨 | `mount_bullet_volley.png` | 26×16 | 紧凑手枪，木握把 |
+| `chain_lightning` 闪电链 | `mount_chain_lightning.png` | 26×16 | 电枪，枪口两个青色线圈环 |
+| `orbiting_blades` 刀阵 | `mount_orbiting_blades.png` | 32×16 | 横置战斧，右端宽斧刃 |
+| `storm_volley` 雷暴弹雨 | `mount_storm_volley.png` | 32×16 | 电磁步枪，导轨发紫 |
+| `blade_barrage` 刀刃弹幕 | `mount_blade_barrage.png` | 32×16 | 三片飞刃并排 |
+| `lightning_blade` 闪电刀阵 | `mount_lightning_blade.png` | 32×16 | 等离子长刀，青色刀身 |
+| `apocalypse` 启示录 | `mount_apocalypse.png` | 32×20 | 末日重炮，炮口红色能量裂纹 |
 
 换图只需两步，零代码改动：PNG 丢进 `assets/sprites/weapons/`，在对应 `data/weapons/*.tres` 里设 `icon`。
+
+> 试过用文生图模型（Seedream）生成这套挂件，不可用：挂件有效分辨率只有 13×8 ~ 16×10 格，模型既守不住"前端朝右"（多次把枪口画在左边，而朝向是功能性约束），也画不出原素材那种描边密度（原图 51% 是描边色 `#3F2631`，降采样后的 AI 图几乎为 0），内部细节还会糊成一团。这个尺度只能手画。
 
 自检：
 
 ```bash
 godot --headless res://scenes/dev/weapon_mount_selftest.tscn
 ```
+
+## 子弹贴图
+
+玩家弹 `assets/sprites/bullets/bullet.png` 和敌弹 `enemy_bullet.png` 都是 16×16 RGBA，手画，由 `tools/gen_bullets.py` 生成。Kenney Tiny Dungeon 是地牢包，132 张瓦片里没有任何抛射物，所以这两张不是 Kenney 素材。
+
+```bash
+python tools/gen_bullets.py          # 重新生成到 assets/sprites/bullets/ 并校验
+python tools/gen_bullets.py --check  # 只校验现有文件
+```
+
+**朝向是功能性约束**：`bullet.gd` 和 `enemy_projectile.gd` 的 `setup()` 都做 `rotation = velocity.angle()`，`rotation = 0` 表示朝 +X。所以字符画一律**尾焰在左、尖头在右**，且左右必须撑满画布——留白会让子弹看起来比实际短，朝向也读不出来。上下**不要求**撑满：那条约束只属于挂件（`weapon_mounts._make_icon` 拿 `offset.x = 宽度/2` 当枢轴），子弹的 `Sprite2D` 是居中的。
+
+反过来上下留白还有好处：`bullet.tscn` 里 `CollisionShape2D` 半径只有 5.0（10px 直径），而 16×16 × `BULLET_SPRITE_SCALE` 2.0 = 32px 视觉。把造型画薄（有效 16×5 / 16×7）视觉降到 32×10 / 32×14，和判定框接近多了，**不用改任何常量或 .tscn**。
+
+和挂件工具的关键差异是 `BLOCK = 1`：挂件是从 16×8 瓦片裁片 2× 放大来的，一个字符占 2×2；子弹对标 Kenney 瓦片的**原生** 16×16 分辨率，一个字符就是一个像素。
+
+**玩家弹 / 敌弹靠造型 + 配色区分，不靠 `modulate`**：细长金黄曳光弹（`#F7C282` 亮核）vs 短粗红紫等离子球（`#D176D0` 品红高光）。原来 `enemy_projectile.gd` 里那句 `modulate = Color(1.0, 0.5, 0.5, 1)` 已经删掉——那时两张 PNG 逐像素相同，染色是唯一的区分手段；现在颜色烘进贴图，再叠一层红会把品红高光压死。
+
+子弹**没有拖尾**：`bullet.tscn` 里原本挂了个 `Line2D` 拖尾（`top_level = true`，每帧 `add_point` 保留 8 点），已经整节点连配套的 Gradient / Curve 一起移除，`bullet.gd` 里的 `trail_length` 和逐帧点管理也删了。
+
+校验断言和挂件同款，跑不过就非零退出：RGBA / alpha 只有 0|255 / 颜色全在调色板内 / 尺寸精确 16×16 / bbox 横向撑满 / 行列数与声明尺寸逐张匹配。
 
 ## 融合配方（`WeaponDirector.FUSION_RECIPES`）
 
@@ -237,6 +269,9 @@ SecondGame/
 │   ├── weapons/               # 3 WeaponConfig .tres
 │   └── world/
 │       └── default_wasteland.tres  # 64x64 地图默认配置（seed=1337）
+├── tools/
+│   ├── gen_weapon_mounts.py   # 生成 + 校验 7 张武器挂件贴图（Python + Pillow）
+│   └── gen_bullets.py         # 生成 + 校验 2 张子弹贴图（Python + Pillow）
 └── README.md
 ```
 
@@ -266,7 +301,7 @@ SecondGame/
 
 ## 已知限制 / 后续可扩展
 
-- 瓦片仍是程序化生成（64×64 手绘），只有角色 / 子弹 / 宝石 / 武器挂件换成了 Kenney 像素图
+- 瓦片仍是程序化生成（64×64 手绘），角色 / 宝石用 Kenney 像素图，武器挂件与子弹是手画的
 - 音效是程序合成的 5 个短音，没有 BGM
 - 毒沼只有减速/扣血，无视觉毒气动画
 - 敌人寻路未启用 avoidance（避免 60+ 实体时性能塌方）
@@ -275,7 +310,7 @@ SecondGame/
 - 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
 - `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
 - 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
-- 武器挂件是冷兵器 / 法杖贴图，不是枪械——Kenney Tiny Dungeon 里没有任何枪械素材（同批下载的 modern-city 只有道路设施，pixel-platformer 是 18×18 平台跳跃素材）
+- 武器挂件只有 13×8 ~ 16×10 格有效分辨率，造型全靠轮廓辨认，细节做不进去；文生图模型在这个尺度上不可用（详见「武器挂件」一节）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
 
 ## 扩展路线（不属于 MVP）

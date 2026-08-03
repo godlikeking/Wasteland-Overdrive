@@ -1,12 +1,9 @@
 extends Area2D
 ## Straight-line bullet. Damages enemies it touches and despawns once it runs
 ## out of pierces, travel distance, or lifetime. Also emits a `bullet_hit`
-## juice event on impact and drags a Line2D trail.
-
-@export var trail_length: int = 8   # number of points in the trail
+## juice event on impact.
 
 @onready var sprite: Sprite2D = $Sprite2D
-@onready var trail: Line2D = $Trail
 
 var velocity: Vector2 = Vector2.ZERO
 var damage: float = 10.0
@@ -46,21 +43,12 @@ func _ready() -> void:
 	area_entered.connect(_on_area_entered)
 	pierce_left = GameState.pierce_count
 	_apply_sprite()
-	# Trail draws in global space so it stays behind while bullet moves.
-	if trail:
-		trail.top_level = true
-		trail.clear_points()
-		trail.add_point(global_position)
 
 func _physics_process(delta: float) -> void:
 	var step: Vector2 = velocity * delta
 	global_position += step
 	_age += delta
 	_travelled += step.length()
-	if trail:
-		trail.add_point(global_position)
-		while trail.get_point_count() > trail_length:
-			trail.remove_point(0)
 	if max_distance > 0.0 and _travelled >= max_distance:
 		queue_free()
 		return

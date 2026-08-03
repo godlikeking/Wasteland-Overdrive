@@ -33,7 +33,8 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 	_apply_sprite()
-	modulate = Color(1.0, 0.5, 0.5, 1)
+	# 不再染色：红紫配色已经烘进 enemy_bullet.png，再叠一层红会把品红高光压死。
+	# 玩家弹 / 敌弹靠造型区分（细长金黄曳光弹 vs 短粗等离子球），不靠 modulate。
 	SfxPlayer.play("fire")
 
 func _physics_process(delta: float) -> void:
