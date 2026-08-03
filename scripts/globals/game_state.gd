@@ -39,6 +39,11 @@ var xp_gain_mult: float = 1.0
 var extra_projectiles: int = 0
 var hp_regen_per_sec: float = 0.0    # flat hp/sec
 
+# --- Projectile range / pierce ---
+var weapon_range_mult: float = 1.0        # 射程倍率，乘在 WeaponConfig.projectile_range 上
+var pierce_count: int = 0                 # 一颗子弹可额外穿透的敌人数
+var pierce_damage_falloff: float = 0.8    # 每穿透一个，后续伤害乘这个系数
+
 # --- Crit / combo ---
 var crit_rate: float = 0.05          # 基础 5% 暴击率
 var crit_damage_mult: float = 2.0    # 基础 2× 暴击伤害
@@ -75,6 +80,9 @@ func reset() -> void:
 	xp_gain_mult = 1.0
 	extra_projectiles = 0
 	hp_regen_per_sec = 0.0
+	weapon_range_mult = 1.0
+	pierce_count = 0
+	pierce_damage_falloff = 0.8
 	crit_rate = 0.05
 	crit_damage_mult = 2.0
 	_reset_combo()

@@ -49,11 +49,24 @@ func get_fire_interval() -> float:
 	var r: float = _fire_rate * float(GameState.fire_rate_mult)
 	return 1.0 / maxf(0.05, r)
 
-func _find_nearest_enemy() -> Node2D:
+## Effective projectile range in px, scaled by the player's range upgrades.
+## Returns 0.0 when the config leaves projectile_range unset, which every
+## caller treats as "unlimited".
+func get_range() -> float:
+	if config == null or config.projectile_range <= 0.0:
+		return 0.0
+	return config.projectile_range * GameState.weapon_range_mult
+
+## Nearest enemy, optionally capped to `max_range` px. max_range <= 0 means
+## unlimited — that's the default, so existing callers are unaffected.
+func _find_nearest_enemy(max_range: float = 0.0) -> Node2D:
 	if not is_instance_valid(_owner):
 		_owner = get_tree().get_first_node_in_group("player")
 	if _owner == null:
 		return null
+	var limit_sq: float = INF
+	if max_range > 0.0:
+		limit_sq = max_range * max_range
 	var enemies: Array = get_tree().get_nodes_in_group("enemies")
 	var best: Node2D = null
 	var best_d: float = INF
@@ -61,6 +74,8 @@ func _find_nearest_enemy() -> Node2D:
 		if not (e is Node2D):
 			continue
 		var d: float = (e.global_position - _owner.global_position).length_squared()
+		if d > limit_sq:
+			continue
 		if d < best_d:
 			best_d = d
 			best = e

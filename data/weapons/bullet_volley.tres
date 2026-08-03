@@ -15,6 +15,7 @@ projectile_scene = null
 projectile_speed = 520.0
 projectile_lifetime = 1.2
 projectile_spread_deg = 6.0
+projectile_range = 420.0
 blade_count = 3
 blade_orbit_radius = 90.0
 blade_orbit_speed = 3.0

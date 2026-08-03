@@ -13,6 +13,7 @@ max_level = 8
 projectile_speed = 620.0
 projectile_lifetime = 1.4
 projectile_spread_deg = 14.0
+projectile_range = 620.0
 blade_count = 8
 blade_orbit_radius = 130.0
 blade_orbit_speed = 4.0

@@ -65,7 +65,7 @@ func _build_blades() -> void:
 func _on_volley() -> void:
 	if config == null or config.projectile_scene == null or not is_instance_valid(_owner):
 		return
-	var target: Node2D = _find_nearest_enemy()
+	var target: Node2D = _find_nearest_enemy(get_range())
 	if target == null:
 		return
 	var base_dir: Vector2 = (target.global_position - _owner.global_position).normalized()
@@ -83,7 +83,7 @@ func _spawn_bullet(dir: Vector2, damage: float) -> void:
 	if b is Node2D:
 		(b as Node2D).global_position = _owner.global_position
 	if b.has_method("setup"):
-		b.setup(dir * config.projectile_speed, damage, config.projectile_lifetime)
+		b.setup(dir * config.projectile_speed, damage, config.projectile_lifetime, get_range())
 
 func _on_dash() -> void:
 	if _blades.is_empty():

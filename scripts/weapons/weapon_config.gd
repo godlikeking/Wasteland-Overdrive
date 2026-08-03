@@ -19,6 +19,9 @@ class_name WeaponConfig
 @export var projectile_speed: float = 520.0
 @export var projectile_lifetime: float = 1.2
 @export var projectile_spread_deg: float = 6.0
+# Max travel distance in px. 0 = unlimited (fall back to projectile_lifetime).
+# Weapons also refuse to fire when no enemy sits inside this radius.
+@export var projectile_range: float = 0.0
 
 @export var blade_count: int = 3                 # orbiting blades
 @export var blade_orbit_radius: float = 90.0

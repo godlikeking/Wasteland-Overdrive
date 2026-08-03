@@ -76,6 +76,16 @@ func _ready() -> void:
 		"暴击伤害倍率 +0.5×",
 		func(): GameState.crit_damage_mult += 0.5
 	))
+	_all.append(Upgrade.new(
+		"pierce_up", "贯穿弹芯",
+		"子弹穿透 +1（每次穿透伤害 ×0.8）",
+		func(): GameState.pierce_count += 1
+	))
+	_all.append(Upgrade.new(
+		"range_up", "磁轨加速管",
+		"子弹射程 +25%",
+		func(): GameState.weapon_range_mult *= 1.25
+	))
 	# --- Weapon "unlock" upgrades (only one of each, only when not yet owned) ---
 	_all.append(Upgrade.new(
 		"unlock_orbiting_blades", "解锁 · 刀阵",

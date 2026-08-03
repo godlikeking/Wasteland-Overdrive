@@ -65,7 +65,7 @@
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器全部 5 级时可触发融合面板；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
 
-## 已内建的 10 项被动升级
+## 已内建的 12 项被动升级
 
 | ID | 名称 | 效果 |
 |---|---|---|
@@ -79,6 +79,32 @@
 | `regen_up` | 纳米修复 | 每秒回血 +0.5 |
 | `crit_rate_up` | 暴击瞄准镜 | 暴击率 +5% |
 | `crit_damage_up` | 穿甲弹头 | 暴击伤害倍率 +0.5× |
+| `pierce_up` | 贯穿弹芯 | 子弹穿透 +1（每次穿透伤害 ×0.8） |
+| `range_up` | 磁轨加速管 | 子弹射程 +25% |
+
+## 射程与穿透
+
+子弹型武器都有射程上限（`WeaponConfig.projectile_range`，单位 px），由 `.tres` 数据驱动：
+
+| 武器 | 射程 | 速度 | 到达时间 |
+|---|---|---|---|
+| `bullet_volley` 弹雨 | 420 | 520 | 0.81s |
+| `blade_barrage` 刀刃弹幕 | 480 | 520 | 0.92s |
+| `storm_volley` 雷暴弹雨 | 520 | 580 | 0.90s |
+| `apocalypse` 启示录 | 620 | 620 | 1.00s |
+
+- **射程内无敌人则不开火**，不再朝空处乱喷。寻敌走 `BaseWeapon._find_nearest_enemy(get_range())`，`get_range()` 会把 `GameState.weapon_range_mult` 乘进去。
+- **射程优先于 lifetime**：`bullet.setup()` 里按 `max_distance / speed + 0.1` 反推 lifetime 下界，否则叠了「磁轨加速管」后 `projectile_lifetime` 会抢先掐断子弹，射程升级白买。
+- **穿透**：`GameState.pierce_count` 决定一颗子弹能额外打穿几个敌人，第 n 次命中的伤害为 `damage × 0.8^(n-1)`。同一敌人对同一颗子弹只结算一次（敌人没有无敌帧，重复进出碰撞圈会重复扣血 + 刷连击）。
+- 敌方弹幕（`enemy_projectile.tscn`）与敌人共用 layer 8，穿透扣减放在 `is_in_group("enemies")` 判断内部，所以飞过敌方弹幕不会白掉穿透次数。
+- 旋转刀的冲刺与闪电链**不受射程约束**，它们各有 `blade_dash_lifetime` / `chain_range` 管着。
+
+自检（exit 0 = 全绿）：
+
+```bash
+godot --headless res://scenes/dev/range_pierce_selftest.tscn
+godot --headless res://scenes/dev/fusion_selftest.tscn
+```
 
 ## 融合配方（`WeaponDirector.FUSION_RECIPES`）
 
@@ -205,6 +231,8 @@ SecondGame/
 - 敌人寻路未启用 avoidance（避免 60+ 实体时性能塌方）
 - 地图固定 4096×4096，未做"越打越大"扩展
 - 融合是单向的，融合后无法拆回基础武器；一局最多融合一次（基础武器被消耗）
+- 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
+- `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
 
 ## 扩展路线（不属于 MVP）
 

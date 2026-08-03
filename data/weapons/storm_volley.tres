@@ -13,6 +13,7 @@ max_level = 8
 projectile_speed = 580.0
 projectile_lifetime = 1.3
 projectile_spread_deg = 12.0
+projectile_range = 520.0
 chain_targets = 2
 chain_range = 160.0
 chain_cooldown = 0.4

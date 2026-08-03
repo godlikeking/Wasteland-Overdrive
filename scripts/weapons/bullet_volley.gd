@@ -34,7 +34,7 @@ func _fire() -> void:
 		return
 	if not is_instance_valid(_owner):
 		return
-	var target: Node2D = _find_nearest_enemy()
+	var target: Node2D = _find_nearest_enemy(get_range())
 	if target == null:
 		return
 	var to_target: Vector2 = (target.global_position - _owner.global_position).normalized()
@@ -53,4 +53,4 @@ func _spawn_bullet(dir: Vector2, damage: float) -> void:
 	get_tree().current_scene.add_child(b)
 	b.global_position = _owner.global_position
 	if b.has_method("setup"):
-		b.setup(dir * config.projectile_speed, damage, config.projectile_lifetime)
+		b.setup(dir * config.projectile_speed, damage, config.projectile_lifetime, get_range())

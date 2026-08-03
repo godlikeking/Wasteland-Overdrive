@@ -85,6 +85,8 @@ const REQUIRED_GAME_STATE_MEMBERS := [
 	"time_alive", "is_running", "level", "current_xp",
 	"damage_mult", "fire_rate_mult", "move_speed_mult", "max_hp_bonus",
 	"pickup_radius_mult", "xp_gain_mult", "extra_projectiles", "hp_regen_per_sec",
+	"crit_rate", "crit_damage_mult",
+	"weapon_range_mult", "pierce_count", "pierce_damage_falloff",
 ]
 
 var _failures: Array[String] = []

@@ -62,11 +62,11 @@ func _spawn_blades() -> void:
 func _on_volley() -> void:
 	if config == null or not is_instance_valid(_owner):
 		return
-	# 5-way fan
-	var target: Node2D = _find_nearest_enemy()
-	var base_dir: Vector2 = Vector2.RIGHT
-	if target:
-		base_dir = (target.global_position - _owner.global_position).normalized()
+	# 5-way fan. Nothing in range means we hold fire rather than spray blindly.
+	var target: Node2D = _find_nearest_enemy(get_range())
+	if target == null:
+		return
+	var base_dir: Vector2 = (target.global_position - _owner.global_position).normalized()
 	var n: int = 5
 	for i in range(n):
 		var off: float = (float(i) - float(n - 1) / 2.0) * deg_to_rad(config.projectile_spread_deg)
@@ -79,7 +79,7 @@ func _fire_bullet(dir: Vector2) -> void:
 	get_tree().current_scene.add_child(b)
 	b.global_position = _owner.global_position
 	if b.has_method("setup"):
-		b.setup(dir * config.projectile_speed, get_damage(), config.projectile_lifetime)
+		b.setup(dir * config.projectile_speed, get_damage(), config.projectile_lifetime, get_range())
 	SfxPlayer.play("fire")
 
 func _on_chain() -> void:
