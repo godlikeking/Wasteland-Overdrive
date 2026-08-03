@@ -26,10 +26,21 @@ func _on_node_removed(node: Node) -> void:
 func _on_tree_changed() -> void:
 	# Belt + suspenders: prune any entries whose target was freed.
 	for id in _weapons.keys():
-		var w: BaseWeapon = _weapons[id] as BaseWeapon
-		if w == null or not is_instance_valid(w):
+		if _live_weapon(id) == null:
 			_weapons.erase(id)
 			_weapon_levels.erase(id)
+
+## Fetch a still-alive weapon, or null. Validity has to be checked on the raw
+## Variant: `as BaseWeapon` on an already-freed object throws "Trying to cast a
+## freed object" right there, before any is_instance_valid() guard downstream
+## ever gets a look in.
+func _live_weapon(id: String) -> BaseWeapon:
+	if not _weapons.has(id):
+		return null
+	var raw: Variant = _weapons[id]
+	if not is_instance_valid(raw):
+		return null
+	return raw as BaseWeapon
 
 func _reset() -> void:
 	_weapons.clear()
@@ -136,8 +147,8 @@ func fuse(recipe_id: String) -> String:
 		return ""
 	# Now it is safe: remove the 2/3 base weapons from the player.
 	for need in (entry["needs"] as Array):
-		var w: BaseWeapon = _weapons[need] as BaseWeapon
-		if w and is_instance_valid(w):
+		var w: BaseWeapon = _live_weapon(need)
+		if w:
 			w.queue_free()
 		_weapons.erase(need)
 		_weapon_levels.erase(need)
@@ -163,7 +174,7 @@ func _debug_max_base_weapons() -> void:
 	for id in BASE_WEAPONS:
 		if _weapons.has(id):
 			_weapon_levels[id] = MAX_FUSE_LEVEL
-			var w: BaseWeapon = _weapons[id] as BaseWeapon
+			var w: BaseWeapon = _live_weapon(id)
 			if w:
 				w.level = MAX_FUSE_LEVEL
 				w._recompute_stats()
@@ -264,10 +275,10 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 func level_up_weapon_by_id(id: String, by: int = 1) -> void:
 	if not _weapons.has(id):
 		return
-	# Stale ref guard: in case the weapon node was freed between add and now
+# Stale ref guard: in case the weapon node was freed between add and now
 	# (e.g. scene reload while autoload persisted). Drop and bail.
-	var stored: BaseWeapon = _weapons[id] as BaseWeapon
-	if stored == null or not is_instance_valid(stored):
+	var stored: BaseWeapon = _live_weapon(id)
+	if stored == null:
 		_weapons.erase(id)
 		_weapon_levels.erase(id)
 		return

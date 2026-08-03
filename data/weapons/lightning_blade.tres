@@ -6,7 +6,9 @@
 script = ExtResource("1_wcfg")
 id = "lightning_blade"
 display_name = "闪电刀阵"
-sprite_color = Color(0.7, 0.85, 1, 1)
+sprite_color = Color(0.6, 0.75, 1, 1)
+icon = null
+icon_size = Vector2(18, 5)
 base_damage = 22.0
 base_fire_rate = 2.4
 max_level = 8

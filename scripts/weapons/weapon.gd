@@ -81,6 +81,15 @@ func _find_nearest_enemy(max_range: float = 0.0) -> Node2D:
 			best = e
 	return best
 
+## Direction this weapon currently aims, used by WeaponMounts to rotate the
+## icon it draws on the player. Vector2.ZERO means "no target" — the icon then
+## keeps whatever angle it already had instead of snapping back to 0.
+func get_aim_direction() -> Vector2:
+	var t: Node2D = _find_nearest_enemy(get_range())
+	if t == null or not is_instance_valid(_owner):
+		return Vector2.ZERO
+	return (t.global_position - _owner.global_position).normalized()
+
 func _find_n_nearest_enemies(n: int) -> Array:
 	if not is_instance_valid(_owner):
 		_owner = get_tree().get_first_node_in_group("player")

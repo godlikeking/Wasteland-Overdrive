@@ -9,6 +9,12 @@ class_name WeaponConfig
 @export var scene: PackedScene
 @export var sprite_color: Color = Color(1, 0.85, 0.3, 1)
 
+# --- On-body mount icon (drawn on the player by WeaponMounts) ---
+# Real artwork when we have it; leave null and a placeholder bar is generated
+# from icon_size + sprite_color, same trick player.tscn / blade.tscn already use.
+@export var icon: Texture2D
+@export var icon_size: Vector2 = Vector2(18, 6)
+
 # Per-level stats — used by Weapon._ready to roll initial numbers.
 @export var base_damage: float = 10.0
 @export var base_fire_rate: float = 2.5

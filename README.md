@@ -106,6 +106,44 @@ godot --headless res://scenes/dev/range_pierce_selftest.tscn
 godot --headless res://scenes/dev/fusion_selftest.tscn
 ```
 
+## 武器挂件（显示在玩家身上）
+
+`scenes/player.tscn` 下的 `WeaponMounts` 节点（`scripts/weapon_mounts.gd`）会为**每一把当前持有的武器**在玩家身上画一个小挂件。
+
+**挂点布局**按持有数量切换，所以一把融合武器不会歪在一边（玩家视觉 48×48、碰撞半径 14，挂点贴在身体边缘）：
+
+| 持有数 | 挂点（玩家局部坐标 px） |
+|---|---|
+| 1 | 肩上 `(0, -18)` |
+| 2 | 左右对称 `(-16, 6)` `(16, 6)` |
+| 3 | 左右 + 肩 `(-16, 8)` `(16, 8)` `(0, -18)` |
+| 4+ | 回退成半径 20 的均分环 |
+
+**朝向**：每个挂件独立转向自己武器的目标，走 `BaseWeapon.get_aim_direction()`（复用 `_find_nearest_enemy(get_range())`，所以子弹武器受射程约束，刀阵/闪电链不限距离）。目标扫描 **每 0.06s 一次**（敌人组可能 60+，每帧全扫是白烧 CPU），每帧用 `lerp_angle` 以 10 rad/s 平滑转。丢失目标时保持上一次方向并**把没转完的角度转完**，不冻在半路也不弹回 0。
+
+**武器列表来源**是 Player 的 `BaseWeapon` 子节点，不经过 `WeaponDirector`。因为武器一律 `add_child` 到玩家身上，读节点树就让融合消耗基础武器、死亡重开、director 剪枝这三条路径全部自动同步，不需要额外信号。
+
+**占位 → 真实贴图**：`WeaponConfig` 新增 `icon: Texture2D` 和 `icon_size: Vector2`。`icon` 为 null 时按 `icon_size` + `sprite_color` 生成一条渐变占位（握把亮、枪口暗，转起来能看出"尖端朝前"）。换真图只需两步，零代码改动：
+
+1. PNG 丢进 `assets/sprites/weapons/`
+2. 对应 `data/weapons/*.tres` 里设 `icon`
+
+| 武器 | icon_size | 挂件配色 |
+|---|---|---|
+| `bullet_volley` 弹雨 | 18×6 | 金黄 |
+| `chain_lightning` 闪电链 | 10×10 | 青蓝 |
+| `orbiting_blades` 刀阵 | 14×4 | 亮白蓝 |
+| `storm_volley` 雷暴弹雨 | 20×7 | 紫蓝 |
+| `blade_barrage` 刀刃弹幕 | 20×6 | 橙白 |
+| `lightning_blade` 闪电刀阵 | 18×5 | 青紫 |
+| `apocalypse` 启示录 | 24×8 | 红 |
+
+自检：
+
+```bash
+godot --headless res://scenes/dev/weapon_mount_selftest.tscn
+```
+
 ## 融合配方（`WeaponDirector.FUSION_RECIPES`）
 
 三把基础武器（弹雨 / 闪电链 / 旋转刀）全部升到 5 级后，下一次升级弹出融合面板。
@@ -233,6 +271,9 @@ SecondGame/
 - 融合是单向的，融合后无法拆回基础武器；一局最多融合一次（基础武器被消耗）
 - 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
 - `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
+- 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
+- 武器挂件目前全是程序化生成的占位色条，`assets/sprites/weapons/` 下只有一张 `blade.png`，没有枪械贴图
+- `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
 
 ## 扩展路线（不属于 MVP）
 
