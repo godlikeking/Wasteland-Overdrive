@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_apocalypse.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_wcfg")
 id = "apocalypse"
 display_name = "启示录"
 sprite_color = Color(1.0, 0.4, 0.4, 1)
-icon = null
+icon = ExtResource("2_icon")
 icon_size = Vector2(24, 8)
 base_damage = 25.0
 base_fire_rate = 3.0

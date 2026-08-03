@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_lightning_blade.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_wcfg")
 id = "lightning_blade"
 display_name = "闪电刀阵"
 sprite_color = Color(0.6, 0.75, 1, 1)
-icon = null
+icon = ExtResource("2_icon")
 icon_size = Vector2(18, 5)
 base_damage = 22.0
 base_fire_rate = 2.4

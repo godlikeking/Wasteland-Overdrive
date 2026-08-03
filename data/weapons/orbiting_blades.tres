@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_orbiting_blades.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_wcfg")
@@ -8,7 +9,7 @@ id = "orbiting_blades"
 display_name = "刀阵"
 scene = null
 sprite_color = Color(0.85, 0.95, 1, 1)
-icon = null
+icon = ExtResource("2_icon")
 icon_size = Vector2(14, 4)
 base_damage = 14.0
 base_fire_rate = 1.0

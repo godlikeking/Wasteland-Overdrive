@@ -54,7 +54,7 @@
 - [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
 - [x] **SystemCheck 启动诊断：autoload / 脚本 / 场景 / 资源 / 输入 / 升级库**
-- [x] **真实像素素材 (Kenney Tiny Dungeon 16×16)**：玩家 / 4 敌人 / 子弹 / 经验宝石 / 旋转刀
+- [x] **真实像素素材 (Kenney Tiny Dungeon 16×16)**：玩家 / 4 敌人 / 子弹 / 经验宝石 / 旋转刀 / 7 把武器挂件
 - [x] **程序化音效 SfxPlayer**：开火 / 命中 / 击杀 / 拾取 / 升级 共 5 短音（无外部 wav）
 - [x] **连击系统**：连续击杀累积连击、1.5s 无击杀归零、3/8/15 三级（连击/爆发/烈焰）
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
@@ -123,20 +123,23 @@ godot --headless res://scenes/dev/fusion_selftest.tscn
 
 **武器列表来源**是 Player 的 `BaseWeapon` 子节点，不经过 `WeaponDirector`。因为武器一律 `add_child` 到玩家身上，读节点树就让融合消耗基础武器、死亡重开、director 剪枝这三条路径全部自动同步，不需要额外信号。
 
-**占位 → 真实贴图**：`WeaponConfig` 新增 `icon: Texture2D` 和 `icon_size: Vector2`。`icon` 为 null 时按 `icon_size` + `sprite_color` 生成一条渐变占位（握把亮、枪口暗，转起来能看出"尖端朝前"）。换真图只需两步，零代码改动：
+**贴图**：7 把武器全部用上了真实像素图，取自 Kenney Tiny Dungeon（和玩家 / 敌人 / 子弹同一套素材，风格统一）。`WeaponConfig.icon: Texture2D` 指向 `assets/sprites/weapons/mount_*.png`；`icon` 为 null 时才回退成按 `icon_size` + `sprite_color` 生成的渐变占位条（握把亮、枪口暗）。
 
-1. PNG 丢进 `assets/sprites/weapons/`
-2. 对应 `data/weapons/*.tres` 里设 `icon`
+**枢轴**用的是贴图自己的尺寸（`icon.get_size()`），不是 `icon_size`——后者只描述占位条。`offset.x = 宽度/2`，图形从挂点往前延伸，所以转起来是"枪管甩向目标"而不是绕中心打转。换任意尺寸的图都不用改 `.tres`。
 
-| 武器 | icon_size | 挂件配色 |
-|---|---|---|
-| `bullet_volley` 弹雨 | 18×6 | 金黄 |
-| `chain_lightning` 闪电链 | 10×10 | 青蓝 |
-| `orbiting_blades` 刀阵 | 14×4 | 亮白蓝 |
-| `storm_volley` 雷暴弹雨 | 20×7 | 紫蓝 |
-| `blade_barrage` 刀刃弹幕 | 20×6 | 橙白 |
-| `lightning_blade` 闪电刀阵 | 18×5 | 青紫 |
-| `apocalypse` 启示录 | 24×8 | 红 |
+**朝向已烘进 PNG**：源瓦片是竖着的（刃尖朝上），生成时旋转成朝右（+X），对应 `rotation = 0`，握把落在挂点上。代码里没有朝向修正常数、也没有额外的枢轴节点。生成流程（`tile → 裁掉透明留白 → ROTATE_270 → 2× 最近邻放大`）：
+
+| 武器 | 源瓦片 | 挂件贴图 | 尺寸 |
+|---|---|---|---|
+| `bullet_volley` 弹雨 | `tile_0125` 银灰法杖 | `mount_bullet_volley.png` | 26×16 |
+| `chain_lightning` 闪电链 | `tile_0128` 蓝宝石杖 | `mount_chain_lightning.png` | 26×16 |
+| `orbiting_blades` 刀阵 | `tile_0104` 剑（同 `blade.png`） | `mount_orbiting_blades.png` | 32×16 |
+| `storm_volley` 雷暴弹雨 | `tile_0129` 紫雷杖 | `mount_storm_volley.png` | 32×16 |
+| `blade_barrage` 刀刃弹幕 | `tile_0106` 阔剑 | `mount_blade_barrage.png` | 32×16 |
+| `lightning_blade` 闪电刀阵 | `tile_0130` 青光斧 | `mount_lightning_blade.png` | 32×16 |
+| `apocalypse` 启示录 | `tile_0107` 红焰巨刃 | `mount_apocalypse.png` | 32×20 |
+
+换图只需两步，零代码改动：PNG 丢进 `assets/sprites/weapons/`，在对应 `data/weapons/*.tres` 里设 `icon`。
 
 自检：
 
@@ -263,7 +266,7 @@ SecondGame/
 
 ## 已知限制 / 后续可扩展
 
-- 瓦片仍是程序化生成（64×64 手绘），只有角色 / 子弹 / 宝石换成了 Kenney 像素图
+- 瓦片仍是程序化生成（64×64 手绘），只有角色 / 子弹 / 宝石 / 武器挂件换成了 Kenney 像素图
 - 音效是程序合成的 5 个短音，没有 BGM
 - 毒沼只有减速/扣血，无视觉毒气动画
 - 敌人寻路未启用 avoidance（避免 60+ 实体时性能塌方）
@@ -272,7 +275,7 @@ SecondGame/
 - 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
 - `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
 - 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
-- 武器挂件目前全是程序化生成的占位色条，`assets/sprites/weapons/` 下只有一张 `blade.png`，没有枪械贴图
+- 武器挂件是冷兵器 / 法杖贴图，不是枪械——Kenney Tiny Dungeon 里没有任何枪械素材（同批下载的 modern-city 只有道路设施，pixel-platformer 是 18×18 平台跳跃素材）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
 
 ## 扩展路线（不属于 MVP）

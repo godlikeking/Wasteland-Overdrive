@@ -1,13 +1,14 @@
-[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_storm_volley.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_wcfg")
 id = "storm_volley"
 display_name = "雷暴弹雨"
 sprite_color = Color(0.7, 0.7, 1.0, 1)
-icon = null
+icon = ExtResource("2_icon")
 icon_size = Vector2(20, 7)
 base_damage = 25.0
 base_fire_rate = 3.0

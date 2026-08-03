@@ -80,8 +80,10 @@ func _check_slots(t: String, n: int) -> bool:
 			return false
 	return true
 
-## Every icon needs a texture sized from its config, and it must be drawn
-## forward of the pivot so rotating it swings a barrel out.
+## Verify that every icon's texture matches its source and its pivot sits
+## at the grip so rotating it swings the barrel out toward the target.
+## When config.icon is null the generated placeholder is sized from icon_size;
+## when it carries real art the art's own dimensions win.
 func _test_placeholder_geometry() -> void:
 	var t: String = "placeholder_geometry"
 	var icons: Array[Sprite2D] = _mounts.icons()
@@ -92,24 +94,41 @@ func _test_placeholder_geometry() -> void:
 		if icon.texture == null:
 			_fail(t, "%s icon has no texture" % ids[i])
 			return
-		if icon.texture.get_width() != int(cfg.icon_size.x) or icon.texture.get_height() != int(cfg.icon_size.y):
-			_fail(t, "%s icon is %dx%d, config says %s" % [
-				ids[i], icon.texture.get_width(), icon.texture.get_height(), cfg.icon_size])
+		var expected_w: int
+		var expected_offset: float
+		if cfg.icon:
+			expected_w = int(cfg.icon.get_size().x)
+			expected_offset = cfg.icon.get_size().x * 0.5
+		else:
+			expected_w = int(cfg.icon_size.x)
+			expected_offset = cfg.icon_size.x * 0.5
+		if icon.texture.get_width() != expected_w:
+			_fail(t, "%s icon is %dx%d, expected width %d (cfg.icon=%s)" % [
+				ids[i], icon.texture.get_width(), icon.texture.get_height(),
+				expected_w, "yes" if cfg.icon else "no"])
 			return
-		if not is_equal_approx(icon.offset.x, cfg.icon_size.x * 0.5):
+		if not is_equal_approx(icon.offset.x, expected_offset):
 			_fail(t, "%s icon offset.x=%.1f, want %.1f (half its length)" % [
-				ids[i], icon.offset.x, cfg.icon_size.x * 0.5])
+				ids[i], icon.offset.x, expected_offset])
 			return
 	_ok(t, "%d icons sized from config, pivoted at the grip" % icons.size())
 
 ## Real artwork must win over the generated placeholder, so dropping a PNG into
-## a .tres is all it takes to replace the stand-in.
+## a .tres is all it takes to replace the stand-in. Also checks the shipped
+## config really carries art now, otherwise this would silently pass forever
+## if someone unhooked the PNGs.
 func _test_icon_texture_source() -> void:
 	var t: String = "icon_source"
 	var cfg: WeaponConfig = _config_for("bullet_volley")
 	if cfg == null:
 		_fail(t, "could not load bullet_volley config")
 		return
+	var shipped: Texture2D = cfg.icon
+	if shipped == null:
+		_fail(t, "bullet_volley.tres has no icon; the mount art is unhooked")
+		return
+
+	cfg.icon = null
 	var placeholder: Sprite2D = _mounts._make_icon(cfg)
 	var was_placeholder: bool = placeholder.texture is GradientTexture2D
 	placeholder.free()
@@ -120,15 +139,19 @@ func _test_icon_texture_source() -> void:
 	cfg.icon = real
 	var custom: Sprite2D = _mounts._make_icon(cfg)
 	var used_real: bool = custom.texture == real
+	# Art dimensions, not icon_size, must drive the pivot.
+	var pivot_from_art: bool = is_equal_approx(custom.offset.x, 3.5)
 	custom.free()
-	cfg.icon = null   # leave the shared resource as we found it
+	cfg.icon = shipped   # leave the shared resource as we found it
 
 	if not was_placeholder:
 		_fail(t, "a config with icon=null did not get a GradientTexture2D placeholder")
 	elif not used_real:
 		_fail(t, "config.icon was ignored, placeholder used instead")
+	elif not pivot_from_art:
+		_fail(t, "offset.x=%.1f, want 3.5 (half the 7px art, not icon_size)" % custom.offset.x)
 	else:
-		_ok(t, "icon=null -> placeholder, icon=Texture2D -> that texture")
+		_ok(t, "icon=null -> placeholder, icon=Texture2D -> that texture, pivot from art")
 
 # --- aiming --------------------------------------------------------------
 

@@ -135,10 +135,16 @@ func _make_icon(cfg: WeaponConfig) -> Sprite2D:
 		size = DEFAULT_ICON_SIZE
 	if cfg and cfg.icon:
 		s.texture = cfg.icon
+		# Real artwork carries its own dimensions, so pivot off those rather than
+		# icon_size (which only ever described the generated placeholder bar).
+		# Lets us drop in art of any size without touching the .tres.
+		size = cfg.icon.get_size()
 	else:
 		s.texture = _placeholder(size, cfg.sprite_color if cfg else Color(1, 1, 1, 1))
 	# Draw forward from the pivot instead of centred on it, so rotating the icon
 	# swings a barrel out toward the target rather than spinning about its middle.
+	# The art is authored pointing along +X (grip at the left edge), matching
+	# rotation 0, so the grip lands on the mount point.
 	s.offset = Vector2(size.x * 0.5, 0.0)
 	return s
 

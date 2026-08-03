@@ -275,7 +275,7 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 func level_up_weapon_by_id(id: String, by: int = 1) -> void:
 	if not _weapons.has(id):
 		return
-# Stale ref guard: in case the weapon node was freed between add and now
+	# Stale ref guard: in case the weapon node was freed between add and now
 	# (e.g. scene reload while autoload persisted). Drop and bail.
 	var stored: BaseWeapon = _live_weapon(id)
 	if stored == null:
