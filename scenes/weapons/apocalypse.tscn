@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/apocalypse.gd" id="1_apo"]
+
+[node name="Apocalypse" type="Node2D"]
+script = ExtResource("1_apo")
+
+[node name="Blades" type="Node2D" parent="."]
+
+[node name="VolleyTimer" type="Timer" parent="."]
+one_shot = false
+
+[node name="ChainTimer" type="Timer" parent="."]
+one_shot = false
+
+[node name="NukeTimer" type="Timer" parent="."]
+one_shot = false

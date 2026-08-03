@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "lightning_blade"
+display_name = "闪电刀阵"
+sprite_color = Color(0.7, 0.85, 1, 1)
+base_damage = 22.0
+base_fire_rate = 2.4
+max_level = 8
+blade_count = 4
+blade_orbit_radius = 100.0
+blade_orbit_speed = 4.0
+blade_dash_interval = 1.0
+blade_dash_speed = 600.0
+blade_dash_lifetime = 0.6
+chain_targets = 3
+chain_range = 180.0
+chain_cooldown = 0.8
+chain_damage_falloff = 0.8

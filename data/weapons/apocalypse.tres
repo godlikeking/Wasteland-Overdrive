@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "apocalypse"
+display_name = "启示录"
+sprite_color = Color(1.0, 0.4, 0.4, 1)
+base_damage = 25.0
+base_fire_rate = 3.0
+max_level = 8
+projectile_speed = 620.0
+projectile_lifetime = 1.4
+projectile_spread_deg = 14.0
+blade_count = 8
+blade_orbit_radius = 130.0
+blade_orbit_speed = 4.0
+blade_dash_interval = 0.9
+blade_dash_speed = 720.0
+blade_dash_lifetime = 0.7
+chain_targets = 4
+chain_range = 200.0
+chain_cooldown = 0.8
+chain_damage_falloff = 0.9

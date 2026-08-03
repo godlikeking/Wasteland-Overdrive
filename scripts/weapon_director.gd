@@ -54,6 +54,120 @@ const WEAPON_CATALOG := {
 	},
 }
 
+# --- Fusion (Iter7) ---
+# When 3 base weapons are all at MAX_FUSE_LEVEL, the player can choose
+# a fusion recipe. Pick 2-of-3 to get a "combo" super weapon; pick all 3
+# to get the ultimate "apocalypse" super weapon.
+const BASE_WEAPONS: Array[String] = ["bullet_volley", "chain_lightning", "orbiting_blades"]
+const MAX_FUSE_LEVEL: int = 5
+signal fused(new_id: String, recipe: Array)
+
+const FUSION_RECIPES := {
+	"storm_volley":   {"needs": ["bullet_volley", "chain_lightning"],
+					   "name": "雷暴弹雨", "config": "res://data/weapons/storm_volley.tres"},
+	"blade_barrage":  {"needs": ["bullet_volley", "orbiting_blades"],
+					   "name": "刀刃弹幕", "config": "res://data/weapons/blade_barrage.tres"},
+	"lightning_blade":{"needs": ["chain_lightning", "orbiting_blades"],
+					   "name": "闪电刀阵", "config": "res://data/weapons/lightning_blade.tres"},
+	"apocalypse":     {"needs": ["bullet_volley", "chain_lightning", "orbiting_blades"],
+					   "name": "启示录",   "config": "res://data/weapons/apocalypse.tres"},
+}
+
+## Returns Array of {id, name, recipe, level} for every recipe the player
+## can fuse right now, given current weapons and levels. Empty if not.
+func fuse_candidates() -> Array:
+	var lvls: Dictionary = {}
+	for id in BASE_WEAPONS:
+		if not _weapons.has(id):
+			return []
+		lvls[id] = int(_weapon_levels.get(id, 0))
+		if lvls[id] < MAX_FUSE_LEVEL:
+			return []
+	# All 3 base weapons at MAX_FUSE_LEVEL — eligible.
+	var owned: Array[String] = []
+	for id in BASE_WEAPONS:
+		owned.append(id)
+	var out: Array = []
+	for fid in FUSION_RECIPES.keys():
+		if _weapons.has(fid):
+			continue  # already fused
+		var needs: Array = (FUSION_RECIPES[fid] as Dictionary)["needs"]
+		var ok: bool = true
+		for need in needs:
+			if not owned.has(need):
+				ok = false
+				break
+		if ok and ResourceLoader.exists("res://scenes/weapons/%s.tscn" % fid):
+			out.append({
+				"id": fid,
+				"name": (FUSION_RECIPES[fid] as Dictionary)["name"],
+				"recipe": needs,
+			})
+	return out
+
+## Perform the fusion. Unlocks the super weapon and frees the 2/3 base
+## weapons listed in its recipe. Returns the new weapon id, or "" on
+## failure.
+func fuse(recipe_id: String) -> String:
+	var entry: Dictionary = FUSION_RECIPES.get(recipe_id, {})
+	if entry.is_empty():
+		push_error("[WeaponDirector] unknown recipe %s" % recipe_id)
+		return ""
+	# Eligibility: base weapons still at MAX_FUSE_LEVEL.
+	for need in (entry["needs"] as Array):
+		if not _weapons.has(need):
+			return ""
+		if int(_weapon_levels.get(need, 0)) < MAX_FUSE_LEVEL:
+			return ""
+	# Already fused?
+	if _weapons.has(recipe_id):
+		return recipe_id
+	# Resolve config + scene BEFORE destroying anything. If an asset is
+	# missing we must bail with the player's arsenal still intact.
+	# Scene path follows the convention res://scenes/weapons/<id>.tscn
+	var cfg_res: Resource = ResourceLoader.load(entry["config"])
+	if not (cfg_res is WeaponConfig):
+		push_error("[WeaponDirector] fusion %s missing config %s" % [recipe_id, entry["config"]])
+		return ""
+	var cfg: WeaponConfig = cfg_res as WeaponConfig
+	var scene_res: PackedScene = _scene_for_fusion(recipe_id)
+	if scene_res == null:
+		push_error("[WeaponDirector] fusion %s missing scene" % recipe_id)
+		return ""
+	# Now it is safe: remove the 2/3 base weapons from the player.
+	for need in (entry["needs"] as Array):
+		var w: BaseWeapon = _weapons[need] as BaseWeapon
+		if w and is_instance_valid(w):
+			w.queue_free()
+		_weapons.erase(need)
+		_weapon_levels.erase(need)
+	# Fusion weapons also need runtime refs (projectile_scene / blade_scene)
+	# injected so subclasses can find them. Use the add_weapon_with_extras
+	# path so the blade scene is wired via setup_blade_scene.
+	var blade_ps: PackedScene = ResourceLoader.load("res://scenes/weapons/blade.tscn") as PackedScene
+	if blade_ps:
+		add_weapon_with_extras(cfg, scene_res, {"blade_scene": blade_ps})
+	else:
+		add_weapon(cfg, scene_res)
+	fused.emit(recipe_id, (entry["needs"] as Array))
+	print("[WeaponDirector] FUSED -> %s" % recipe_id)
+	return recipe_id
+
+func _scene_for_fusion(recipe_id: String) -> PackedScene:
+	var path: String = "res://scenes/weapons/%s.tscn" % recipe_id
+	var res: PackedScene = ResourceLoader.load(path) as PackedScene
+	return res
+
+## Test helper / debug: force all 3 base weapons to MAX_FUSE_LEVEL.
+func _debug_max_base_weapons() -> void:
+	for id in BASE_WEAPONS:
+		if _weapons.has(id):
+			_weapon_levels[id] = MAX_FUSE_LEVEL
+			var w: BaseWeapon = _weapons[id] as BaseWeapon
+			if w:
+				w.level = MAX_FUSE_LEVEL
+				w._recompute_stats()
+
 func _resolve_world_container() -> Node2D:
 	if _world_container and is_instance_valid(_world_container):
 		return _world_container
@@ -86,12 +200,15 @@ func add_weapon(config: WeaponConfig, scene: PackedScene) -> void:
 		_weapon_levels[config.id] = 1
 		print("[WeaponDirector] added %s (lv1)" % config.id)
 
+## Weapons that fire the shared bullet.tscn projectile. Their .tres leaves
+## projectile_scene null so the data folder stays free of scene refs.
+const BULLET_USERS: Array[String] = [
+	"bullet_volley", "storm_volley", "blade_barrage", "apocalypse",
+]
+
 func _inject_runtime_refs(weapon_id: String, config: WeaponConfig) -> void:
-	var entry: Dictionary = WEAPON_CATALOG.get(weapon_id, {})
-	if entry.is_empty():
-		return
-	if weapon_id == "bullet_volley" and config.projectile_scene == null:
-		var p: PackedScene = ResourceLoader.load(entry.get("projectile", "")) as PackedScene
+	if weapon_id in BULLET_USERS and config.projectile_scene == null:
+		var p: PackedScene = ResourceLoader.load("res://scenes/bullet.tscn") as PackedScene
 		if p:
 			config.projectile_scene = p
 
@@ -135,7 +252,7 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 	# their own property types and can assign them safely).
 	for k in extras.keys():
 		var v: Variant = extras[k]
-		if k == "blade_scene" and v is PackedScene:
+		if k == "blade_scene" and v is PackedScene and inst.has_method("setup_blade_scene"):
 			inst.setup_blade_scene(v as PackedScene)
 	parent.add_child(inst)
 	if inst is BaseWeapon:
