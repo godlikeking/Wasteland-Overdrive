@@ -21,6 +21,10 @@ signal request_hit_stop(duration: float)
 signal combo_changed(current: int, level: int)   # 连击变化
 signal levelup_anim_done                              # 升级动画结束（预留）
 
+# --- Pickup-item state (Iter8) ---
+signal shield_changed(charges: int)
+signal time_stop_changed(remaining: float)
+
 # --- Run state ---
 var time_alive: float = 0.0
 var is_running: bool = false
@@ -52,7 +56,22 @@ var combo_decay: float = 1.5         # 连击 N 秒内无新击杀则归零
 var combo_window: float = 1.5        # 击杀间隔上限（秒）
 var _combo_accum: float = 0.0        # 自上次击杀以来经过的秒数
 
+# --- Pickup items (Iter8) ---
+## Remaining hits the shield will absorb. Each hit consumes one charge.
+var shield_charges: int = 0
+## Seconds of "enemies frozen" left. Enemies and enemy projectiles check
+## `is_time_stopped()` and bail out of their physics step; the player is
+## untouched, which is why this never goes near `Engine.time_scale`
+## (fx_manager's hit-stop owns that and would fight us for it).
+var time_stop_left: float = 0.0
+
 func _process(delta: float) -> void:
+	# Ticked outside the `is_running` guard: time-stop is a real-time effect and
+	# must expire even while a modal (level-up, shop) has gameplay paused —
+	# otherwise a player could bank the whole freeze across a menu.
+	if time_stop_left > 0.0:
+		time_stop_left = maxf(0.0, time_stop_left - delta)
+		time_stop_changed.emit(time_stop_left)
 	if is_running:
 		time_alive += delta
 		time_changed.emit(time_alive)
@@ -61,6 +80,34 @@ func _process(delta: float) -> void:
 			_combo_accum += delta
 			if _combo_accum >= combo_window:
 				_reset_combo()
+
+# --- Pickup-item API ---
+
+## True while the time-stop item is active. Enemies must not act.
+func is_time_stopped() -> bool:
+	return time_stop_left > 0.0
+
+## Start (or extend) the enemy freeze. Extending takes the longer of the two so
+## a second pickup can never shorten an active freeze.
+func start_time_stop(seconds: float) -> void:
+	time_stop_left = maxf(time_stop_left, seconds)
+	time_stop_changed.emit(time_stop_left)
+
+## Add shield charges. Each one absorbs a full hit, no matter its damage.
+func add_shield(charges: int) -> void:
+	if charges <= 0:
+		return
+	shield_charges += charges
+	shield_changed.emit(shield_charges)
+
+## Spend one shield charge. Returns true if a hit was absorbed, which is the
+## caller's cue to skip the health loss.
+func consume_shield() -> bool:
+	if shield_charges <= 0:
+		return false
+	shield_charges -= 1
+	shield_changed.emit(shield_charges)
+	return true
 
 func _reset_combo() -> void:
 	combo_count = 0
@@ -85,6 +132,10 @@ func reset() -> void:
 	pierce_damage_falloff = 0.8
 	crit_rate = 0.05
 	crit_damage_mult = 2.0
+	shield_charges = 0
+	time_stop_left = 0.0
+	shield_changed.emit(0)
+	time_stop_changed.emit(0.0)
 	_reset_combo()
 
 ## Roll for a crit hit. Returns the damage multiplier (≥1.0).

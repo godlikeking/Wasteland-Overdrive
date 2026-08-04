@@ -12,6 +12,11 @@ var _weapons: Dictionary = {}      # config_id -> BaseWeapon
 var _weapon_levels: Dictionary = {}  # config_id -> int
 var _world_container: Node2D = null
 
+## Hard cap on simultaneously equipped weapons. The catalog holds exactly 12
+## reachable ids (8 base + 4 fusions), so a player who never fuses can fill
+## every slot, and fusing frees slots as it consumes its ingredients.
+const MAX_WEAPONS: int = 12
+
 func _ready() -> void:
 	# Reset state when the tree becomes empty (after a death and before
 	# the next scene finishes loading). This drops freed refs.
@@ -50,18 +55,49 @@ func _reset() -> void:
 
 const WEAPON_CATALOG := {
 	"bullet_volley": {
+		"name": "弹雨",
 		"config": "res://data/weapons/bullet_volley.tres",
 		"scene": "res://scenes/weapons/bullet_volley.tscn",
 		"projectile": "res://scenes/bullet.tscn",
 	},
 	"orbiting_blades": {
+		"name": "环绕刀刃",
 		"config": "res://data/weapons/orbiting_blades.tres",
 		"scene": "res://scenes/weapons/orbiting_blades.tscn",
 		"blade": "res://scenes/weapons/blade.tscn",
 	},
 	"chain_lightning": {
+		"name": "连锁闪电",
 		"config": "res://data/weapons/chain_lightning.tres",
 		"scene": "res://scenes/weapons/chain_lightning.tscn",
+	},
+	"shotgun": {
+		"name": "散弹枪",
+		"config": "res://data/weapons/shotgun.tres",
+		"scene": "res://scenes/weapons/shotgun.tscn",
+		"projectile": "res://scenes/bullet.tscn",
+	},
+	"laser_lance": {
+		"name": "磁轨激光",
+		"config": "res://data/weapons/laser_lance.tres",
+		"scene": "res://scenes/weapons/laser_lance.tscn",
+	},
+	"mine_layer": {
+		"name": "地雷布设器",
+		"config": "res://data/weapons/mine_layer.tres",
+		"scene": "res://scenes/weapons/mine_layer.tscn",
+		"mine": "res://scenes/weapons/mine.tscn",
+	},
+	"flamethrower": {
+		"name": "火焰喷射器",
+		"config": "res://data/weapons/flamethrower.tres",
+		"scene": "res://scenes/weapons/flamethrower.tscn",
+	},
+	"homing_dart": {
+		"name": "追踪飞镖",
+		"config": "res://data/weapons/homing_dart.tres",
+		"scene": "res://scenes/weapons/homing_dart.tscn",
+		"projectile": "res://scenes/bullet.tscn",
 	},
 }
 
@@ -190,19 +226,92 @@ func _resolve_world_container() -> Node2D:
 func has_weapon(id: String) -> bool:
 	return _weapons.has(id)
 
-func add_weapon(config: WeaponConfig, scene: PackedScene) -> void:
+## Weapons currently equipped. Used by the HUD and the full-slot guards.
+func slots_used() -> int:
+	return _weapons.size()
+
+func is_full() -> bool:
+	return _weapons.size() >= MAX_WEAPONS
+
+## Current level of an owned weapon, or 0 if it isn't equipped. Lets callers
+## observe a level-up without reaching into `_weapon_levels`.
+func weapon_level_of(id: String) -> int:
+	if not _weapons.has(id):
+		return 0
+	return int(_weapon_levels.get(id, 1))
+
+## Human-readable name for a weapon id, for HUD text and pickup labels. Falls
+## back to the id so a missing entry is visible rather than blank.
+func display_name_of(id: String) -> String:
+	if FUSION_RECIPES.has(id):
+		return String((FUSION_RECIPES[id] as Dictionary)["name"])
+	var entry: Dictionary = WEAPON_CATALOG.get(id, {})
+	if entry.has("name"):
+		return String(entry["name"])
+	return id
+
+## Every catalog id the player does not own yet, in catalog order.
+func missing_weapon_ids() -> Array[String]:
+	var out: Array[String] = []
+	for id in WEAPON_CATALOG.keys():
+		if not _weapons.has(id):
+			out.append(String(id))
+	return out
+
+## Ids the player currently has equipped, fusions included. WEAPON_CATALOG only
+## covers the base weapons, so callers that must cover the whole arsenal (HUD
+## listings, level-up bookkeeping) need this instead.
+func owned_weapon_ids() -> Array[String]:
+	var out: Array[String] = []
+	for id in _weapons.keys():
+		out.append(String(id))
+	return out
+
+## Used by the weapon pickup item. Grants one random unowned weapon and returns
+## its id. Returns "" when nothing could be granted (all slots full, or the
+## player already owns every catalog weapon) so the caller can say so instead of
+## silently swallowing the drop.
+func grant_random_weapon() -> String:
+	if is_full():
+		return ""
+	var pool: Array[String] = missing_weapon_ids()
+	if pool.is_empty():
+		return ""
+	var id: String = pool[randi() % pool.size()]
+	add_weapon_by_id(id)
+	# add_weapon_by_id can still bail on a missing asset, so confirm.
+	if not _weapons.has(id):
+		return ""
+	return id
+
+## Fallback for the weapon pickup when every slot is taken: level up a random
+## weapon the player already owns. Returns its id, or "" if they own nothing.
+func level_up_random_weapon() -> String:
+	var ids: Array = _weapons.keys()
+	if ids.is_empty():
+		return ""
+	var id: String = String(ids[randi() % ids.size()])
+	level_up_weapon_by_id(id)
+	return id
+
+func add_weapon(config: WeaponConfig, scene: PackedScene) -> bool:
 	if config == null or scene == null:
-		return
+		return false
 	if _weapons.has(config.id):
 		level_up_weapon_by_id(config.id)
-		return
+		return true
+	# Slot cap. Checked after the "already owned" branch so a level-up is never
+	# blocked by a full arsenal — only brand-new weapons are.
+	if is_full():
+		print("[WeaponDirector] slots full (%d), rejected %s" % [MAX_WEAPONS, config.id])
+		return false
 	# Inject runtime scene refs that come from this game's data folder
 	# rather than being baked into the WeaponConfig .tres.
 	_inject_runtime_refs(config.id, config)
 	var parent: Node2D = _resolve_world_container()
 	if parent == null:
 		push_error("[WeaponDirector] no player found to parent weapons under")
-		return
+		return false
 	var inst: Node = scene.instantiate()
 	parent.add_child(inst)
 	if inst is BaseWeapon:
@@ -210,18 +319,29 @@ func add_weapon(config: WeaponConfig, scene: PackedScene) -> void:
 		_weapons[config.id] = inst
 		_weapon_levels[config.id] = 1
 		print("[WeaponDirector] added %s (lv1)" % config.id)
+		return true
+	return false
 
 ## Weapons that fire the shared bullet.tscn projectile. Their .tres leaves
 ## projectile_scene null so the data folder stays free of scene refs.
 const BULLET_USERS: Array[String] = [
 	"bullet_volley", "storm_volley", "blade_barrage", "apocalypse",
+	"shotgun", "homing_dart",
 ]
+
+## Weapons that place mine.tscn. Same reasoning as BULLET_USERS: the scene ref
+## is resolved here so mine_layer.tres stays pure data.
+const MINE_USERS: Array[String] = ["mine_layer"]
 
 func _inject_runtime_refs(weapon_id: String, config: WeaponConfig) -> void:
 	if weapon_id in BULLET_USERS and config.projectile_scene == null:
 		var p: PackedScene = ResourceLoader.load("res://scenes/bullet.tscn") as PackedScene
 		if p:
 			config.projectile_scene = p
+	if weapon_id in MINE_USERS and config.mine_scene == null:
+		var m: PackedScene = ResourceLoader.load("res://scenes/weapons/mine.tscn") as PackedScene
+		if m:
+			config.mine_scene = m
 
 func add_weapon_by_id(id: String) -> void:
 	if has_weapon(id):
@@ -247,17 +367,20 @@ func add_weapon_by_id(id: String) -> void:
 	else:
 		push_error("[WeaponDirector] failed to load config/scene for %s" % id)
 
-func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Dictionary) -> void:
+func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Dictionary) -> bool:
 	if config == null or scene == null:
-		return
+		return false
 	if _weapons.has(config.id):
 		level_up_weapon_by_id(config.id)
-		return
+		return true
+	if is_full():
+		print("[WeaponDirector] slots full (%d), rejected %s" % [MAX_WEAPONS, config.id])
+		return false
 	_inject_runtime_refs(config.id, config)
 	var parent: Node2D = _resolve_world_container()
 	if parent == null:
 		push_error("[WeaponDirector] no player found to parent weapons under")
-		return
+		return false
 	var inst: Node = scene.instantiate()
 	# Pass extras to the weapon via a typed extras call (subclasses know
 	# their own property types and can assign them safely).
@@ -271,6 +394,8 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 		_weapons[config.id] = inst
 		_weapon_levels[config.id] = 1
 		print("[WeaponDirector] added %s (lv1)" % config.id)
+		return true
+	return false
 
 func level_up_weapon_by_id(id: String, by: int = 1) -> void:
 	if not _weapons.has(id):

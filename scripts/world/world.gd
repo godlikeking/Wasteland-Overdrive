@@ -35,3 +35,9 @@ func get_builder() -> TilemapBuilder:
 
 func get_tilemap() -> TileMap:
 	return tilemap
+
+## Elite camp centres in world space. Empty until the builder has run.
+func camp_centers() -> Array[Vector2]:
+	if builder == null:
+		return []
+	return builder.camp_centers()

@@ -40,3 +40,33 @@ class_name WeaponConfig
 @export var chain_range: float = 140.0
 @export var chain_cooldown: float = 1.6
 @export var chain_damage_falloff: float = 0.8    # each jump
+
+# --- Iter8 base weapons ---
+# Shotgun. `pellet_count` is the base spread size; GameState.extra_projectiles
+# still stacks on top, same as bullet_volley.
+@export var pellet_count: int = 5
+
+# Laser lance. Hitscan, so it has no projectile: everything inside a
+# laser_length x laser_width band along the aim direction is hit at once.
+@export var laser_length: float = 520.0
+@export var laser_width: float = 26.0
+@export var laser_cooldown: float = 1.4
+
+# Mine layer. Mines arm after `mine_arm_time` so they can't detonate in the
+# player's face, and self-destruct after `mine_lifetime`.
+@export var mine_scene: PackedScene
+@export var mine_interval: float = 2.2
+@export var mine_arm_time: float = 0.4
+@export var mine_lifetime: float = 8.0
+@export var mine_blast_radius: float = 150.0
+## Cap on simultaneously live mines, so a long run doesn't carpet the map.
+@export var mine_max_active: int = 6
+
+# Flamethrower. A cone that damages everything inside it every `flame_tick`.
+@export var flame_range: float = 160.0
+@export var flame_arc_deg: float = 60.0
+@export var flame_tick: float = 0.15
+
+# Homing dart. Radians per second the dart may turn toward its target; 0 would
+# leave it an ordinary straight bullet.
+@export var homing_turn_rate: float = 5.0

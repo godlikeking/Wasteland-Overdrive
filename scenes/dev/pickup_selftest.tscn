@@ -1,0 +1,25 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/pickup_selftest.gd" id="1_selftest"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/world/world.gd" id="3_world"]
+[ext_resource type="Resource" path="res://data/world/default_wasteland.tres" id="4_wcfg"]
+[ext_resource type="Script" path="res://scripts/spawn_director.gd" id="5_spawn"]
+[ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="6_enemy"]
+
+[node name="PickupSelfTest" type="Node2D"]
+script = ExtResource("1_selftest")
+
+[node name="World" type="Node2D" parent="."]
+script = ExtResource("3_world")
+wasteland_config = ExtResource("4_wcfg")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="SpawnDirector" type="Node2D" parent="."]
+script = ExtResource("5_spawn")
+enemy_scene = ExtResource("6_enemy")
+player_path = NodePath("../Player")
+base_interval = 9999.0
+elite_interval = 9999.0
+boss_spawn_time = 99999.0

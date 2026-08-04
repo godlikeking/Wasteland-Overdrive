@@ -99,6 +99,36 @@ func _ready() -> void:
 		func(): WeaponDirector.add_weapon_by_id("chain_lightning"),
 		"weapon_unlock"
 	))
+	_all.append(Upgrade.new(
+		"unlock_shotgun", "解锁 · 散弹枪",
+		"近距离扇形喷射多枚弹丸",
+		func(): WeaponDirector.add_weapon_by_id("shotgun"),
+		"weapon_unlock"
+	))
+	_all.append(Upgrade.new(
+		"unlock_laser_lance", "解锁 · 磁轨激光",
+		"瞬发长条光束，贯穿路径上全部敌人",
+		func(): WeaponDirector.add_weapon_by_id("laser_lance"),
+		"weapon_unlock"
+	))
+	_all.append(Upgrade.new(
+		"unlock_mine_layer", "解锁 · 地雷布设器",
+		"在脚下留雷，敌人踩中即爆",
+		func(): WeaponDirector.add_weapon_by_id("mine_layer"),
+		"weapon_unlock"
+	))
+	_all.append(Upgrade.new(
+		"unlock_flamethrower", "解锁 · 火焰喷射器",
+		"面前锥形范围持续灼烧",
+		func(): WeaponDirector.add_weapon_by_id("flamethrower"),
+		"weapon_unlock"
+	))
+	_all.append(Upgrade.new(
+		"unlock_homing_dart", "解锁 · 追踪飞镖",
+		"发射会自动转向最近敌人的飞镖",
+		func(): WeaponDirector.add_weapon_by_id("homing_dart"),
+		"weapon_unlock"
+	))
 	# --- Weapon "level up" upgrades (one of each, only when already owned) ---
 	_all.append(Upgrade.new(
 		"level_bullet_volley", "弹雨 +1",
@@ -118,10 +148,41 @@ func _ready() -> void:
 		func(): WeaponDirector.level_up_weapon_by_id("chain_lightning"),
 		"weapon_level"
 	))
+	_all.append(Upgrade.new(
+		"level_shotgun", "散弹枪 +1",
+		"散弹枪升 1 级",
+		func(): WeaponDirector.level_up_weapon_by_id("shotgun"),
+		"weapon_level"
+	))
+	_all.append(Upgrade.new(
+		"level_laser_lance", "磁轨激光 +1",
+		"磁轨激光升 1 级",
+		func(): WeaponDirector.level_up_weapon_by_id("laser_lance"),
+		"weapon_level"
+	))
+	_all.append(Upgrade.new(
+		"level_mine_layer", "地雷布设器 +1",
+		"地雷布设器升 1 级",
+		func(): WeaponDirector.level_up_weapon_by_id("mine_layer"),
+		"weapon_level"
+	))
+	_all.append(Upgrade.new(
+		"level_flamethrower", "火焰喷射器 +1",
+		"火焰喷射器升 1 级",
+		func(): WeaponDirector.level_up_weapon_by_id("flamethrower"),
+		"weapon_level"
+	))
+	_all.append(Upgrade.new(
+		"level_homing_dart", "追踪飞镖 +1",
+		"追踪飞镖升 1 级",
+		func(): WeaponDirector.level_up_weapon_by_id("homing_dart"),
+		"weapon_level"
+	))
 	print("[UpgradeDB] loaded %d upgrades" % _all.size())
 
 ## Return up to `count` random upgrades, filtered against `WeaponDirector`.
-## - weapon_unlock: only show those whose id is not yet owned
+## - weapon_unlock: only show those whose id is not yet owned, and only while a
+##   weapon slot is still free
 ## - weapon_level:  only show those whose id is already owned
 ## - passive:       always shown
 func roll(count: int) -> Array:
@@ -131,7 +192,10 @@ func roll(count: int) -> Array:
 			pool.append(up)
 		elif up.kind == "weapon_unlock":
 			var wid: String = up.id.replace("unlock_", "")
-			if not WeaponDirector.has_weapon(wid):
+			# Hide unlocks the player cannot act on. A full arsenal makes
+			# add_weapon_by_id a no-op, so offering the card anyway would waste
+			# one of the three level-up choices on nothing.
+			if not WeaponDirector.has_weapon(wid) and not WeaponDirector.is_full():
 				pool.append(up)
 		elif up.kind == "weapon_level":
 			var wid2: String = up.id.replace("level_", "")

@@ -14,6 +14,15 @@ var _age: float = 0.0
 var _travelled: float = 0.0
 var _hit_ids: Dictionary = {}     # instance_id -> true, so one enemy is hit once
 
+## Radians per second this bullet may turn toward a target. 0 = straight line,
+## which is what every weapon except homing_dart wants.
+var homing_turn_rate: float = 0.0
+var _homing_target: Node2D
+var _retarget_accum: float = 0.0
+## Re-picking a target means an O(n) walk of the enemies group, so a dart does
+## it on a timer instead of every physics frame.
+const RETARGET_INTERVAL: float = 0.12
+
 const BULLET_SPRITE: String = "res://assets/sprites/bullets/bullet.png"
 const BULLET_SPRITE_SCALE: float = 2.0
 
@@ -38,6 +47,11 @@ func setup(p_velocity: Vector2, p_damage: float, p_lifetime: float, p_max_distan
 	if max_distance > 0.0 and speed > 0.0:
 		lifetime = maxf(lifetime, max_distance / speed + 0.1)
 
+## Turn this bullet into a guided dart. Called by HomingDartWeapon right after
+## `setup`; the default of 0 keeps every other weapon's bullets dead straight.
+func set_homing(turn_rate: float) -> void:
+	homing_turn_rate = maxf(0.0, turn_rate)
+
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
@@ -45,6 +59,8 @@ func _ready() -> void:
 	_apply_sprite()
 
 func _physics_process(delta: float) -> void:
+	if homing_turn_rate > 0.0:
+		_steer(delta)
 	var step: Vector2 = velocity * delta
 	global_position += step
 	_age += delta
@@ -54,6 +70,42 @@ func _physics_process(delta: float) -> void:
 		return
 	if _age >= lifetime:
 		queue_free()
+
+## Bend `velocity` toward the current target, capped at homing_turn_rate. Speed
+## is preserved, so a dart can't accelerate itself past its range budget.
+func _steer(delta: float) -> void:
+	_retarget_accum += delta
+	if _retarget_accum >= RETARGET_INTERVAL or not _is_valid_target(_homing_target):
+		_retarget_accum = 0.0
+		_homing_target = _find_target()
+	if _homing_target == null:
+		return
+	var speed: float = velocity.length()
+	if speed <= 0.0:
+		return
+	var want: float = (_homing_target.global_position - global_position).angle()
+	var turned: float = rotate_toward(velocity.angle(), want, homing_turn_rate * delta)
+	velocity = Vector2.from_angle(turned) * speed
+	rotation = turned
+
+func _is_valid_target(node: Node2D) -> bool:
+	return node != null and is_instance_valid(node) and not node.is_queued_for_deletion()
+
+## Nearest enemy we have not already punched through. Skipping `_hit_ids` stops
+## a pierced dart from curling back onto the corpse it just flew through.
+func _find_target() -> Node2D:
+	var best: Node2D = null
+	var best_d: float = INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or e.is_queued_for_deletion():
+			continue
+		if _hit_ids.has(e.get_instance_id()):
+			continue
+		var d: float = (e.global_position - global_position).length_squared()
+		if d < best_d:
+			best_d = d
+			best = e as Node2D
+	return best
 
 func _on_body_entered(body: Node) -> void:
 	_try_hit(body)

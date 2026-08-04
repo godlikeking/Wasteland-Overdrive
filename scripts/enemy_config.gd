@@ -39,6 +39,12 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var elite_shake: float = 7.0
 @export var elite_xp_multiplier: float = 4.0
 
+## Item drops (Iter8). How many PickupItems this archetype leaves behind when it
+## dies; 0 for ordinary trash mobs. The scene ref is injected at runtime by
+## SpawnDirector (same as xp_gem_scene) so the .tres files stay scene-free.
+@export var item_drop_count: int = 0
+@export var item_drop_scene: PackedScene
+
 ## BOSS: 3-phase giant with high HP
 @export var boss_summon_interval: float = 4.0    # 召唤小怪间隔
 @export var boss_summon_count: int = 2           # 每次召唤小怪数

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_shotgun.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "shotgun"
+display_name = "散弹枪"
+scene = null
+sprite_color = Color(1, 0.65, 0.3, 1)
+icon = ExtResource("2_icon")
+icon_size = Vector2(20, 8)
+base_damage = 7.0
+base_fire_rate = 1.1
+max_level = 8
+projectile_scene = null
+projectile_speed = 460.0
+projectile_lifetime = 0.8
+projectile_spread_deg = 10.0
+projectile_range = 260.0
+pellet_count = 5

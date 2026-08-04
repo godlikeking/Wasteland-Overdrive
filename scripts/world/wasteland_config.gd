@@ -19,6 +19,7 @@ enum TileId {
 	SCRAP = 2,
 	PIT = 3,
 	SWAMP = 4,
+	CAMP = 5,
 }
 
 # Distribution probabilities for a non-sand tile.
@@ -44,3 +45,20 @@ const PHYSICAL_TILES: Array = [TileId.RUBBLE, TileId.SCRAP, TileId.PIT]
 # Worley / FBM noise blend. Higher = more clustered blobs.
 @export var swamp_cluster_scale: float = 0.18    # smaller => bigger blobs
 @export var obstacle_cluster_scale: float = 0.22
+
+# --- Elite camps (精英营地) ---
+# Fixed arenas scattered over the map, painted with the CAMP tile so the
+# player can see them from a distance. EliteCampDirector spawns an elite at
+# each camp centre when the player gets close. Placement is deterministic
+# for a given `seed_value`, same as the terrain.
+@export var elite_camp_count: int = 6
+# Radius of the cleared camp disc, in tiles. 3 => a 7x7 arena, big enough to
+# kite a 48px elite inside without clipping the surrounding terrain.
+@export var elite_camp_radius_tiles: int = 3
+# Camps must sit at least this far from spawn (0,0), so the player never
+# starts on top of one.
+@export var elite_camp_min_dist_tiles: int = 14
+# And this far from each other. This MUST stay above
+# EliteCampDirector.activation_radius (700px = ~11 tiles), otherwise one
+# approach would trigger two camps and drop two elites on the player at once.
+@export var elite_camp_min_gap_tiles: int = 14

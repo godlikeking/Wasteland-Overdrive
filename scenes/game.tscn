@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -16,6 +16,8 @@
 [ext_resource type="Script" path="res://scripts/world/world.gd" id="14_world"]
 [ext_resource type="Resource" path="res://data/world/default_wasteland.tres" id="15_wcfg"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop.tscn" id="16_shop"]
+[ext_resource type="Script" path="res://scripts/world/elite_camp_director.gd" id="17_camps"]
+[ext_resource type="PackedScene" path="res://scenes/pickup_item.tscn" id="18_pickup"]
 
 [sub_resource type="Gradient" id="Gradient_ground"]
 offsets = PackedFloat32Array(0, 1)
@@ -50,6 +52,7 @@ script = ExtResource("3_spawn")
 enemy_scene = ExtResource("4_enemy")
 xp_gem_scene = ExtResource("12_xp")
 enemy_projectile_scene = ExtResource("13_eproj")
+pickup_item_scene = ExtResource("18_pickup")
 player_path = NodePath("../Player")
 base_interval = 1.2
 min_interval = 0.18
@@ -57,6 +60,12 @@ difficulty_ramp_time = 240.0
 burst_growth = 0.02
 elite_interval = 30.0
 spawn_padding = 200.0
+
+[node name="EliteCampDirector" type="Node2D" parent="."]
+script = ExtResource("17_camps")
+activation_radius = 700.0
+respawn_cooldown = 45.0
+arm_delay = 20.0
 
 [node name="HUD" parent="." instance=ExtResource("5_hud")]
 

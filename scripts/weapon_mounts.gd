@@ -18,7 +18,26 @@ const MOUNT_LAYOUTS := {
 	1: [Vector2(0, -18)],
 	2: [Vector2(-16, 6), Vector2(16, 6)],
 	3: [Vector2(-16, 8), Vector2(16, 8), Vector2(0, -18)],
+	4: [Vector2(-17, 8), Vector2(17, 8), Vector2(-13, -15), Vector2(13, -15)],
+	5: [Vector2(-17, 9), Vector2(17, 9), Vector2(-15, -8), Vector2(15, -8), Vector2(0, -22)],
+	6: [
+		Vector2(-18, 11), Vector2(18, 11),
+		Vector2(-20, -2), Vector2(20, -2),
+		Vector2(-12, -18), Vector2(12, -18),
+	],
 }
+## Beyond the hand-tuned table (7–12 weapons) mounts go on two concentric rings.
+## One ring can't hold 12 icons without them merging into a blob, and simply
+## growing a single radius would float the guns off the 48x48 body.
+const INNER_RADIUS: float = 20.0
+const OUTER_RADIUS: float = 34.0
+## Most icons the inner ring will take. Above that the split is even (half in,
+## half out) so neither ring gets crowded while the other sits nearly empty.
+const INNER_CAP: int = 6
+## More than this many weapons and the icons shrink; 12 full-size guns on a 48px
+## sprite read as one unrecognisable mass.
+const CROWDED_THRESHOLD: int = 6
+const CROWDED_ICON_SCALE: float = 0.75
 const FALLBACK_RADIUS: float = 20.0   # even ring, if we ever exceed the table
 const AIM_REFRESH: float = 0.06       # sec between target scans
 const TURN_SPEED: float = 10.0        # rad/sec, how fast an icon swings around
@@ -95,10 +114,12 @@ func _rebuild() -> void:
 	_weapons = found
 
 	var slots: Array = _slots_for(found.size())
+	var icon_scale: float = _icon_scale_for(found.size())
 	for i in range(found.size()):
 		var w: BaseWeapon = found[i]
 		var icon: Sprite2D = _make_icon(w.config)
 		icon.position = slots[i]
+		icon.scale = Vector2(icon_scale, icon_scale)
 		add_child(icon)
 		_icons.append(icon)
 		var wid: String = w.config.id if w.config else ""
@@ -119,14 +140,37 @@ func _same_weapons(found: Array[BaseWeapon]) -> bool:
 			return false
 	return true
 
+## Mount offsets for `n` weapons: the hand-tuned table up to 6, then a
+## two-ring layout. The outer ring is rotated by half a step so its icons sit in
+## the gaps between the inner ones instead of directly on top of them.
 func _slots_for(n: int) -> Array:
 	if MOUNT_LAYOUTS.has(n):
 		return MOUNT_LAYOUTS[n]
-	var out: Array = []
-	for i in range(n):
-		var a: float = -PI * 0.5 + TAU / float(maxi(1, n)) * float(i)
-		out.append(Vector2(cos(a), sin(a)) * FALLBACK_RADIUS)
-	return out
+	if n <= 0:
+		return []
+	var inner_n: int = mini(INNER_CAP, ceili(float(n) * 0.5))
+	var outer_n: int = n - inner_n
+	if outer_n <= 0:
+		# Only reachable if the table ever loses an entry it used to have.
+		var out: Array = []
+		for i in range(n):
+			var a: float = -PI * 0.5 + TAU / float(n) * float(i)
+			out.append(Vector2(cos(a), sin(a)) * FALLBACK_RADIUS)
+		return out
+	var slots: Array = []
+	var inner_step: float = TAU / float(inner_n)
+	for i in range(inner_n):
+		var a: float = -PI * 0.5 + inner_step * float(i)
+		slots.append(Vector2(cos(a), sin(a)) * INNER_RADIUS)
+	var outer_step: float = TAU / float(outer_n)
+	for i in range(outer_n):
+		var a: float = -PI * 0.5 + outer_step * (float(i) + 0.5)
+		slots.append(Vector2(cos(a), sin(a)) * OUTER_RADIUS)
+	return slots
+
+## Icon scale for `n` weapons. Shrinks once the body gets crowded.
+func _icon_scale_for(n: int) -> float:
+	return CROWDED_ICON_SCALE if n > CROWDED_THRESHOLD else 1.0
 
 func _make_icon(cfg: WeaponConfig) -> Sprite2D:
 	var s := Sprite2D.new()

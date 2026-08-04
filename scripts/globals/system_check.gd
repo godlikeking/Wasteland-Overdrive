@@ -14,7 +14,7 @@ extends Node
 ## line means the environment is sane. Any `[SystemCheck] FAIL` explains
 ## the reason.
 
-const REQUIRED_AUTOLOADS := ["GameState", "UpgradeDB"]
+const REQUIRED_AUTOLOADS := ["GameState", "UpgradeDB", "WeaponDirector", "SfxPlayer", "MetaProgress"]
 
 const REQUIRED_SCRIPTS := [
 	"res://scripts/player.gd",
@@ -25,26 +25,43 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/enemy_spawner.gd",
 	"res://scripts/spawn_director.gd",
 	"res://scripts/xp_gem.gd",
+	"res://scripts/pickup_item.gd",
+	"res://scripts/explosion.gd",
+	"res://scripts/shield_ring.gd",
 	"res://scripts/game.gd",
 	"res://scripts/hud.gd",
 	"res://scripts/level_up.gd",
 	"res://scripts/upgrade_card.gd",
 	"res://scripts/game_over.gd",
+	"res://scripts/shop.gd",
 	"res://scripts/fx_manager.gd",
 	"res://scripts/floating_label.gd",
 	"res://scripts/burst_particles.gd",
 	"res://scripts/shake_camera.gd",
 	"res://scripts/weapon_director.gd",
+	"res://scripts/weapon_mounts.gd",
+	"res://scripts/globals/meta_progress.gd",
 	"res://scripts/weapons/weapon.gd",
 	"res://scripts/weapons/weapon_config.gd",
 	"res://scripts/weapons/bullet_volley.gd",
 	"res://scripts/weapons/orbiting_blades.gd",
 	"res://scripts/weapons/chain_lightning.gd",
+	"res://scripts/weapons/shotgun.gd",
+	"res://scripts/weapons/laser_lance.gd",
+	"res://scripts/weapons/mine_layer.gd",
+	"res://scripts/weapons/mine.gd",
+	"res://scripts/weapons/flamethrower.gd",
+	"res://scripts/weapons/homing_dart.gd",
+	"res://scripts/weapons/storm_volley.gd",
+	"res://scripts/weapons/blade_barrage.gd",
+	"res://scripts/weapons/lightning_blade.gd",
+	"res://scripts/weapons/apocalypse.gd",
 	"res://scripts/weapons/blade.gd",
 	"res://scripts/world/wasteland_config.gd",
 	"res://scripts/world/tilemap_builder.gd",
 	"res://scripts/world/world.gd",
 	"res://scripts/world/toxic_swamp.gd",
+	"res://scripts/world/elite_camp_director.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -55,16 +72,29 @@ const REQUIRED_SCENES := [
 	"res://scenes/enemy_projectile.tscn",
 	"res://scenes/bullet.tscn",
 	"res://scenes/xp_gem.tscn",
+	"res://scenes/pickup_item.tscn",
 	"res://scenes/ui/hud.tscn",
 	"res://scenes/ui/level_up.tscn",
 	"res://scenes/ui/upgrade_card.tscn",
 	"res://scenes/ui/game_over.tscn",
+	"res://scenes/ui/shop.tscn",
 	"res://scenes/fx/floating_label.tscn",
 	"res://scenes/fx/enemy_death_particles.tscn",
 	"res://scenes/fx/bullet_hit_particles.tscn",
+	"res://scenes/fx/explosion.tscn",
 	"res://scenes/weapons/bullet_volley.tscn",
 	"res://scenes/weapons/orbiting_blades.tscn",
 	"res://scenes/weapons/chain_lightning.tscn",
+	"res://scenes/weapons/shotgun.tscn",
+	"res://scenes/weapons/laser_lance.tscn",
+	"res://scenes/weapons/mine_layer.tscn",
+	"res://scenes/weapons/mine.tscn",
+	"res://scenes/weapons/flamethrower.tscn",
+	"res://scenes/weapons/homing_dart.tscn",
+	"res://scenes/weapons/storm_volley.tscn",
+	"res://scenes/weapons/blade_barrage.tscn",
+	"res://scenes/weapons/lightning_blade.tscn",
+	"res://scenes/weapons/apocalypse.tscn",
 	"res://scenes/weapons/blade.tscn",
 ]
 
@@ -73,9 +103,19 @@ const REQUIRED_RESOURCES := [
 	"res://data/enemies/dasher.tres",
 	"res://data/enemies/shooter.tres",
 	"res://data/enemies/elite_brute.tres",
+	"res://data/enemies/boss.tres",
 	"res://data/weapons/bullet_volley.tres",
 	"res://data/weapons/orbiting_blades.tres",
 	"res://data/weapons/chain_lightning.tres",
+	"res://data/weapons/shotgun.tres",
+	"res://data/weapons/laser_lance.tres",
+	"res://data/weapons/mine_layer.tres",
+	"res://data/weapons/flamethrower.tres",
+	"res://data/weapons/homing_dart.tres",
+	"res://data/weapons/storm_volley.tres",
+	"res://data/weapons/blade_barrage.tres",
+	"res://data/weapons/lightning_blade.tres",
+	"res://data/weapons/apocalypse.tres",
 	"res://data/world/default_wasteland.tres",
 ]
 
@@ -87,6 +127,7 @@ const REQUIRED_GAME_STATE_MEMBERS := [
 	"pickup_radius_mult", "xp_gain_mult", "extra_projectiles", "hp_regen_per_sec",
 	"crit_rate", "crit_damage_mult",
 	"weapon_range_mult", "pierce_count", "pierce_damage_falloff",
+	"shield_charges", "time_stop_left",
 ]
 
 var _failures: Array[String] = []

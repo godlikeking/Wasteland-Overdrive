@@ -1,14 +1,16 @@
 extends Node
-## Programmatic SFX autoload. Synthesises 5 short retro blips via
+## Programmatic SFX autoload. Synthesises 7 short retro blips via
 ## AudioStreamGenerator and serves them from a small AudioStreamPlayer
 ## pool. No external .wav/.ogg files are required.
 ##
 ## Usage:
-##   SfxPlayer.play("fire")     # 5 短音
+##   SfxPlayer.play("fire")     # 7 短音
 ##   SfxPlayer.play("hit")
 ##   SfxPlayer.play("kill")
 ##   SfxPlayer.play("xp")
 ##   SfxPlayer.play("levelup")
+##   SfxPlayer.play("pickup")   # 拾取道具
+##   SfxPlayer.play("boom")     # 炸弹 / 地雷
 
 const POOL_SIZE: int = 8          # 同时发声通道数
 const SAMPLE_RATE: int = 22050   # 22 kHz 足够短音，CPU 友好
@@ -26,6 +28,9 @@ func _ready() -> void:
 	_streams["kill"]    = _make_sweep(440.0, 110.0, 0.18, "square")
 	_streams["xp"]      = _make_blip(1320.0, 0.05, "sine")
 	_streams["levelup"] = _make_arpeggio([523.0, 659.0, 784.0, 1047.0], 0.07, "square")
+	# 道具音：拾取是短促上行二连音，爆炸是低频下扫锯齿。
+	_streams["pickup"]  = _make_arpeggio([784.0, 1175.0], 0.05, "sine")
+	_streams["boom"]    = _make_sweep(200.0, 45.0, 0.28, "saw")
 	# 预创建 POOL_SIZE 个 player
 	for i in range(POOL_SIZE):
 		var p: AudioStreamPlayer = AudioStreamPlayer.new()

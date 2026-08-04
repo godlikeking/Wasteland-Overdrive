@@ -67,6 +67,16 @@ func _physics_process(delta: float) -> void:
 func take_damage(amount: float) -> void:
 	if not alive or invulnerable:
 		return
+	# The shield eats the whole hit regardless of size, but still grants the
+	# usual invulnerability window so a swarm can't strip every charge in one
+	# frame.
+	if GameState.consume_shield():
+		invulnerable = true
+		invuln_timer.start()
+		_flash_shield()
+		GameState.player_hurt.emit(global_position)
+		SfxPlayer.play("hit")
+		return
 	hp -= amount
 	invulnerable = true
 	invuln_timer.start()
@@ -76,10 +86,36 @@ func take_damage(amount: float) -> void:
 	if hp <= 0.0:
 		_die()
 
+## Restore health, clamped to the current maximum. Used by the heal pickup.
+## Returns the amount actually restored, so the caller can skip the "+N" label
+## when the player was already at full health.
+func heal(amount: float) -> float:
+	if not alive or amount <= 0.0:
+		return 0.0
+	var before: float = hp
+	hp = minf(max_hp, hp + amount)
+	var gained: float = hp - before
+	if gained > 0.0:
+		GameState.player_health_changed.emit(hp, max_hp)
+		_flash_heal()
+	return gained
+
 func _flash_damage() -> void:
 	sprite.modulate = Color(1.6, 0.4, 0.4)
 	var tw: Tween = create_tween()
 	tw.tween_property(sprite, "modulate", BASE_TINT, 0.25)
+
+## Absorbed hit: cyan pop instead of the red damage flash, so "shield held" and
+## "I actually lost health" never read the same.
+func _flash_shield() -> void:
+	sprite.modulate = Color(0.6, 1.8, 2.0)
+	var tw: Tween = create_tween()
+	tw.tween_property(sprite, "modulate", BASE_TINT, 0.3)
+
+func _flash_heal() -> void:
+	sprite.modulate = Color(0.6, 1.6, 0.7)
+	var tw: Tween = create_tween()
+	tw.tween_property(sprite, "modulate", BASE_TINT, 0.3)
 
 func _on_invuln_end() -> void:
 	invulnerable = false

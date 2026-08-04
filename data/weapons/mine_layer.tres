@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_mine_layer.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "mine_layer"
+display_name = "地雷布设器"
+scene = null
+sprite_color = Color(1, 0.55, 0.25, 1)
+icon = ExtResource("2_icon")
+icon_size = Vector2(20, 10)
+base_damage = 55.0
+base_fire_rate = 0.5
+max_level = 8
+mine_scene = null
+mine_interval = 2.2
+mine_arm_time = 0.4
+mine_lifetime = 8.0
+mine_blast_radius = 150.0
+mine_max_active = 6

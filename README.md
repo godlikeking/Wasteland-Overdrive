@@ -1,6 +1,6 @@
 # Wasteland Roguelite (SecondGame)
 
-一个用 **Godot 4.6 + GDScript** 开发的 2D 俯视角科幻废土肉鸽射击 MVP，玩法参考《吸血鬼幸存者》（Vampire Survivors）。当前版本是**最小可玩原型**，专注核心循环，暂无美术资源，所有可视对象为占位色块。
+一个用 **Godot 4.6 + GDScript** 开发的 2D 俯视角科幻废土肉鸽射击 MVP，玩法参考《吸血鬼幸存者》（Vampire Survivors）。角色 / 敌人 / 宝石用 Kenney Tiny Dungeon 像素图，武器挂件 / 子弹 / 道具是同调色板手画的（`tools/` 下可复现），地形仍是运行时程序化生成的瓦片。
 
 ## 启动自检 (SystemCheck)
 
@@ -31,8 +31,11 @@
 - 击杀敌人掉落蓝色**经验宝石**，走近自动吸取
 - **升级**时弹出三张升级卡（被动强化 / 解锁新武器 / 武器升级），选择一张永久强化本局角色
 - **接触敌人**扣血，血量归零结算重开
-- **地图**：4096×4096 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）
+- **地图**：4096×4096 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）/ **精英营地**
 - 撞墙：玩家和敌人都被瓦砾 / 废铁 / 地坑挡住，**敌人在 0.4s 同步后会自动绕路**
+- **精英营地**：地图上 6 个锈红警戒条纹地砖圈，走近会刷出精英怪；杀掉掉 **1 个道具**，营地进 45s 冷却后重刷（详见「精英营地」一节）
+- **道具**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种，走近自动吸取（详见「道具掉落」一节）
+- 最多同时装备 **12 把武器**，挂件全部画在玩家身上
 
 ## 已实现
 
@@ -54,8 +57,8 @@
 - [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
 - [x] **SystemCheck 启动诊断：autoload / 脚本 / 场景 / 资源 / 输入 / 升级库**
-- [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；7 把武器挂件 + 2 种子弹手画（同调色板，`tools/` 下可复现）
-- [x] **程序化音效 SfxPlayer**：开火 / 命中 / 击杀 / 拾取 / 升级 共 5 短音（无外部 wav）
+- [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；12 把武器挂件 + 2 种子弹 + 5 种道具手画（同调色板，`tools/` 下可复现）
+- [x] **程序化音效 SfxPlayer**：开火 / 命中 / 击杀 / 拾取 / 升级 / 道具 / 爆炸 共 7 短音（无外部 wav）
 - [x] **连击系统**：连续击杀累积连击、1.5s 无击杀归零、3/8/15 三级（连击/爆发/烈焰）
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
 - [x] **击杀爆裂粒子**：增强版 burst_particles（28 粒、彩尘，精英偏紫红）
@@ -64,6 +67,10 @@
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器全部 5 级时可触发融合面板；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
+- [x] **精英营地**：地图程序化生成 6 处专属地砖营地，走近刷精英、杀死进 45s 冷却重刷
+- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种掉落，精英掉 1 个、Boss 掉 3 个
+- [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走双环布局
+- [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
 
 ## 已内建的 12 项被动升级
 
@@ -117,13 +124,18 @@ godot --headless res://scenes/dev/fusion_selftest.tscn
 | 1 | 肩上 `(0, -18)` |
 | 2 | 左右对称 `(-16, 6)` `(16, 6)` |
 | 3 | 左右 + 肩 `(-16, 8)` `(16, 8)` `(0, -18)` |
-| 4+ | 回退成半径 20 的均分环 |
+| 4 | 左右 + 双肩 `(±17, 8)` `(±13, -15)` |
+| 5 | 左右 + 腰侧 + 头顶 `(±17, 9)` `(±15, -8)` `(0, -22)` |
+| 6 | 三对左右 `(±18, 11)` `(±20, -2)` `(±12, -18)` |
+| 7–12 | **双环** fallback：内环 r=20 放前 `ceil(n/2)`（封顶 6）个，外环 r=34 放余下，外环整体转半步落在内环的空隙里；且 n > 6 时图标 `scale = 0.75` |
+
+双环不是调出来的，是算出来的：内环放满 6 个时相邻弦长 = 20px，外环 34px，跨环最近距离在半步偏移下约 **19.4px**，都大于最高图标的 15px 屏上高度。`weapon_mount_selftest` 的满槽用例实测就是 19.4px——12 把武器出 12 个图标、最近一对 19.4px、全部落在 34px 外环之内。没有这条几何保证，12 把枪在 48px 的身体上会糊成一团。
 
 **朝向**：每个挂件独立转向自己武器的目标，走 `BaseWeapon.get_aim_direction()`（复用 `_find_nearest_enemy(get_range())`，所以子弹武器受射程约束，刀阵/闪电链不限距离）。目标扫描 **每 0.06s 一次**（敌人组可能 60+，每帧全扫是白烧 CPU），每帧用 `lerp_angle` 以 10 rad/s 平滑转。丢失目标时保持上一次方向并**把没转完的角度转完**，不冻在半路也不弹回 0。
 
 **武器列表来源**是 Player 的 `BaseWeapon` 子节点，不经过 `WeaponDirector`。因为武器一律 `add_child` 到玩家身上，读节点树就让融合消耗基础武器、死亡重开、director 剪枝这三条路径全部自动同步，不需要额外信号。
 
-**贴图**：7 把武器全部用上了真实像素图，手画的枪械/冷兵器，用 Kenney Tiny Dungeon 的调色板（和玩家 / 敌人 / 子弹风格统一）。`WeaponConfig.icon: Texture2D` 指向 `assets/sprites/weapons/mount_*.png`；`icon` 为 null 时才回退成按 `icon_size` + `sprite_color` 生成的渐变占位条（握把亮、枪口暗）。
+**贴图**：12 把武器全部用上了真实像素图，手画的枪械/冷兵器，用 Kenney Tiny Dungeon 的调色板（和玩家 / 敌人 / 子弹风格统一）。`WeaponConfig.icon: Texture2D` 指向 `assets/sprites/weapons/mount_*.png`；`icon` 为 null 时才回退成按 `icon_size` + `sprite_color` 生成的渐变占位条（握把亮、枪口暗）。
 
 **枢轴**用的是贴图自己的尺寸（`icon.get_size()`），不是 `icon_size`——后者只描述占位条。`offset.x = 宽度/2`，图形从挂点往前延伸，所以转起来是"枪管甩向目标"而不是绕中心打转。换任意尺寸的图都不用改 `.tres`。
 
@@ -147,6 +159,11 @@ python tools/gen_weapon_mounts.py --check  # 只校验现有文件
 | `blade_barrage` 刀刃弹幕 | `mount_blade_barrage.png` | 32×16 | 三片飞刃并排 |
 | `lightning_blade` 闪电刀阵 | `mount_lightning_blade.png` | 32×16 | 等离子长刀，青色刀身 |
 | `apocalypse` 启示录 | `mount_apocalypse.png` | 32×20 | 末日重炮，炮口红色能量裂纹 |
+| `shotgun` 散弹枪 | `mount_shotgun.png` | 26×16 | 短粗双管，右端喇叭口 |
+| `laser_lance` 磁轨激光 | `mount_laser_lance.png` | 32×16 | 细长镜筒，右端青色聚焦透镜 |
+| `mine_layer` 地雷布设器 | `mount_mine_layer.png` | 32×16 | 短管 + 右端浑圆雷体 |
+| `flamethrower` 火焰喷射器 | `mount_flamethrower.png` | 32×16 | 粗管 + 右端橙红火苗 |
+| `homing_dart` 追踪飞镖 | `mount_homing_dart.png` | 32×16 | 发射器 + 右端紫色制导弹头 |
 
 换图只需两步，零代码改动：PNG 丢进 `assets/sprites/weapons/`，在对应 `data/weapons/*.tres` 里设 `icon`。
 
@@ -200,7 +217,101 @@ python tools/gen_bullets.py --check  # 只校验现有文件
 godot --headless res://scenes/dev/fusion_selftest.tscn   # exit 0 = 全绿
 ```
 
-## 瓦片类型（`data/world/default_wasteland.tres`）
+## 精英营地（地图特定区域）
+
+地图生成时会在 `TilemapBuilder` 里额外挖出 `elite_camp_count`（默认 **6**）个营地：半径 3 格的圆盘，铺第 6 种瓦片 `T_CAMP`（暗混凝土 + 锈红警戒条纹）。
+
+营地是**确定性**的——选点复用地形自己的 `_hash2`，同一个 seed 两次生成落在同样的格子上，所以「地图特定区域」是可复现的地点，不是随机事件。选点逐个拒绝：离出生点 < `elite_camp_min_dist_tiles`(14 格)、进边界 pit 带、离已选营地 < `elite_camp_min_gap_tiles`(14 格)。
+
+营地圆盘**不注册 physics / navigation**，并且会 `swamp_cells.erase` 掉压在下面的毒沼——营地必须能走进去打，不能变成一块挡路的装饰。铺设顺序插在 `_paint_map()` 之后、`_paint_borders()` 之前，所以营地覆盖地形障碍，但边界 pit 带仍然优先。
+
+`scripts/world/elite_camp_director.gd`（挂在 `game.tscn` 的 `Game` 下）负责刷怪：
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `activation_radius` | 700 px | 玩家进入这个距离才刷。比 1280×720 视口在 zoom 1.2 下的半对角（≈610px）稍大，所以精英是在画面外站起来的，不会当面弹出来 |
+| `respawn_cooldown` | 45 s | 精英死后重新武装的冷却 |
+| `arm_delay` | 20 s | 开局静默期，避免 1 级玩家撞上 220hp 精英 |
+| `elite_id` | `elite_brute` | 刷哪种敌人 |
+| `CHECK_INTERVAL` | 0.25 s | 距离扫描节流（冷却仍每帧递减） |
+
+- **每个营地同时最多 1 只精英**。刷怪走 `SpawnDirector.spawn_enemy_at(id, pos)`（靠 `enemy_spawner` 组找），营地中心走 `world` 组的 `camp_centers()`——都是项目「靠组不靠 NodePath」的约定。
+- 存活判定单独维护一个 `busy` 标志，**不能只看 `elite != null`**：Godot 4 里被释放的对象在 Variant 里和 null 相等，光看引用分不出「从没刷过」和「刚被打死」，营地会在下一次扫描里立刻重刷。同理 `_is_alive()` 还要排掉 `is_queued_for_deletion()`，否则击杀当帧营地还占着。
+- 刷怪时飘「精英出没」+ 震屏 + 音效。
+- `SpawnDirector` 原有的 5% 精英 roll 和 300s 后的 ELITE WAVE **保留不动**：那两条是按时间来的，营地是按地点来的，叠加生效。
+
+自检（营地数量 / 同 seed 确定性 / 最小间距 / 圆盘可走无碰撞无毒沼 / 进半径刷怪 / 每营地至多 1 只 / 死后冷却）：
+
+```bash
+godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
+```
+
+## 道具掉落
+
+精英与 Boss 死亡时掉道具，数量由 `EnemyConfig.item_drop_count` 数据驱动：`elite_brute.tres` = 1，`boss.tres` = 3，其余 0。掉落绑定在**「是精英」而不是「是营地刷的」**，所以 ELITE WAVE 和 5% roll 出来的精英一样掉。
+
+道具是 `scenes/pickup_item.tscn`（结构照抄 `xp_gem.tscn`：Area2D，layer 16 Pickup / mask 2），进玩家 `PickupArea` → 归巢 → 到位生效 + 飘字 + 音效。地上会上下浮动，`LIFETIME` 30s 后消失，最后 5s 闪烁预警——否则没捡的道具会慢慢铺满地图。
+
+| 道具 | 权重 | 效果 | 落点 |
+|---|---|---|---|
+| 补血 `HEAL` | 30 | 回 **30%** 生命上限 | `player.heal()`，clamp 到 max_hp |
+| 护盾 `SHIELD` | 22 | 抵消接下来 **2** 次伤害 | `GameState.shield_charges`，`player.take_damage` 开头扣层 |
+| 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
+| 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
+| 武器 `WEAPON` | 12 | 给一把未持有的武器 | `WeaponDirector.grant_random_weapon()` |
+
+权重意图：补血最常见（它是让一局活下去的那个效果）；武器最稀有（最强，且满槽时是唯一会被浪费的一种）。
+
+**护盾**按「次数」而不是「伤害量」抵消：一层挡一下，不管这一下打多少。抵消时照常给无敌帧 + 蓝闪，但不掉血。玩家身上挂 `ShieldRing`（`_draw` 画圆环，层数越多越亮）。
+
+**时间暂停只冻结敌人**：`GameState.is_time_stopped()` 为真时 `enemy.gd` / `enemy_projectile.gd` 的 `_physics_process` 开头直接 return，冻结期间染蓝灰；玩家照常移动开火。**没有碰 `Engine.time_scale`**——那会把玩家、tween、粒子一起冻住。倒计时在 `GameState._process` 里放在 `is_running` 判断**之前**递减，但 autoload 默认 pausable，所以升级面板暂停时时停不会偷跑。
+
+**满槽时武器道具转为升级**：`grant_random_weapon()` 在 12 槽全满或全部持有时随机升一把现有武器，不会静默丢掉。
+
+**顺手修的一个老 bug**：`enemy.gd` 的 `_flash()` 原本补间回 `config.sprite_color`，但 `_apply_visuals` 给精英/BOSS 上的是 `Color(1.4,0.6,0.6)` / `Color(1.2,0.6,0.6)`——精英挨一下就永久掉红染。现在 `_apply_visuals` 缓存 `_base_tint`，`_flash()` 和时停解冻都补间回它。
+
+贴图由 `tools/gen_pickups.py` 生成（和挂件同一套字符画 + Kenney Tiny Dungeon 调色板 + `--check` 校验），5 张 16×16，`SPRITE_SCALE 2.0` 和经验宝石一致：
+
+```bash
+python tools/gen_pickups.py          # 重新生成到 assets/sprites/pickups/ 并校验
+python tools/gen_pickups.py --check  # 只校验现有文件
+```
+
+自检（5 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽转升级 / 第 13 把被拒）：
+
+```bash
+godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
+```
+
+## 武器槽位（12）
+
+`WeaponDirector.MAX_WEAPONS = 12`，正好等于可达 id 数：**8 把基础 + 4 个融合物**。
+
+- 满槽拦截放在 `add_weapon` / `add_weapon_with_extras` 顶部——这两个是 `_weapons` 的唯一写入口，返回值从 `void` 改成 `bool` 便于自测断言。
+- `UpgradeDB` 的 `weapon_unlock` 分支追加了 `not WeaponDirector.is_full()` 过滤，满槽后不再摆出解锁卡。
+- 新增 `slots_used()` / `is_full()` / `owned_weapon_ids()`。最后一个是必要的：`WEAPON_CATALOG` 只列基础武器，任何要覆盖**整个**军火库的调用方（HUD 计数、升级记账）都得用它，否则会漏掉 4 把融合武器。
+- **`fuse()` 净减槽位**：它先 `_weapons.erase()` 掉配方里的基础武器再 add 融合物，所以 2 件组 -1 槽、3 件组 -2 槽。**正常玩法里融合永远不可能把槽位推到 12**；自测要测满槽上限时是直接 add 融合 id 的（那是槽位上限测试，不是融合测试，融合有自己的自测）。
+
+HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。前两个听 `GameState.shield_changed` / `time_stop_changed`；槽位是**轮询**的——`WeaponDirector` 没有「军火库变了」的信号，而武器可以从升级卡、道具、融合三条路进出，所以 `_process` 里比对上一次画的数字，只在真的变了时重绘。为 0 时两个状态标签留空而不是显示 `0`，让整行在没有效果时塌掉。
+
+## 基础武器（8 把）
+
+前 3 把是原有的，后 5 把是为了把 12 个槽位填满而加的，全部复用现有设施（`BaseWeapon` 基类 + `WeaponConfig` 数据 + 挂件图标）。**`BASE_WEAPONS`（融合配方的输入）保持原来 3 把不动**，不破坏现有融合。
+
+| 武器 | 伤害 | 射速 | 关键数据 | 行为 |
+|---|---|---|---|---|
+| `bullet_volley` 弹雨 | 10 | 2.5 | 射程 420 | 朝最近敌人打单发，吃 `extra_projectiles` |
+| `orbiting_blades` 刀阵 | 14 | 1.0 | 环绕半径 90、3 把刀 | 绕身旋转 + 周期冲刺 |
+| `chain_lightning` 闪电链 | 18 | 0.7 | 链距 140、3 段 | 每 1.6s 放一次连锁电击 |
+| `shotgun` 散弹枪 | 7 | 1.1 | 射程 260、弹丸 5 | 近距扇形喷 5 发，每发独立 roll 暴击；也吃 `extra_projectiles` |
+| `laser_lance` 磁轨激光 | 26 | 0.7 | 长 520 / 宽 26 | 瞬发（hitscan）矩形光束，贯穿路径上全部敌人 + `Line2D` 淡出 |
+| `mine_layer` 地雷布设器 | 55 | 0.5 | 爆半径 150、同时 6 颗 | 周期在脚下放雷，0.4s 布防、接触或 8s 后引爆，**复用炸弹道具的 explosion** |
+| `flamethrower` 火焰喷射器 | 4 | 6.7 | 射程 160、锥角 60° | 锥形区域跟 `get_aim_direction()` 转，每 0.15s 结算一次重叠敌人 |
+| `homing_dart` 追踪飞镖 | 12 | 1.6 | 射程 520、转向 5 rad/s | `bullet.set_homing()`：有制导且目标有效时每帧把速度转向最近敌人 |
+
+每把都配了解锁卡和 `+1` 升级卡（`UpgradeDB`）。`shotgun` / `homing_dart` 复用 `bullet.tscn`，`mine_layer` 用 `mine.tscn`——两者的场景引用都在 `WeaponDirector` 的 `BULLET_USERS` / `MINE_USERS` 里注入，`.tres` 留 null，`data/` 目录里不出现场景引用。
+
+
 
 | ID | 类型 | 物理 | 效果 |
 |---|---|---|---|
@@ -209,8 +320,26 @@ godot --headless res://scenes/dev/fusion_selftest.tscn   # exit 0 = 全绿
 | 2 | 废铁 | 阻挡 | 物理碰撞 + 视觉是深色金属 |
 | 3 | 地坑 | 阻挡 | 物理碰撞 + 视觉是深坑 |
 | 4 | 毒沼 | **不挡** | 减速 50% + 每 0.5s 扣 1 滴血（玩家+敌人） |
+| 5 | 精英营地 | **不挡** | 暗混凝土 + 锈红警戒条纹，`EliteCampDirector` 的刷怪点 |
 
-默认 64×64 格地图、seed=1337，障碍合计 10%，毒沼 5%，出生点 11×11 安全区。
+默认 64×64 格地图、seed=1337，障碍合计 10%，毒沼 5%，出生点 11×11 安全区，6 处半径 3 格的精英营地。
+
+## 全部自检
+
+每个自测都是 headless 场景，全绿 exit 0、有失败则 exit 1，可以直接串进 CI：
+
+```bash
+godot --headless res://scenes/dev/elite_camp_selftest.tscn    # 精英营地
+godot --headless res://scenes/dev/pickup_selftest.tscn        # 5 种道具 + 槽位上限
+godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（含满槽 12 图标）
+godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程与穿透
+godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方
+python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
+python tools/gen_pickups.py --check                           # 5 张道具贴图
+python tools/gen_bullets.py --check                           # 2 张子弹贴图
+```
+
+`SystemCheck` 也会在每次运行时把新增的脚本 / 场景 / 资源 / `GameState` 字段一并核对（包括 12 把武器的 `.tres` 与 `.tscn`、`pickup_item` / `explosion` / `shield_ring` / `elite_camp_director`、`shield_charges` / `time_stop_left`），缺一个就在 Output 面板报 FAIL。
 
 ## 项目结构
 
@@ -226,51 +355,72 @@ SecondGame/
 │   ├── enemy.tscn             # 敌人 + NavigationAgent2D + ToxicSwamp
 │   ├── bullet.tscn            # 直线飞行子弹
 │   ├── enemy_projectile.tscn  # 敌人发射的子弹
-│   ├── xp_gem.tscn            # 经验宝石
-│   ├── fx/                    # 浮字 + 粒子
-│   ├── ui/                    # HUD / LevelUp / GameOver / UpgradeCard
-│   └── weapons/               # 3 武器 + 飞刀场景
+│   ├── xp_gem.tscn             # 经验宝石
+│   ├── pickup_item.tscn        # 道具（补血/护盾/炸弹/时停/武器 共用一个场景）
+│   ├── dev/                    # headless 自测场景
+│   ├── fx/                     # 浮字 + 粒子 + explosion
+│   ├── ui/                     # HUD / LevelUp / GameOver / UpgradeCard / Shop
+│   └── weapons/                # 8 基础 + 4 融合武器 + 飞刀 + 地雷场景
 ├── scripts/
 │   ├── globals/
-│   │   ├── game_state.gd      # Autoload: 状态 + 事件总线 + 属性倍率
+│   │   ├── game_state.gd      # Autoload: 状态 + 事件总线 + 属性倍率 + 护盾/时停
 │   │   ├── upgrade_db.gd      # Autoload: 升级数据表（被动 + 武器解锁 + 武器升级）
+│   │   ├── meta_progress.gd   # Autoload: 永久货币 / 统计，落盘 user://
 │   │   └── system_check.gd    # Autoload: 启动期 autoload/脚本/场景/资源自检
 │   ├── player.gd
 │   ├── bullet.gd
 │   ├── enemy.gd
-│   ├── enemy_config.gd        # EnemyConfig 资源类
+│   ├── enemy_config.gd        # EnemyConfig 资源类（含 item_drop_count）
 │   ├── enemy_projectile.gd
-│   ├── spawn_director.gd      # 波次 + 敌人类型编排
+│   ├── spawn_director.gd      # 波次 + 敌人类型编排 + spawn_enemy_at()
 │   ├── xp_gem.gd
+│   ├── pickup_item.gd         # 5 种道具的掉落权重与效果
+│   ├── explosion.gd           # 炸弹道具与地雷共用的范围伤害
+│   ├── shield_ring.gd         # 玩家身上的护盾圆环
 │   ├── game.gd
 │   ├── hud.gd
 │   ├── level_up.gd
 │   ├── upgrade_card.gd
 │   ├── game_over.gd
+│   ├── shop.gd
 │   ├── fx_manager.gd
 │   ├── floating_label.gd
 │   ├── burst_particles.gd
 │   ├── shake_camera.gd
-│   ├── weapon_director.gd     # Autoload: 武器槽 + 跨场景清理
+│   ├── weapon_mounts.gd       # 玩家身上的武器挂件布局与朝向
+│   ├── weapon_director.gd     # Autoload: 12 武器槽 + 融合 + 跨场景清理
+│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / ...）
 │   ├── weapons/
 │   │   ├── weapon.gd          # BaseWeapon 基类
 │   │   ├── weapon_config.gd   # WeaponConfig 资源类
 │   │   ├── bullet_volley.gd
 │   │   ├── orbiting_blades.gd
 │   │   ├── chain_lightning.gd
+│   │   ├── shotgun.gd
+│   │   ├── laser_lance.gd
+│   │   ├── mine_layer.gd
+│   │   ├── mine.gd
+│   │   ├── flamethrower.gd
+│   │   ├── homing_dart.gd
+│   │   ├── storm_volley.gd
+│   │   ├── blade_barrage.gd
+│   │   ├── lightning_blade.gd
+│   │   ├── apocalypse.gd
 │   │   └── blade.gd
 │   └── world/                 # Iter4: 程序化废土地形
-│       ├── wasteland_config.gd   # 资源：地图尺寸/种子/密度
-│       ├── tilemap_builder.gd    # 运行时生成 TileSet + 铺地图
+│       ├── wasteland_config.gd   # 资源：地图尺寸/种子/密度/精英营地
+│       ├── tilemap_builder.gd    # 运行时生成 TileSet + 铺地图 + 挖营地
+│       ├── elite_camp_director.gd # 营地刷怪 / 冷却 / 激活半径
 │       ├── world.gd              # 场景入口（持有 TileMap）
 │       └── toxic_swamp.gd        # 角色身上的毒沼 slow + dot 效果
 ├── data/
-│   ├── enemies/               # 4 EnemyConfig .tres
-│   ├── weapons/               # 3 WeaponConfig .tres
+│   ├── enemies/               # 5 EnemyConfig .tres（含 boss）
+│   ├── weapons/               # 12 WeaponConfig .tres
 │   └── world/
 │       └── default_wasteland.tres  # 64x64 地图默认配置（seed=1337）
 ├── tools/
-│   ├── gen_weapon_mounts.py   # 生成 + 校验 7 张武器挂件贴图（Python + Pillow）
+│   ├── gen_weapon_mounts.py   # 生成 + 校验 12 张武器挂件贴图（Python + Pillow）
+│   ├── gen_pickups.py         # 生成 + 校验 5 张道具贴图（Python + Pillow）
 │   └── gen_bullets.py         # 生成 + 校验 2 张子弹贴图（Python + Pillow）
 └── README.md
 ```
@@ -283,14 +433,16 @@ SecondGame/
 | 2 Player | 玩家 body + 拾取 area |
 | 3 PlayerBullet | 玩家子弹 |
 | 4 Enemy | 敌人 body |
-| 5 Pickup | 经验宝石 |
+| 5 Pickup | 经验宝石 + 道具 |
 
 - 玩家 body: layer=2, mask=1（被瓦片挡路）
-- 玩家 PickupArea: layer=2, mask=16（检测宝石）
+- 玩家 PickupArea: layer=2, mask=16（检测宝石与道具）
 - 子弹: layer=4, mask=8（打敌人）
 - 敌人: layer=8, mask=3（碰玩家 + 被瓦片挡路）
-- 经验宝石: layer=16, mask=2（被玩家 PickupArea 吸引）
+- 经验宝石 / 道具: layer=16, mask=2（被玩家 PickupArea 吸引）
+- 地雷: layer=4, mask=8（当玩家侧的伤害源，踩中即爆）
 - 毒沼: **不参与物理碰撞**，由 `ToxicSwamp` 节点每帧检查 `_builder.is_swamp(pos)` 触发减速/扣血
+- 精英营地: **不参与物理碰撞**，只是一种可通行瓦片 + `EliteCampDirector` 的距离判定
 
 ## 运行
 
@@ -312,6 +464,10 @@ SecondGame/
 - 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
 - 武器挂件只有 13×8 ~ 16×10 格有效分辨率，造型全靠轮廓辨认，细节做不进去；文生图模型在这个尺度上不可用（详见「武器挂件」一节）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
+- 12 个槽位在正常玩法里填不满：融合会消耗基础武器（净 -1/-2 槽），所以 8 基础 + 4 融合的上限只有自测直接 add 融合 id 才能摸到
+- 精英营地固定 6 处、只刷 `elite_brute` 一种，没有营地专属的更强变体或多波
+- 道具没有稀有度分层，权重是写死的常量，不随时间或难度变化
+- 时间暂停只 early-return 敌人与敌弹的 `_physics_process`，敌人身上正在跑的 tween（击退、闪白）不受影响
 
 ## 扩展路线（不属于 MVP）
 

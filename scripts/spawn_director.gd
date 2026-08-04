@@ -15,6 +15,8 @@ extends Node2D
 @export var enemy_scene: PackedScene
 @export var xp_gem_scene: PackedScene
 @export var enemy_projectile_scene: PackedScene
+## Dropped by elites/boss on death; injected into their EnemyConfigs.
+@export var pickup_item_scene: PackedScene
 @export var camera: Camera2D
 @export var player_path: NodePath
 @export var configs_path: NodePath  # Node that has enemy configs as children
@@ -42,6 +44,9 @@ func _ready() -> void:
 	_cache_configs()
 	GameState.leveled_up.connect(_on_leveled_up)
 	add_to_group("boss_spawner")
+	# Generic spawn service, used by EliteCampDirector. Separate from
+	# "boss_spawner" so the boss callback contract stays untouched.
+	add_to_group("enemy_spawner")
 	print("[SpawnDirector] ready with %d configs" % _configs.size())
 
 func _cache_configs() -> void:
@@ -71,6 +76,10 @@ func _inject_runtime_refs(list: Array) -> void:
 			ec.xp_gem_scene = xp_gem_scene
 		if ec.behavior == EnemyConfig.Behavior.SHOOTER and ec.projectile_scene == null:
 			ec.projectile_scene = enemy_projectile_scene
+		# Only archetypes that actually drop items need the scene, so a missing
+		# export can't silently break trash mobs.
+		if ec.item_drop_count > 0 and ec.item_drop_scene == null:
+			ec.item_drop_scene = pickup_item_scene
 
 func _process(delta: float) -> void:
 	if _configs.is_empty():
@@ -178,6 +187,22 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	GameState.request_hit_stop.emit(0.12)
 	SfxPlayer.play("levelup")   # 警报感用琶音
 	print("[SpawnDirector] BOSS spawned at %s" % str(pos))
+
+## Generic "spawn one enemy of this archetype right here" service, used by
+## EliteCampDirector. Returns the instance so the caller can track whether it
+## is still alive; null if the archetype or its scene is missing.
+func spawn_enemy_at(id: String, pos: Vector2) -> Node:
+	var cfg: EnemyConfig = _find_config(id)
+	if cfg == null or cfg.id != id or cfg.scene == null:
+		push_warning("[SpawnDirector] cannot spawn unknown archetype '%s'" % id)
+		return null
+	var enemy: Node = cfg.scene.instantiate()
+	if enemy is Node2D:
+		(enemy as Node2D).global_position = pos
+	if enemy.has_method("setup_config"):
+		enemy.setup_config(cfg)
+	get_tree().current_scene.add_child(enemy)
+	return enemy
 
 ## Used by Boss._boss_summon_minions to spawn N chasers around the boss.
 func spawn_minion_around(center: Vector2, minion_id: String, n: int) -> void:

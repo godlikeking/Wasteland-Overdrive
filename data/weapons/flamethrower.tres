@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_flamethrower.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "flamethrower"
+display_name = "火焰喷射器"
+scene = null
+sprite_color = Color(1, 0.45, 0.2, 1)
+icon = ExtResource("2_icon")
+icon_size = Vector2(20, 10)
+base_damage = 4.0
+base_fire_rate = 6.7
+max_level = 8
+flame_range = 160.0
+flame_arc_deg = 60.0
+flame_tick = 0.15

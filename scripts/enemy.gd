@@ -18,6 +18,17 @@ var _repath_accum: float = 0.0
 var _nav_warmup: float = 0.4
 const REPATH_INTERVAL: float = 0.3
 
+## Sprite tint this enemy returns to after a flash. Cached because
+## `_apply_visuals` gives elites and the boss a red tint, and `_flash()` used to
+## tween back to `config.sprite_color` instead — so an elite permanently lost
+## its red the first time it was hit.
+var _base_tint: Color = Color(1, 1, 1)
+## True while the time-stop item has this enemy frozen; used to restore the tint
+## exactly once when the freeze lifts.
+var _frozen: bool = false
+## Tint applied while frozen: drained, cold blue-grey.
+const FROZEN_TINT: Color = Color(0.45, 0.62, 0.95)
+
 # Behavior runtime state
 var _dash_timer: float = 0.0
 var _dashing: bool = false
@@ -81,6 +92,9 @@ func _apply_visuals() -> void:
 			sprite.texture = tex
 		else:
 			sprite.modulate = config.sprite_color
+	# Whatever branch above ran, that tint is now this enemy's identity colour.
+	# Flashes and the time-stop thaw both restore it from here.
+	_base_tint = sprite.modulate
 	var cs: Node = get_node_or_null("CollisionShape2D")
 	if cs and cs.shape is CircleShape2D:
 		(cs.shape as CircleShape2D).radius = config.collision_radius
@@ -97,6 +111,20 @@ func _sprite_path_for(id: String) -> String:
 func _physics_process(delta: float) -> void:
 	if config == null:
 		return
+	# Time-stop item: freeze in place, keep the hitbox so the player can farm
+	# frozen enemies. Cooldown timers are deliberately NOT ticked, so the freeze
+	# does not hand out free attack windups either.
+	if GameState.is_time_stopped():
+		if not _frozen:
+			_frozen = true
+			velocity = Vector2.ZERO
+			if _flash_tw and _flash_tw.is_valid():
+				_flash_tw.kill()
+			sprite.modulate = FROZEN_TINT
+		return
+	if _frozen:
+		_frozen = false
+		sprite.modulate = _base_tint
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
 	if _player == null:
@@ -309,9 +337,12 @@ func _effective_speed() -> float:
 func _flash() -> void:
 	if _flash_tw and _flash_tw.is_valid():
 		_flash_tw.kill()
+	# While frozen the enemy must stay blue, so a hit during time-stop should not
+	# leave it tinted the wrong colour once the flash finishes.
+	var back_to: Color = FROZEN_TINT if _frozen else _base_tint
 	sprite.modulate = Color(2.5, 2.5, 2.5)
 	_flash_tw = create_tween()
-	_flash_tw.tween_property(sprite, "modulate", config.sprite_color if config else Color(1, 1, 1), 0.14)
+	_flash_tw.tween_property(sprite, "modulate", back_to, 0.14)
 
 func _die() -> void:
 	var was_elite: bool = config != null and config.behavior == EnemyConfig.Behavior.ELITE
@@ -342,7 +373,27 @@ func _die() -> void:
 		if gem.has_method("set_value"):
 			gem.set_value(gem_xp)
 		get_tree().current_scene.add_child(gem)
+	_drop_items()
 	queue_free()
+
+## Scatter `config.item_drop_count` pickups around the corpse. Driven by the
+## config rather than by "was this camp-spawned", so a time-based ELITE WAVE
+## elite drops exactly like a camp elite does.
+func _drop_items() -> void:
+	if config == null or config.item_drop_count <= 0 or config.item_drop_scene == null:
+		return
+	var n: int = config.item_drop_count
+	for i in range(n):
+		var item: Node = config.item_drop_scene.instantiate()
+		if item is Node2D:
+			# Spread the drops on a ring so several items never stack into one
+			# unreadable pile.
+			var ang: float = TAU * float(i) / float(n) + randf() * 0.5
+			var dist: float = 0.0 if n == 1 else randf_range(24.0, 44.0)
+			(item as Node2D).global_position = global_position + Vector2(cos(ang), sin(ang)) * dist
+		if item.has_method("setup"):
+			item.setup(PickupItem.roll_kind())
+		get_tree().current_scene.add_child(item)
 
 # --- Navigation ---
 

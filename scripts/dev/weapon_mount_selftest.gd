@@ -43,6 +43,7 @@ func _ready() -> void:
 	await _test_finishes_turn_after_target_dies()
 	await _test_fusion_resyncs_mounts()
 	await _test_rebuild_skips_freed_weapon()
+	await _test_full_arsenal_layout()
 	print("=== weapon mount selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -289,6 +290,85 @@ func _test_rebuild_skips_freed_weapon() -> void:
 		_fail(t, "freed weapon still mounted (%d icons, want %d)" % [_mounts.icon_count(), before - 1])
 	else:
 		_ok(t, "%d -> %d icons while the freed weapon was still in the tree" % [before, before - 1])
+
+# --- full arsenal --------------------------------------------------------
+
+## A maxed-out 12-weapon arsenal has to produce 12 distinct, readable icons.
+## MOUNT_LAYOUTS only hand-tunes up to 6, so 7-12 fall through to the two-ring
+## fallback, and this is the test that keeps that fallback from stacking icons
+## on top of each other.
+func _test_full_arsenal_layout() -> void:
+	var t: String = "full_arsenal"
+	await _clear_arsenal()
+	for id in WeaponDirector.WEAPON_CATALOG.keys():
+		WeaponDirector.add_weapon_by_id(String(id))
+	# Fusions are only reachable through fuse(), which CONSUMES its ingredients
+	# and so can never raise the count to 12. Added directly here because this
+	# tests the layout at the cap, not the fusion rules.
+	for fid in WeaponDirector.FUSION_RECIPES.keys():
+		_force_add_fusion(String(fid))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var want: int = WeaponDirector.MAX_WEAPONS
+	if _mounts.icon_count() != want:
+		_fail(t, "%d weapons equipped but %d icons mounted" % [
+			WeaponDirector.slots_used(), _mounts.icon_count()])
+		return
+	_ok(t, "%d weapons -> %d icons" % [want, _mounts.icon_count()])
+
+	# Icons all aim the same way, so they are parallel bars radiating from their
+	# mount points: two of them read as one blob once their mount points sit
+	# closer than the taller icon's on-screen height.
+	var icons: Array[Sprite2D] = _mounts.icons()
+	var limit: float = 0.0
+	for icon in icons:
+		if icon.texture:
+			limit = maxf(limit, icon.texture.get_height() * icon.scale.y)
+	var worst: float = INF
+	var worst_pair: String = ""
+	for i in range(icons.size()):
+		for j in range(i + 1, icons.size()):
+			var d: float = icons[i].position.distance_to(icons[j].position)
+			if d < worst:
+				worst = d
+				worst_pair = "%d/%d" % [i, j]
+	if worst < limit:
+		_fail(t, "icons %s only %.1fpx apart, under the %.1fpx icon height" % [
+			worst_pair, worst, limit])
+	else:
+		_ok(t, "closest pair %s is %.1fpx apart (>= %.1fpx icon height)" % [
+			worst_pair, worst, limit])
+
+	# Icons must also stay on the 48x48 body rather than floating in space.
+	var furthest: float = 0.0
+	for icon in icons:
+		furthest = maxf(furthest, icon.position.length())
+	if furthest > _mounts.OUTER_RADIUS + 0.1:
+		_fail(t, "an icon sits %.1fpx from the body centre, past the %.1fpx outer ring" % [
+			furthest, _mounts.OUTER_RADIUS])
+	else:
+		_ok(t, "every mount within the %.0fpx outer ring" % _mounts.OUTER_RADIUS)
+
+## Drop the whole arsenal, both the director's bookkeeping and the live nodes,
+## so the next grant starts from an empty player.
+func _clear_arsenal() -> void:
+	WeaponDirector._reset()
+	for c in _player.get_children():
+		if c is BaseWeapon:
+			c.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+## Equip a fusion weapon without running fuse(). Recipes carry a config path but
+## no scene path — the scene always lives at scenes/weapons/<id>.tscn.
+func _force_add_fusion(id: String) -> void:
+	var entry: Dictionary = WeaponDirector.FUSION_RECIPES.get(id, {})
+	if entry.is_empty():
+		return
+	var cfg: Resource = ResourceLoader.load(String(entry.get("config", "")))
+	var scene: PackedScene = ResourceLoader.load("res://scenes/weapons/%s.tscn" % id) as PackedScene
+	if cfg is WeaponConfig and scene:
+		WeaponDirector.add_weapon(cfg as WeaponConfig, scene)
 
 # --- helpers -------------------------------------------------------------
 

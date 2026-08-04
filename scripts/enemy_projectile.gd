@@ -38,6 +38,10 @@ func _ready() -> void:
 	SfxPlayer.play("fire")
 
 func _physics_process(delta: float) -> void:
+	# Time-stop item: bullets already in flight hang in the air. Their lifetime
+	# is frozen too, so the freeze can't be used to make them expire harmlessly.
+	if GameState.is_time_stopped():
+		return
 	global_position += velocity * delta
 	_age += delta
 	if _age >= lifetime:

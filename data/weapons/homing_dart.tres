@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_homing_dart.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "homing_dart"
+display_name = "追踪飞镖"
+scene = null
+sprite_color = Color(0.82, 0.46, 0.82, 1)
+icon = ExtResource("2_icon")
+icon_size = Vector2(20, 8)
+base_damage = 12.0
+base_fire_rate = 1.6
+max_level = 8
+projectile_scene = null
+projectile_speed = 380.0
+projectile_lifetime = 2.2
+projectile_spread_deg = 4.0
+projectile_range = 520.0
+homing_turn_rate = 5.0

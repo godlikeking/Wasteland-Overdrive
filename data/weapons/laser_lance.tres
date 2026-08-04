@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_config.gd" id="1_wcfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/weapons/mount_laser_lance.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_wcfg")
+id = "laser_lance"
+display_name = "磁轨激光"
+scene = null
+sprite_color = Color(0.45, 0.9, 1, 1)
+icon = ExtResource("2_icon")
+icon_size = Vector2(22, 8)
+base_damage = 26.0
+base_fire_rate = 0.7
+max_level = 8
+laser_length = 520.0
+laser_width = 26.0
+laser_cooldown = 1.4
