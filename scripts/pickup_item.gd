@@ -14,15 +14,15 @@ class_name PickupItem
 enum Kind { HEAL, WEAPON, BOMB, TIME_STOP, SHIELD }
 
 ## Roll weights. Heal is the most common because it is the effect that keeps a
-## run alive. The weapon drop is raised high enough that trash drops (~6% per
-## kill) can accumulate 3 copies of the same weapon within a run — that is the
-## only way a weapon levels, via the 3-into-1 merge.
+## run alive. The weapon drop is weighted high so trash drops (~25% per kill)
+## can accumulate 3 copies of the same weapon within a run — that is the only
+## way a weapon levels, via the 3-into-1 merge.
 const DROP_WEIGHTS: Dictionary = {
 	Kind.HEAL: 24,
 	Kind.SHIELD: 22,
 	Kind.BOMB: 20,
 	Kind.TIME_STOP: 16,
-	Kind.WEAPON: 30,
+	Kind.WEAPON: 60,
 }
 
 const HEAL_PCT: float = 0.30

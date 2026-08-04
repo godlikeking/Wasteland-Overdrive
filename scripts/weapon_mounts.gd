@@ -10,30 +10,20 @@ extends Node2D
 ## teardown and the director's own stale-ref pruning all flow through here for
 ## free, with no extra signals to keep in sync.
 
-## Mount offsets in player-local px, chosen per weapon count so a lone fused
-## weapon sits centred on the shoulder instead of lopsided on one hip.
-## The player sprite is 48x48 (16px art at 3x) with a 14px collision radius,
-## so these sit right at the body edge. 1-6 weapons use this hand-tuned table;
-## 7+ weapons go down the two sides of the body (see `_slots_for`).
-const MOUNT_LAYOUTS := {
-	1: [Vector2(0, -18)],
-	2: [Vector2(-16, 6), Vector2(16, 6)],
-	3: [Vector2(-16, 8), Vector2(16, 8), Vector2(0, -18)],
-	4: [Vector2(-17, 8), Vector2(17, 8), Vector2(-13, -15), Vector2(13, -15)],
-	5: [Vector2(-17, 9), Vector2(17, 9), Vector2(-15, -8), Vector2(15, -8), Vector2(0, -22)],
-	6: [
-		Vector2(-18, 11), Vector2(18, 11),
-		Vector2(-20, -2), Vector2(20, -2),
-		Vector2(-12, -18), Vector2(12, -18),
-	],
-}
-## Beyond the hand-tuned table (7-12 weapons) mounts go down the LEFT and RIGHT
-## sides of the body in two vertical columns — the player never wears a weapon
-## on the front or back. A ring can't hold 12 icons without them merging into a
-## blob, and simply growing a single radius would float the guns off the body.
+## Every mount sits on the player's LEFT or RIGHT side — never on the front or
+## back — so the silhouette reads as "guns strapped to both hips" at any arsenal
+## size. Slots are handed out RIGHT column first, then left, alternating, so the
+## starter weapon (the first one granted) lands on the player's right hand and
+## the columns stay balanced as the arsenal grows.
+##
+## The player sprite is 48x48 (16px art at 3x) with a 14px collision radius, so
+## SIDE_X sits right at the body edge.
 const SIDE_X: float = 20.0
-## Vertical spacing between icons on each side; the column is centred on the body.
-const SIDE_STEP: float = 14.0
+## Vertical spacing between icons within one column, at full icon scale. The art
+## is 16px tall (apocalypse 20px), so 18 leaves a small gap instead of letting
+## neighbours swallow each other. Scaled by the crowding shrink in `slots_for`,
+## since shrunken icons need proportionally less room.
+const SIDE_STEP: float = 18.0
 ## More than this many weapons and the icons shrink; 12 full-size guns on a 48px
 ## sprite read as one unrecognisable mass.
 const CROWDED_THRESHOLD: int = 6
@@ -114,7 +104,7 @@ func _rebuild() -> void:
 	_aims.clear()
 	_weapons = found
 
-	var slots: Array = _slots_for(found.size())
+	var slots: Array = slots_for(found.size())
 	var icon_scale: float = _icon_scale_for(found.size())
 	for i in range(found.size()):
 		var w: BaseWeapon = found[i]
@@ -140,25 +130,32 @@ func _same_weapons(found: Array[BaseWeapon]) -> bool:
 			return false
 	return true
 
-## Mount offsets for `n` weapons: the hand-tuned table up to 6, then two
-## vertical columns down the left and right sides of the body. The odd weapons
-## go to the left column; each column is centred vertically on the body so the
-## guns never spill off the sprite.
-func _slots_for(n: int) -> Array:
-	if MOUNT_LAYOUTS.has(n):
-		return MOUNT_LAYOUTS[n]
+## Mount offsets for `n` weapons: two vertical columns hugging the player's
+## right and left sides. Slots alternate RIGHT, left, RIGHT, left... so weapon 0
+## (the starter) sits in the right hand and the columns stay within one of each
+## other as the arsenal grows. Each column is centred vertically on the body, so
+## the guns spread symmetrically above and below the waist instead of growing
+## downward off the sprite.
+func slots_for(n: int) -> Array:
 	if n <= 0:
 		return []
-	var left_n: int = ceili(float(n) * 0.5)
-	var right_n: int = n - left_n
+	var right_n: int = ceili(float(n) * 0.5)
+	var left_n: int = n - right_n
+	# Icons that shrink need proportionally less room, and a 6-per-side column at
+	# the full-scale step would hang well off the sprite.
+	var step: float = SIDE_STEP * _icon_scale_for(n)
+	# Distance from the column centre to its first icon.
+	var right_half: float = float(right_n - 1) * 0.5 * step
+	var left_half: float = float(left_n - 1) * 0.5 * step
 	var slots: Array = []
-	# Column centred on the body: y spreads above and below the centre.
-	var half: float = float(left_n - 1) * 0.5 * SIDE_STEP
-	for i in range(left_n):
-		slots.append(Vector2(-SIDE_X, -half + SIDE_STEP * float(i)))
-	var half_r: float = float(right_n - 1) * 0.5 * SIDE_STEP
-	for i in range(right_n):
-		slots.append(Vector2(SIDE_X, -half_r + SIDE_STEP * float(i)))
+	for i in range(n):
+		# Even indices go right, odd go left; the rank within the column is the
+		# number of earlier icons that landed on the same side.
+		var rank: int = i / 2
+		if i % 2 == 0:
+			slots.append(Vector2(SIDE_X, -right_half + step * float(rank)))
+		else:
+			slots.append(Vector2(-SIDE_X, -left_half + step * float(rank)))
 	return slots
 
 ## Icon scale for `n` weapons. Shrinks once the body gets crowded.

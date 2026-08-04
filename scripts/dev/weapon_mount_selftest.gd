@@ -50,8 +50,9 @@ func _ready() -> void:
 
 # --- layout --------------------------------------------------------------
 
-## Mount offsets must be re-picked every time the arsenal size changes, so a
-## lone weapon is centred and a pair is symmetric.
+## Mount offsets must be re-picked every time the arsenal size changes, and at
+## every size the guns ride the player's two sides with the first one on the
+## right. See _check_slots for the exact properties asserted.
 func _test_layout_grows_with_arsenal() -> void:
 	var t: String = "layout"
 	await _grant("bullet_volley")
@@ -68,7 +69,20 @@ func _test_layout_grows_with_arsenal() -> void:
 	if Array(ids) != want_ids:
 		_fail(t, "mounted %s, want %s" % [ids, want_ids])
 		return
-	_ok(t, "1 -> shoulder, 2 -> symmetric hips, 3 -> hips + shoulder")
+	_ok(t, "1 -> right hand, 2 -> right + left, 3 -> 2 right / 1 left")
+	# 6 is the worst case at full icon scale (3 per column, no crowding shrink),
+	# so it is where neighbours come closest to swallowing each other.
+	for extra in ["shotgun", "laser_lance", "mine_layer"]:
+		await _grant(extra)
+	if _check_slots(t, 6):
+		_ok(t, "6 -> 3 per side, still on the columns and still readable")
+	# Restore the 3-weapon arsenal the later tests expect (they place their test
+	# enemy 300px out, past the range of the guns added just above).
+	await _clear_arsenal()
+	for id in want_ids:
+		WeaponDirector.add_weapon_by_id(String(id))
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 ## Several copies of the same weapon must each get their own mount icon at a
 ## distinct position, and the rebuild must keep their angles per-instance
@@ -105,16 +119,68 @@ func _test_duplicate_weapons_get_distinct_mounts() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+## Assert the properties the layout promises, rather than comparing against
+## slots_for() — that would only restate the layout code back to itself. At any
+## arsenal size every icon must ride the left or right side (never the front or
+## back), the first icon must be on the player's RIGHT (where the starter weapon
+## belongs), the two columns must stay balanced, and no two icons may stack.
 func _check_slots(t: String, n: int) -> bool:
 	if _mounts.icon_count() != n:
 		_fail(t, "%d weapon(s) held but %d icon(s) mounted" % [n, _mounts.icon_count()])
 		return false
-	var want: Array = _mounts.MOUNT_LAYOUTS[n]
+	var side: float = _mounts.SIDE_X
 	var icons: Array[Sprite2D] = _mounts.icons()
+	var right: int = 0
+	var left: int = 0
 	for i in range(n):
-		if not icons[i].position.is_equal_approx(want[i]):
-			_fail(t, "icon %d of %d at %s, want %s" % [i, n, icons[i].position, want[i]])
+		var p: Vector2 = icons[i].position
+		if not is_equal_approx(absf(p.x), side):
+			_fail(t, "icon %d of %d at %s, want |x| == %.0f (weapons ride the sides only)" % [
+				i, n, p, side])
 			return false
+		if p.x > 0.0:
+			right += 1
+		else:
+			left += 1
+	if icons[0].position.x <= 0.0:
+		_fail(t, "with %d weapon(s) the first icon is at %s, want the player's right (+x)" % [
+			n, icons[0].position])
+		return false
+	# Slots alternate right-first, so the columns never differ by more than one.
+	if absi(right - left) > 1:
+		_fail(t, "%d weapons split %d right / %d left, want balanced columns" % [n, right, left])
+		return false
+	for i in range(n):
+		for j in range(i + 1, n):
+			if icons[i].position.is_equal_approx(icons[j].position):
+				_fail(t, "icons %d and %d both sit at %s" % [i, j, icons[i].position])
+				return false
+	return _check_spacing(t, icons)
+
+## Icons all aim the same way, so they are parallel bars radiating from their
+## mount points: two of them read as one blob once their mount points sit closer
+## than the SHORTER icon's on-screen height (the shorter one gets fully swallowed
+## by the taller). Using the per-pair shorter height — not the tallest icon in
+## the whole set — is what matters, since the tallest gun (apocalypse) sits alone
+## at a column end and never brackets a neighbour.
+func _check_spacing(t: String, icons: Array[Sprite2D]) -> bool:
+	var worst: float = INF
+	var worst_pair: String = ""
+	for i in range(icons.size()):
+		for j in range(i + 1, icons.size()):
+			if icons[i].texture == null or icons[j].texture == null:
+				continue
+			var limit: float = minf(
+				icons[i].texture.get_height() * icons[i].scale.y,
+				icons[j].texture.get_height() * icons[j].scale.y)
+			var d: float = icons[i].position.distance_to(icons[j].position)
+			if d < limit and d < worst:
+				worst = d
+				worst_pair = "%d/%d" % [i, j]
+	if worst != INF:
+		_fail(t, "with %d icons, icons %s are only %.1fpx apart, under the shorter icon height" % [
+			icons.size(), worst_pair, worst])
+		return false
 	return true
 
 ## Verify that every icon's texture matches its source and its pivot sits
@@ -291,11 +357,11 @@ func _test_fusion_resyncs_mounts() -> void:
 		_fail(t, "%d icons left after fusing 3 weapons into 1" % _mounts.icon_count())
 	elif Array(ids) != ["apocalypse"]:
 		_fail(t, "mounted %s after fusion, want [apocalypse]" % [ids])
-	elif not _mounts.icons()[0].position.is_equal_approx(_mounts.MOUNT_LAYOUTS[1][0]):
+	elif not _mounts.icons()[0].position.is_equal_approx(_mounts.slots_for(1)[0]):
 		_fail(t, "lone fused icon at %s, want the 1-weapon slot %s" % [
-			_mounts.icons()[0].position, _mounts.MOUNT_LAYOUTS[1][0]])
+			_mounts.icons()[0].position, _mounts.slots_for(1)[0]])
 	else:
-		_ok(t, "3 base icons collapsed into 1 apocalypse icon on the shoulder")
+		_ok(t, "3 base icons collapsed into 1 apocalypse icon in the right hand")
 
 ## A weapon that is queue_free()d but has not left the tree yet must already be
 ## treated as gone. _process can run in that window — fusion frees the base
@@ -330,9 +396,8 @@ func _test_rebuild_skips_freed_weapon() -> void:
 # --- full arsenal --------------------------------------------------------
 
 ## A maxed-out 12-weapon arsenal has to produce 12 distinct, readable icons.
-## MOUNT_LAYOUTS only hand-tunes up to 6, so 7-12 fall through to the two-ring
-## fallback, and this is the test that keeps that fallback from stacking icons
-## on top of each other.
+## This is the worst case for the two-column layout: 6 icons per side is where
+## they come closest to stacking on top of each other.
 func _test_full_arsenal_layout() -> void:
 	var t: String = "full_arsenal"
 	await _clear_arsenal()
@@ -352,45 +417,26 @@ func _test_full_arsenal_layout() -> void:
 		return
 	_ok(t, "%d weapons -> %d icons" % [want, _mounts.icon_count()])
 
-	# Icons all aim the same way, so they are parallel bars radiating from their
-	# mount points: two of them read as one blob once their mount points sit
-	# closer than the SHORTER icon's on-screen height (the shorter one gets fully
-	# swallowed by the taller). Using the per-pair shorter height — not the
-	# tallest icon in the whole set — is what matters, since the tallest gun
-	# (apocalypse) sits alone at a column end and never brackets a neighbour.
+	# Icons all aim the same way, so a pair closer than the shorter one's height
+	# reads as a single blob. 6 per side is where they come closest.
 	var icons: Array[Sprite2D] = _mounts.icons()
-	var worst: float = INF
-	var worst_pair: String = ""
-	for i in range(icons.size()):
-		for j in range(i + 1, icons.size()):
-			if icons[i].texture == null or icons[j].texture == null:
-				continue
-			var limit: float = minf(
-				icons[i].texture.get_height() * icons[i].scale.y,
-				icons[j].texture.get_height() * icons[j].scale.y)
-			var d: float = icons[i].position.distance_to(icons[j].position)
-			if d < limit and d < worst:
-				worst = d
-				worst_pair = "%d/%d" % [i, j]
-	if worst != INF:
-		_fail(t, "icons %s only %.1fpx apart, under the shorter icon height" % [
-			worst_pair, worst])
+	if not _check_spacing(t, icons):
 		return
 	_ok(t, "every pair of %d icons is at least the shorter icon's height apart" % icons.size())
 
 	# Icons must stay on the LEFT or RIGHT of the body (never front/back). The
-	# two-column layout fixes x at ±SIDE_X, so every icon's |x| must be near
-	# SIDE_X. Vertically the column may extend a little past the body (6 per
-	# side), but it must stay roughly symmetric around the centre.
+	# two-column layout fixes x at ±SIDE_X, so every icon's |x| must equal it.
+	# Vertically a 6-per-side column does hang past the 48px sprite, but it has to
+	# stay close enough to still read as guns worn on the body rather than a
+	# free-floating tower, so cap it at 40px from the waist.
 	var side: float = _mounts.SIDE_X
-	var step: float = _mounts.SIDE_STEP
-	var max_y: float = step * 6.0   # generous: 6-per-side column spread
+	var max_y: float = 40.0
 	for icon in icons:
 		if absf(absf(icon.position.x) - side) > 0.1:
 			_fail(t, "icon at %s drifted off the side columns (|x| should be %.0f)" % [icon.position, side])
 			return
 		if absf(icon.position.y) > max_y:
-			_fail(t, "an icon sits at %s, off the side column (|y| > %.0f)" % [icon.position, max_y])
+			_fail(t, "an icon sits at %s, too far off the body (|y| > %.0f)" % [icon.position, max_y])
 			return
 	_ok(t, "every one of %d icons sits on the left/right columns" % icons.size())
 
