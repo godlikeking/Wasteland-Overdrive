@@ -27,7 +27,7 @@ func setup_blade_scene(scene: PackedScene) -> void:
 func _post_setup() -> void:
 	if config == null:
 		return
-	_chain_timer.wait_time = maxf(0.2, config.chain_cooldown)
+	_chain_timer.wait_time = scale_cooldown(config.chain_cooldown, 0.2)
 	_chain_timer.start()
 	_dash_timer.wait_time = config.blade_dash_interval
 	_dash_timer.start()

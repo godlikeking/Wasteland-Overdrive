@@ -31,12 +31,13 @@ func _process(_delta: float) -> void:
 		if timer.is_stopped():
 			timer.start()
 
-## The beam is on its own cooldown rather than base_fire_rate, but the player's
-## fire-rate upgrades still have to matter, so fold them in here.
+## The beam is on its own cooldown rather than base_fire_rate, but the merge
+## curve's fire-rate multiplier and the player's fire-rate upgrades both have to
+## matter, so fold them in here.
 func _interval() -> float:
 	if config == null:
 		return 1.0
-	return maxf(0.1, config.laser_cooldown / maxf(0.05, float(GameState.fire_rate_mult)))
+	return scale_cooldown(config.laser_cooldown, 0.1)
 
 func _on_tick() -> void:
 	_fire()

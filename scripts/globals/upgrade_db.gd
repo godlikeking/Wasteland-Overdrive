@@ -1,7 +1,12 @@
 extends Node
-## Data table of passive and weapon upgrades that can be rolled on level-up.
-## Autoloaded as `UpgradeDB`. Each entry has an `id`, a display `name`,
-## a `description`, and an `apply` Callable that mutates GameState.
+## Data table of passive upgrades that can be rolled on level-up. Autoloaded as
+## `UpgradeDB`. Each entry has an `id`, a display `name`, a `description`, and
+## an `apply` Callable that mutates GameState.
+##
+## Weapons are no longer offered on level-up cards — they come from monster
+## drops and level via the 3-into-1 merge (see WeaponDirector), so every card
+## here is a passive. The `kind` field is kept (default "passive") so the
+## Upgrade struct shape is unchanged, but nothing branches on it.
 ##
 ## Uses an untyped Array (rather than Array[Upgrade]) because typed
 ## arrays of inner classes are fragile inside autoloaded scripts.
@@ -11,8 +16,7 @@ class Upgrade:
 	var name: String
 	var description: String
 	var apply: Callable
-	# "passive" or "weapon". Weapon upgrades are level-rolled by
-	# level_up.gd using the active weapons from WeaponDirector.
+	# Always "passive"; kept for Upgrade's shape. Cards never offer weapons.
 	var kind: String
 
 	func _init(p_id: String, p_name: String, p_desc: String, p_apply: Callable, p_kind: String = "passive") -> void:
@@ -86,121 +90,12 @@ func _ready() -> void:
 		"子弹射程 +25%",
 		func(): GameState.weapon_range_mult *= 1.25
 	))
-	# --- Weapon "unlock" upgrades (only one of each, only when not yet owned) ---
-	_all.append(Upgrade.new(
-		"unlock_orbiting_blades", "解锁 · 刀阵",
-		"获得 1 圈旋转刀刃",
-		func(): WeaponDirector.add_weapon_by_id("orbiting_blades"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_chain_lightning", "解锁 · 闪电链",
-		"获得闪电链武器",
-		func(): WeaponDirector.add_weapon_by_id("chain_lightning"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_shotgun", "解锁 · 散弹枪",
-		"近距离扇形喷射多枚弹丸",
-		func(): WeaponDirector.add_weapon_by_id("shotgun"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_laser_lance", "解锁 · 磁轨激光",
-		"瞬发长条光束，贯穿路径上全部敌人",
-		func(): WeaponDirector.add_weapon_by_id("laser_lance"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_mine_layer", "解锁 · 地雷布设器",
-		"在脚下留雷，敌人踩中即爆",
-		func(): WeaponDirector.add_weapon_by_id("mine_layer"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_flamethrower", "解锁 · 火焰喷射器",
-		"面前锥形范围持续灼烧",
-		func(): WeaponDirector.add_weapon_by_id("flamethrower"),
-		"weapon_unlock"
-	))
-	_all.append(Upgrade.new(
-		"unlock_homing_dart", "解锁 · 追踪飞镖",
-		"发射会自动转向最近敌人的飞镖",
-		func(): WeaponDirector.add_weapon_by_id("homing_dart"),
-		"weapon_unlock"
-	))
-	# --- Weapon "level up" upgrades (one of each, only when already owned) ---
-	_all.append(Upgrade.new(
-		"level_bullet_volley", "弹雨 +1",
-		"弹雨升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("bullet_volley"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_orbiting_blades", "刀阵 +1",
-		"刀阵升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("orbiting_blades"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_chain_lightning", "闪电链 +1",
-		"闪电链升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("chain_lightning"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_shotgun", "散弹枪 +1",
-		"散弹枪升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("shotgun"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_laser_lance", "磁轨激光 +1",
-		"磁轨激光升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("laser_lance"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_mine_layer", "地雷布设器 +1",
-		"地雷布设器升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("mine_layer"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_flamethrower", "火焰喷射器 +1",
-		"火焰喷射器升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("flamethrower"),
-		"weapon_level"
-	))
-	_all.append(Upgrade.new(
-		"level_homing_dart", "追踪飞镖 +1",
-		"追踪飞镖升 1 级",
-		func(): WeaponDirector.level_up_weapon_by_id("homing_dart"),
-		"weapon_level"
-	))
 	print("[UpgradeDB] loaded %d upgrades" % _all.size())
 
-## Return up to `count` random upgrades, filtered against `WeaponDirector`.
-## - weapon_unlock: only show those whose id is not yet owned, and only while a
-##   weapon slot is still free
-## - weapon_level:  only show those whose id is already owned
-## - passive:       always shown
+## Return up to `count` random upgrades. Every entry is a passive, so the pool
+## is the whole table shuffled. 12 passives > 3, so this never comes up short.
 func roll(count: int) -> Array:
-	var pool: Array = []
-	for up in _all:
-		if up.kind == "passive":
-			pool.append(up)
-		elif up.kind == "weapon_unlock":
-			var wid: String = up.id.replace("unlock_", "")
-			# Hide unlocks the player cannot act on. A full arsenal makes
-			# add_weapon_by_id a no-op, so offering the card anyway would waste
-			# one of the three level-up choices on nothing.
-			if not WeaponDirector.has_weapon(wid) and not WeaponDirector.is_full():
-				pool.append(up)
-		elif up.kind == "weapon_level":
-			var wid2: String = up.id.replace("level_", "")
-			if WeaponDirector.has_weapon(wid2):
-				pool.append(up)
+	var pool: Array = _all.duplicate()
 	pool.shuffle()
 	var result: Array = []
 	for i in range(min(count, pool.size())):

@@ -16,14 +16,21 @@ func _ready() -> void:
 func _post_setup() -> void:
 	if timer == null:
 		return
-	timer.wait_time = config.chain_cooldown
+	timer.wait_time = _interval()
 	timer.start()
 
 func _process(_delta: float) -> void:
-	if timer and config and abs(timer.wait_time - config.chain_cooldown) > 0.02:
-		timer.wait_time = config.chain_cooldown
+	if timer and config and abs(timer.wait_time - _interval()) > 0.02:
+		timer.wait_time = _interval()
 		if timer.is_stopped():
 			timer.start()
+
+## Chain cadence also scales with the merge curve's fire-rate multiplier, not
+## just the player's fire-rate upgrades — see BaseWeapon.scale_cooldown.
+func _interval() -> float:
+	if config == null:
+		return 1.0
+	return scale_cooldown(config.chain_cooldown, 0.1)
 
 func _on_tick() -> void:
 	_fire()

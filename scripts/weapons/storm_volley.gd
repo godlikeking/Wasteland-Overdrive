@@ -17,7 +17,7 @@ func _post_setup() -> void:
 		return
 	_volley_timer.wait_time = get_fire_interval()
 	_volley_timer.start()
-	_chain_timer.wait_time = maxf(0.2, config.chain_cooldown)
+	_chain_timer.wait_time = scale_cooldown(config.chain_cooldown, 0.2)
 	_chain_timer.start()
 
 func _process(_delta: float) -> void:
@@ -28,6 +28,10 @@ func _process(_delta: float) -> void:
 		_volley_timer.wait_time = get_fire_interval()
 		if _volley_timer.is_stopped():
 			_volley_timer.start()
+	if _chain_timer and absf(_chain_timer.wait_time - scale_cooldown(config.chain_cooldown, 0.2)) > 0.02:
+		_chain_timer.wait_time = scale_cooldown(config.chain_cooldown, 0.2)
+		if _chain_timer.is_stopped():
+			_chain_timer.start()
 
 func _on_volley() -> void:
 	if config == null or config.projectile_scene == null or not is_instance_valid(_owner):

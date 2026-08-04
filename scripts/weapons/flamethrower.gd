@@ -40,11 +40,12 @@ func _process(delta: float) -> void:
 	_tick_accum = 0.0
 	_burn()
 
-## Tick interval, sped up by the player's fire-rate upgrades.
+## Tick interval, scaled by the merge curve's fire-rate multiplier plus the
+## player's fire-rate upgrades.
 func _interval() -> float:
 	if config == null:
 		return 0.15
-	return maxf(0.03, config.flame_tick / maxf(0.05, float(GameState.fire_rate_mult)))
+	return scale_cooldown(config.flame_tick, 0.03)
 
 func _range() -> float:
 	if config == null:

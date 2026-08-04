@@ -19,6 +19,7 @@ func _ready() -> void:
 	for recipe_id in WeaponDirector.FUSION_RECIPES.keys():
 		await _test_recipe(recipe_id)
 	await _test_missing_asset_is_non_destructive()
+	await _test_spare_copy_survives_fusion()
 	print("=== fusion selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -129,6 +130,33 @@ func _find_weapon_node(weapon_id: String) -> Node:
 				return w
 	return null
 
+## Fusion must consume exactly ONE qualifying copy of each ingredient, leaving
+## any spare copies the player owns untouched.
+func _test_spare_copy_survives_fusion() -> void:
+	var t: String = "spare_copy"
+	await _teardown()
+	# Two copies of each base weapon: fusion consumes one of each, one remains.
+	for id in WeaponDirector.BASE_WEAPONS:
+		WeaponDirector.add_weapon_by_id(id)
+		WeaponDirector.add_weapon_by_id(id)
+	WeaponDirector._debug_max_base_weapons()
+	var got: String = WeaponDirector.fuse("apocalypse")
+	if got != "apocalypse":
+		_fail(t, "fuse() returned '%s'" % got)
+		await _teardown()
+		return
+	for id in WeaponDirector.BASE_WEAPONS:
+		if WeaponDirector.count_of(id) != 1:
+			_fail(t, "base weapon '%s' count %d after fusion, want 1 (spare must survive)" % [
+				id, WeaponDirector.count_of(id)])
+			return
+	if not WeaponDirector.has_weapon("apocalypse"):
+		_fail(t, "fused weapon not registered")
+		await _teardown()
+		return
+	_ok(t, "fusion consumed one copy of each ingredient, spares survived")
+	await _teardown()
+
 ## Drop every weapon so the next recipe starts from a clean arsenal.
 func _teardown() -> void:
 	for child in _player.get_children():
@@ -143,3 +171,6 @@ func _teardown() -> void:
 func _fail(recipe_id: String, msg: String) -> void:
 	_failures += 1
 	printerr("  FAIL %s: %s" % [recipe_id, msg])
+
+func _ok(recipe_id: String, msg: String) -> void:
+	print("  OK %-16s %s" % [recipe_id, msg])

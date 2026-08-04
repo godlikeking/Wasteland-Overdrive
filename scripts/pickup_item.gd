@@ -14,14 +14,15 @@ class_name PickupItem
 enum Kind { HEAL, WEAPON, BOMB, TIME_STOP, SHIELD }
 
 ## Roll weights. Heal is the most common because it is the effect that keeps a
-## run alive; the weapon drop is rarest because it is the strongest and is also
-## the one that can be wasted once every slot is filled.
+## run alive. The weapon drop is raised high enough that trash drops (~6% per
+## kill) can accumulate 3 copies of the same weapon within a run — that is the
+## only way a weapon levels, via the 3-into-1 merge.
 const DROP_WEIGHTS: Dictionary = {
-	Kind.HEAL: 30,
+	Kind.HEAL: 24,
 	Kind.SHIELD: 22,
 	Kind.BOMB: 20,
 	Kind.TIME_STOP: 16,
-	Kind.WEAPON: 12,
+	Kind.WEAPON: 30,
 }
 
 const HEAL_PCT: float = 0.30
@@ -136,16 +137,13 @@ func _effect_heal(player: Node2D) -> void:
 
 func _effect_weapon() -> void:
 	var granted: String = WeaponDirector.grant_random_weapon()
-	if granted != "":
-		_label("获得 %s" % WeaponDirector.display_name_of(granted), Color(1.0, 0.85, 0.4))
-		return
-	# Slots full, or the player already owns everything: upgrade instead of
-	# wasting the drop.
-	var upgraded: String = WeaponDirector.level_up_random_weapon()
-	if upgraded != "":
-		_label("%s 升级" % WeaponDirector.display_name_of(upgraded), Color(1.0, 0.85, 0.4))
-	else:
+	if granted == "":
+		# Slots full and nothing here can complete a merge — the director already
+		# tried; refuse rather than silently wasting the drop.
 		_label("武器槽已满", Color(0.8, 0.8, 0.6))
+		return
+	_label("获得 %s" % WeaponDirector.display_name_of(granted), Color(1.0, 0.85, 0.4))
+	# A merge that the grant triggered is announced by WeaponDirector itself.
 
 func _effect_bomb() -> void:
 	if explosion_scene == null:

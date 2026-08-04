@@ -26,7 +26,7 @@ func _post_setup() -> void:
 		return
 	_volley_timer.wait_time = get_fire_interval() * 0.45   # 弹雨密集
 	_volley_timer.start()
-	_chain_timer.wait_time = max(0.4, config.chain_cooldown)
+	_chain_timer.wait_time = scale_cooldown(config.chain_cooldown, 0.4)
 	_chain_timer.start()
 	_nuke_timer.wait_time = 4.0
 	_nuke_timer.start()

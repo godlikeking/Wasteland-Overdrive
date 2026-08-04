@@ -36,11 +36,26 @@ func setup(p_config: WeaponConfig, p_level: int = 1) -> void:
 func _recompute_stats() -> void:
 	if config == null:
 		return
-	# +25% damage per level above 1, +15% fire rate per level above 1.
-	var dmg_mult: float = 1.0 + 0.25 * float(level - 1)
-	var rate_mult: float = 1.0 + 0.15 * float(level - 1)
+	# Steep curve: +100% damage per level above 1, +50% fire rate per level
+	# above 1. A Lv2 weapon is 2.0x damage * 1.5x rate = 3.0x output, exactly
+	# what 3 Lv1 copies produce — so the first merge (3 same-level weapons into
+	# one at level+1) is a DPS-neutral trade that only frees 2 slots. Later
+	# merges are deliberately diminishing (3 Lv2 -> 1 Lv3 = 6.0x vs their 9.0x
+	# kept apart), since levels are now only reachable through that 3-into-1 cost.
+	var dmg_mult: float = 1.0 + 1.0 * float(level - 1)
+	var rate_mult: float = 1.0 + 0.5 * float(level - 1)
 	_damage = config.base_damage * dmg_mult
 	_fire_rate = config.base_fire_rate * rate_mult
+
+## Level + player fire-rate scaling for weapons that run on their own cooldown
+## field instead of base_fire_rate. Without this a merge would be worth 3.0x
+## output on rate-driven weapons but only 2.0x on cooldown-driven ones, so the
+## chain lightning / laser / flamethrower / mine weapons all route their
+## interval through here to stay consistent with the merge curve.
+func scale_cooldown(base: float, floor_sec: float) -> float:
+	var r: float = 1.0 + 0.5 * float(level - 1)   # must match _recompute_stats rate_mult
+	r *= float(GameState.fire_rate_mult)
+	return maxf(floor_sec, base / maxf(0.05, r))
 
 func get_damage() -> float:
 	return _damage * float(GameState.damage_mult)

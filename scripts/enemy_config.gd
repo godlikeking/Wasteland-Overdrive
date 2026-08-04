@@ -40,9 +40,13 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var elite_xp_multiplier: float = 4.0
 
 ## Item drops (Iter8). How many PickupItems this archetype leaves behind when it
-## dies; 0 for ordinary trash mobs. The scene ref is injected at runtime by
-## SpawnDirector (same as xp_gem_scene) so the .tres files stay scene-free.
+## dies, and the probability (0..1) that it drops at all. `item_drop_count` is a
+## COUNT not a chance, so ordinary trash mobs use a small chance (e.g. 0.06) with
+## count 1, while elites/bosses drop guaranteed with chance 1.0. The scene ref is
+## injected at runtime by SpawnDirector (same as xp_gem_scene) so the .tres files
+## stay scene-free.
 @export var item_drop_count: int = 0
+@export var item_drop_chance: float = 1.0
 @export var item_drop_scene: PackedScene
 
 ## BOSS: 3-phase giant with high HP

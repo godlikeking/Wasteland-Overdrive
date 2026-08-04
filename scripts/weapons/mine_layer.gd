@@ -30,12 +30,12 @@ func _process(_delta: float) -> void:
 		if timer.is_stopped():
 			timer.start()
 
-## Laying rate follows the player's fire-rate upgrades, same as the laser's
-## cooldown does.
+## Laying rate follows the merge curve's fire-rate multiplier plus the player's
+## fire-rate upgrades, same as the laser's cooldown does.
 func _interval() -> float:
 	if config == null:
 		return 2.0
-	return maxf(0.2, config.mine_interval / maxf(0.05, float(GameState.fire_rate_mult)))
+	return scale_cooldown(config.mine_interval, 0.2)
 
 func _on_tick() -> void:
 	_fire()

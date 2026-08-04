@@ -378,9 +378,12 @@ func _die() -> void:
 
 ## Scatter `config.item_drop_count` pickups around the corpse. Driven by the
 ## config rather than by "was this camp-spawned", so a time-based ELITE WAVE
-## elite drops exactly like a camp elite does.
+## elite drops exactly like a camp elite does. `item_drop_chance` gates the whole
+## drop so trash mobs can carry a small chance instead of a guaranteed pile.
 func _drop_items() -> void:
 	if config == null or config.item_drop_count <= 0 or config.item_drop_scene == null:
+		return
+	if randf() > config.item_drop_chance:
 		return
 	var n: int = config.item_drop_count
 	for i in range(n):

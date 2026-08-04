@@ -29,13 +29,14 @@
 - **Esc**：暂停 / 继续
 - 武器**自动**锁定并射击最近敌人
 - 击杀敌人掉落蓝色**经验宝石**，走近自动吸取
-- **升级**时弹出三张升级卡（被动强化 / 解锁新武器 / 武器升级），选择一张永久强化本局角色
+- **升级**时弹出三张**被动**升级卡（武器不再从升级卡获得），选择一张永久强化本局角色
 - **接触敌人**扣血，血量归零结算重开
 - **地图**：4096×4096 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）/ **精英营地**
 - 撞墙：玩家和敌人都被瓦砾 / 废铁 / 地坑挡住，**敌人在 0.4s 同步后会自动绕路**
 - **精英营地**：地图上 6 个锈红警戒条纹地砖圈，走近会刷出精英怪；杀掉掉 **1 个道具**，营地进 45s 冷却后重刷（详见「精英营地」一节）
 - **道具**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种，走近自动吸取（详见「道具掉落」一节）
-- 最多同时装备 **12 把武器**，挂件全部画在玩家身上
+- **武器来源**：怪物掉落（含杂兵），可同时持有多把相同武器，**3 把同款同级武器自动合成 1 把更高级**（详见「武器合并」一节）
+- 最多同时装备 **12 把武器**，挂件全部画在玩家左右两侧
 
 ## 已实现
 
@@ -50,9 +51,10 @@
 - [x] 手感抛光：屏幕震动 / 击中 hit-stop / 击杀与命中粒子 / 子弹拖尾 / 拾取与升级弹字
 - [x] 多敌人（拾荒者 / 突袭者 / 哨兵 / 机械重装）+ SpawnDirector 波次编排
 - [x] 数据驱动敌人（EnemyConfig Resource）+ 哨兵敌人射击子弹
-- [x] 多武器系统：弹雨 / 旋转刀阵 / 闪电链 + 武器解锁与升级三选一卡
+- [x] 多武器系统：弹雨 / 旋转刀阵 / 闪电链 + 武器从怪物掉落（可重复持有）
 - [x] WeaponDirector autoload 管理武器槽与等级
 - [x] **程序化废土 TileMap（运行时生成 5 种子瓦片，4096×4096 地图）**
+- [x] **武器合并**：3 把同款同级武器自动合成 1 把更高级（等级曲线 +100% 伤害 / +50% 射速，冷却型武器同步缩放）
 - [x] **物理碰撞（瓦砾 / 废铁 / 地坑 写入 TileData collision_polygons）**
 - [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
@@ -66,10 +68,10 @@
 - [x] **5 分钟 Boss 战**：废土巨兽（1000 HP、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
-- [x] **装备融合（Fusion）**：3 基础武器全部 5 级时可触发融合面板；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
+- [x] **装备融合（Fusion）**：3 基础武器各持有一把 Lv3 副本时可触发融合面板（可选开启）；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
 - [x] **精英营地**：地图程序化生成 6 处专属地砖营地，走近刷精英、杀死进 45s 冷却重刷
-- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种掉落，精英掉 1 个、Boss 掉 3 个
-- [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走双环布局
+- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种掉落，武器从怪物掉落获得（含杂兵）
+- [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走左右两列布局
 - [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
 
 ## 已内建的 12 项被动升级
@@ -127,9 +129,9 @@ godot --headless res://scenes/dev/fusion_selftest.tscn
 | 4 | 左右 + 双肩 `(±17, 8)` `(±13, -15)` |
 | 5 | 左右 + 腰侧 + 头顶 `(±17, 9)` `(±15, -8)` `(0, -22)` |
 | 6 | 三对左右 `(±18, 11)` `(±20, -2)` `(±12, -18)` |
-| 7–12 | **双环** fallback：内环 r=20 放前 `ceil(n/2)`（封顶 6）个，外环 r=34 放余下，外环整体转半步落在内环的空隙里；且 n > 6 时图标 `scale = 0.75` |
+| 7–12 | **左右两列**：一把武器都不摆在玩家正前/正后，全部沿身体两侧排成两列竖线（左列 `x=-20`、右列 `x=+20`，奇数多的一把放左列），每列竖向在上半/下半等距分布；且 n > 6 时图标 `scale = 0.75` |
 
-双环不是调出来的，是算出来的：内环放满 6 个时相邻弦长 = 20px，外环 34px，跨环最近距离在半步偏移下约 **19.4px**，都大于最高图标的 15px 屏上高度。`weapon_mount_selftest` 的满槽用例实测就是 19.4px——12 把武器出 12 个图标、最近一对 19.4px、全部落在 34px 外环之内。没有这条几何保证，12 把枪在 48px 的身体上会糊成一团。
+两列是算出来的：`SIDE_X=20` 固定横向贴边，`SIDE_STEP=14` 纵向等距，每列居中于身体，所以 12 把武器变成左右各 6 条列、绝不糊成环。`weapon_mount_selftest` 的满槽用例实测：12 把武器出 12 个图标、全部落在 x=±20 两侧、任意一对的距离不小于较短图标的高度，不会互相吞掉。
 
 **朝向**：每个挂件独立转向自己武器的目标，走 `BaseWeapon.get_aim_direction()`（复用 `_find_nearest_enemy(get_range())`，所以子弹武器受射程约束，刀阵/闪电链不限距离）。目标扫描 **每 0.06s 一次**（敌人组可能 60+，每帧全扫是白烧 CPU），每帧用 `lerp_angle` 以 10 rad/s 平滑转。丢失目标时保持上一次方向并**把没转完的角度转完**，不冻在半路也不弹回 0。
 
@@ -198,8 +200,8 @@ python tools/gen_bullets.py --check  # 只校验现有文件
 
 ## 融合配方（`WeaponDirector.FUSION_RECIPES`）
 
-三把基础武器（弹雨 / 闪电链 / 旋转刀）全部升到 5 级后，下一次升级弹出融合面板。
-融合会消耗配方里列出的基础武器，换成一把超级武器。
+三把基础武器（弹雨 / 闪电链 / 旋转刀）各持有**一把 Lv3 副本**后，下一次升级弹出融合面板（可选开启，不强制）。
+融合会消耗配方里每种基础武器**一个**副本（等级最高的那个），换成一把超级武器；多余的同款副本保留。
 
 | 融合物 | 配方 | 行为 |
 |---|---|---|
@@ -215,6 +217,27 @@ python tools/gen_bullets.py --check  # 只校验现有文件
 
 ```bash
 godot --headless res://scenes/dev/fusion_selftest.tscn   # exit 0 = 全绿
+```
+
+## 武器合并（3 把同款同级 → 1 把更高级）
+
+武器不再来自升级卡，而是**怪物掉落**（含杂兵，见「道具掉落」），所以玩家可以同时持有多把相同武器。凑齐 **3 把同款同级**的武器会自动合成 1 把**更高一级**的武器，落地立刻生效（不用手动操作）。
+
+| 等级 | 伤害 | 射速 | 相对 Lv1 输出 | 等价 Lv1 把数 | 需要的掉落数 |
+|---|---|---|---|---|---|
+| 1 | 1.0× | 1.0× | 1.0× | 1 | 1 |
+| 2 | 2.0× | 1.5× | **3.0×** | 3 | 3 |
+| 3 | 3.0× | 2.0× | 6.0× | 6 | 9 |
+| 4 | 4.0× | 2.5× | 10.0× | 10 | 27 |
+
+- **第一次合并零亏**：Lv2 的 3.0× 输出正好等于 3 把 Lv1 各打各的，还净赚 2 个槽位。之后是「用 DPS 换槽位效率 + 换融合门槛」的有意递减收益。
+- **冷却型武器**（闪电链 / 磁轨激光 / 火焰喷射器 / 地雷布设器 / 雷暴弹雨 / 闪电刀阵 / 启示录）的等级射速同样走 `scale_cooldown()`，保证合并对它们也是 3.0×，而不是只放大伤害。
+- **级联**：9 把 Lv1 会先合成 3 把 Lv2，再合成 1 把 Lv3，最终只占 1 个槽位。
+- **上限**：`WeaponConfig.max_level`（默认 8）是合并天花板，3 把满级副本不再合并、可共存。
+- **满槽掉落**：优先凑能立刻完成合并的掉落（因为那一手净腾出 2 个槽）；凑不上就拒绝，不浪费。
+
+```bash
+godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # exit 0 = 全绿
 ```
 
 ## 精英营地（地图特定区域）
@@ -248,25 +271,25 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 
 ## 道具掉落
 
-精英与 Boss 死亡时掉道具，数量由 `EnemyConfig.item_drop_count` 数据驱动：`elite_brute.tres` = 1，`boss.tres` = 3，其余 0。掉落绑定在**「是精英」而不是「是营地刷的」**，所以 ELITE WAVE 和 5% roll 出来的精英一样掉。
+精英、Boss 与**杂兵**死亡时掉道具，数量 / 概率由 `EnemyConfig` 数据驱动：`elite_brute.tres` = 1 个（100%）、`boss.tres` = 3 个（100%）、`chaser` / `dasher` / `shooter` = 1 个（6%）。掉落绑定在**「是精英」而不是「是营地刷的」**，所以 ELITE WAVE 和 5% roll 出来的精英一样掉。
 
 道具是 `scenes/pickup_item.tscn`（结构照抄 `xp_gem.tscn`：Area2D，layer 16 Pickup / mask 2），进玩家 `PickupArea` → 归巢 → 到位生效 + 飘字 + 音效。地上会上下浮动，`LIFETIME` 30s 后消失，最后 5s 闪烁预警——否则没捡的道具会慢慢铺满地图。
 
 | 道具 | 权重 | 效果 | 落点 |
 |---|---|---|---|
-| 补血 `HEAL` | 30 | 回 **30%** 生命上限 | `player.heal()`，clamp 到 max_hp |
+| 补血 `HEAL` | 24 | 回 **30%** 生命上限 | `player.heal()`，clamp 到 max_hp |
 | 护盾 `SHIELD` | 22 | 抵消接下来 **2** 次伤害 | `GameState.shield_charges`，`player.take_damage` 开头扣层 |
 | 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
 | 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
-| 武器 `WEAPON` | 12 | 给一把未持有的武器 | `WeaponDirector.grant_random_weapon()` |
+| 武器 `WEAPON` | 30 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
 
-权重意图：补血最常见（它是让一局活下去的那个效果）；武器最稀有（最强，且满槽时是唯一会被浪费的一种）。
+权重意图：补血最常见（它是让一局活下去的那个效果）；**武器从 12 提到 30** —— 因为武器现在只能靠掉落获得，且凑 3 把同款要的掉落数很多，所以权重上调、补血略降（杂兵开始掉落后总治疗量本来就上去了）。
 
 **护盾**按「次数」而不是「伤害量」抵消：一层挡一下，不管这一下打多少。抵消时照常给无敌帧 + 蓝闪，但不掉血。玩家身上挂 `ShieldRing`（`_draw` 画圆环，层数越多越亮）。
 
 **时间暂停只冻结敌人**：`GameState.is_time_stopped()` 为真时 `enemy.gd` / `enemy_projectile.gd` 的 `_physics_process` 开头直接 return，冻结期间染蓝灰；玩家照常移动开火。**没有碰 `Engine.time_scale`**——那会把玩家、tween、粒子一起冻住。倒计时在 `GameState._process` 里放在 `is_running` 判断**之前**递减，但 autoload 默认 pausable，所以升级面板暂停时时停不会偷跑。
 
-**满槽时武器道具转为升级**：`grant_random_weapon()` 在 12 槽全满或全部持有时随机升一把现有武器，不会静默丢掉。
+**满槽时武器道具优先凑合并**：`grant_random_weapon()` 在 12 槽全满时，只接受「能立刻凑成 3 连合并」的武器（那一手净腾出 2 个槽）；凑不上就拒绝，不会静默丢掉。
 
 **顺手修的一个老 bug**：`enemy.gd` 的 `_flash()` 原本补间回 `config.sprite_color`，但 `_apply_visuals` 给精英/BOSS 上的是 `Color(1.4,0.6,0.6)` / `Color(1.2,0.6,0.6)`——精英挨一下就永久掉红染。现在 `_apply_visuals` 缓存 `_base_tint`，`_flash()` 和时停解冻都补间回它。
 
@@ -277,7 +300,7 @@ python tools/gen_pickups.py          # 重新生成到 assets/sprites/pickups/ �
 python tools/gen_pickups.py --check  # 只校验现有文件
 ```
 
-自检（5 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽转升级 / 第 13 把被拒）：
+自检（5 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并）：
 
 ```bash
 godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
@@ -285,14 +308,14 @@ godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
 
 ## 武器槽位（12）
 
-`WeaponDirector.MAX_WEAPONS = 12`，正好等于可达 id 数：**8 把基础 + 4 个融合物**。
+`WeaponDirector.MAX_WEAPONS = 12`。武器以**实例列表**存储（`_weapons: Array[BaseWeapon]`），允许重复持有同一把武器；`BaseWeapon.level` 是每实例的，3 把同款同级自动合并。
 
-- 满槽拦截放在 `add_weapon` / `add_weapon_with_extras` 顶部——这两个是 `_weapons` 的唯一写入口，返回值从 `void` 改成 `bool` 便于自测断言。
-- `UpgradeDB` 的 `weapon_unlock` 分支追加了 `not WeaponDirector.is_full()` 过滤，满槽后不再摆出解锁卡。
-- 新增 `slots_used()` / `is_full()` / `owned_weapon_ids()`。最后一个是必要的：`WEAPON_CATALOG` 只列基础武器，任何要覆盖**整个**军火库的调用方（HUD 计数、升级记账）都得用它，否则会漏掉 4 把融合武器。
-- **`fuse()` 净减槽位**：它先 `_weapons.erase()` 掉配方里的基础武器再 add 融合物，所以 2 件组 -1 槽、3 件组 -2 槽。**正常玩法里融合永远不可能把槽位推到 12**；自测要测满槽上限时是直接 add 融合 id 的（那是槽位上限测试，不是融合测试，融合有自己的自测）。
+- 满槽拦截放在 `add_weapon` / `add_weapon_with_extras` 顶部——这两个是 `_weapons` 的唯一写入口，返回值从 `void` 改成 `bool` 便于自测断言。**满槽时若有 id 能立刻凑成 3 连合并仍放行**（那一手净减 2 槽）。
+- 新增 `slots_used()` / `is_full()` / `count_of(id)` / `owned_weapon_ids()`。`count_of()` 返回该 id 的副本数；`weapon_level_of(id)` 返回该 id 所有副本里的最高等级。
+- **`fuse()` 净减槽位**：它先 `_consume_one()` 掉配方里每种基础武器**一个**副本再 add 融合物，所以 2 件组 -1 槽、3 件组 -2 槽，且多余的同款副本保留。
+- **合并净减槽位**：3 把同款同级 → 1 把更高级，净 -2 槽。加上可重复持有，**12 个槽位在正常玩法里真的能填满**。
 
-HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。前两个听 `GameState.shield_changed` / `time_stop_changed`；槽位是**轮询**的——`WeaponDirector` 没有「军火库变了」的信号，而武器可以从升级卡、道具、融合三条路进出，所以 `_process` 里比对上一次画的数字，只在真的变了时重绘。为 0 时两个状态标签留空而不是显示 `0`，让整行在没有效果时塌掉。
+HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。前两个听 `GameState.shield_changed` / `time_stop_changed`；槽位是**轮询**的——`WeaponDirector` 没有「军火库变了」的信号，而武器可以从掉落、合并、融合三条路进出，所以 `_process` 里比对上一次画的数字，只在真的变了时重绘。为 0 时两个状态标签留空而不是显示 `0`，让整行在没有效果时塌掉。
 
 ## 基础武器（8 把）
 
@@ -309,7 +332,7 @@ HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。�
 | `flamethrower` 火焰喷射器 | 4 | 6.7 | 射程 160、锥角 60° | 锥形区域跟 `get_aim_direction()` 转，每 0.15s 结算一次重叠敌人 |
 | `homing_dart` 追踪飞镖 | 12 | 1.6 | 射程 520、转向 5 rad/s | `bullet.set_homing()`：有制导且目标有效时每帧把速度转向最近敌人 |
 
-每把都配了解锁卡和 `+1` 升级卡（`UpgradeDB`）。`shotgun` / `homing_dart` 复用 `bullet.tscn`，`mine_layer` 用 `mine.tscn`——两者的场景引用都在 `WeaponDirector` 的 `BULLET_USERS` / `MINE_USERS` 里注入，`.tres` 留 null，`data/` 目录里不出现场景引用。
+每把都配了 `WeaponConfig` 数据 + 挂件图标（`UpgradeDB` 不再负责武器解锁/升级，武器只从掉落获得）。`shotgun` / `homing_dart` 复用 `bullet.tscn`，`mine_layer` 用 `mine.tscn`——两者的场景引用都在 `WeaponDirector` 的 `BULLET_USERS` / `MINE_USERS` 里注入，`.tres` 留 null，`data/` 目录里不出现场景引用。
 
 
 
@@ -330,10 +353,11 @@ HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。�
 
 ```bash
 godot --headless res://scenes/dev/elite_camp_selftest.tscn    # 精英营地
-godot --headless res://scenes/dev/pickup_selftest.tscn        # 5 种道具 + 槽位上限
-godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（含满槽 12 图标）
+godot --headless res://scenes/dev/pickup_selftest.tscn        # 5 种道具 + 槽位上限/满槽合并
+godot --headless res://scenes/dev/weapon_merge_selftest.tscn  # 3 合 1 合并 + 曲线 + 级联
+godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（含满槽 12 图标两列）
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程与穿透
-godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方
+godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 5 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图
@@ -357,14 +381,14 @@ SecondGame/
 │   ├── enemy_projectile.tscn  # 敌人发射的子弹
 │   ├── xp_gem.tscn             # 经验宝石
 │   ├── pickup_item.tscn        # 道具（补血/护盾/炸弹/时停/武器 共用一个场景）
-│   ├── dev/                    # headless 自测场景
+│   ├── dev/                   # headless 自测场景
 │   ├── fx/                     # 浮字 + 粒子 + explosion
 │   ├── ui/                     # HUD / LevelUp / GameOver / UpgradeCard / Shop
 │   └── weapons/                # 8 基础 + 4 融合武器 + 飞刀 + 地雷场景
 ├── scripts/
 │   ├── globals/
 │   │   ├── game_state.gd      # Autoload: 状态 + 事件总线 + 属性倍率 + 护盾/时停
-│   │   ├── upgrade_db.gd      # Autoload: 升级数据表（被动 + 武器解锁 + 武器升级）
+│   │   ├── upgrade_db.gd      # Autoload: 升级数据表（纯被动）
 │   │   ├── meta_progress.gd   # Autoload: 永久货币 / 统计，落盘 user://
 │   │   └── system_check.gd    # Autoload: 启动期 autoload/脚本/场景/资源自检
 │   ├── player.gd
@@ -388,8 +412,8 @@ SecondGame/
 │   ├── burst_particles.gd
 │   ├── shake_camera.gd
 │   ├── weapon_mounts.gd       # 玩家身上的武器挂件布局与朝向
-│   ├── weapon_director.gd     # Autoload: 12 武器槽 + 融合 + 跨场景清理
-│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / ...）
+│   ├── weapon_director.gd     # Autoload: 12 武器槽 + 合并 + 融合 + 跨场景清理
+│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / merge / ...）
 │   ├── weapons/
 │   │   ├── weapon.gd          # BaseWeapon 基类
 │   │   ├── weapon_config.gd   # WeaponConfig 资源类
@@ -458,13 +482,12 @@ SecondGame/
 - 毒沼只有减速/扣血，无视觉毒气动画
 - 敌人寻路未启用 avoidance（避免 60+ 实体时性能塌方）
 - 地图固定 4096×4096，未做"越打越大"扩展
-- 融合是单向的，融合后无法拆回基础武器；一局最多融合一次（基础武器被消耗）
+- 融合是单向的，融合后无法拆回基础武器；一局最多融合一次（每个融合物的基础副本被消耗）
 - 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
 - `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
 - 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
 - 武器挂件只有 13×8 ~ 16×10 格有效分辨率，造型全靠轮廓辨认，细节做不进去；文生图模型在这个尺度上不可用（详见「武器挂件」一节）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
-- 12 个槽位在正常玩法里填不满：融合会消耗基础武器（净 -1/-2 槽），所以 8 基础 + 4 融合的上限只有自测直接 add 融合 id 才能摸到
 - 精英营地固定 6 处、只刷 `elite_brute` 一种，没有营地专属的更强变体或多波
 - 道具没有稀有度分层，权重是写死的常量，不随时间或难度变化
 - 时间暂停只 early-return 敌人与敌弹的 `_physics_process`，敌人身上正在跑的 tween（击退、闪白）不受影响

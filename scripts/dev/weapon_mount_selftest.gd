@@ -36,6 +36,7 @@ func _ready() -> void:
 	_ok("mounts_exist", "WeaponMounts found under Player")
 
 	await _test_layout_grows_with_arsenal()
+	await _test_duplicate_weapons_get_distinct_mounts()
 	await _test_placeholder_geometry()
 	await _test_icon_texture_source()
 	await _test_aim_follows_target()
@@ -68,6 +69,41 @@ func _test_layout_grows_with_arsenal() -> void:
 		_fail(t, "mounted %s, want %s" % [ids, want_ids])
 		return
 	_ok(t, "1 -> shoulder, 2 -> symmetric hips, 3 -> hips + shoulder")
+
+## Several copies of the same weapon must each get their own mount icon at a
+## distinct position, and the rebuild must keep their angles per-instance
+## (the kept dict is keyed by instance id, not config id). Two copies coexist
+## (three would merge into one Lv2, so two is the max non-merged same-id case).
+func _test_duplicate_weapons_get_distinct_mounts() -> void:
+	var t: String = "duplicates"
+	await _clear_arsenal()
+	WeaponDirector.add_weapon_by_id("shotgun")
+	WeaponDirector.add_weapon_by_id("shotgun")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if _mounts.icon_count() != 2:
+		_fail(t, "%d icons for 2 shotgun copies, want 2" % _mounts.icon_count())
+		return
+	var ids: Array[String] = _mounts.mounted_ids()
+	for id in ids:
+		if id != "shotgun":
+			_fail(t, "mounted %s, want all shotgun" % id)
+			return
+	var icons: Array[Sprite2D] = _mounts.icons()
+	if icons[0].position.is_equal_approx(icons[1].position):
+		_fail(t, "two shotgun icons stacked at %s" % icons[0].position)
+		return
+	_ok(t, "2 copies of shotgun mount at 2 distinct positions (%s, %s)" % [
+		icons[0].position, icons[1].position])
+	# Restore the 3-weapon arsenal that the following tests (aim_follows,
+	# finishes_turn, fusion_resync) expect from _test_layout_grows_with_arsenal.
+	# Shotgun's 260px range would also leave the 300px-away test enemy out of
+	# range, so a leaked duplicate pair would silently break every later check.
+	await _clear_arsenal()
+	for id in ["bullet_volley", "chain_lightning", "orbiting_blades"]:
+		WeaponDirector.add_weapon_by_id(id)
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 func _check_slots(t: String, n: int) -> bool:
 	if _mounts.icon_count() != n:
@@ -318,36 +354,45 @@ func _test_full_arsenal_layout() -> void:
 
 	# Icons all aim the same way, so they are parallel bars radiating from their
 	# mount points: two of them read as one blob once their mount points sit
-	# closer than the taller icon's on-screen height.
+	# closer than the SHORTER icon's on-screen height (the shorter one gets fully
+	# swallowed by the taller). Using the per-pair shorter height — not the
+	# tallest icon in the whole set — is what matters, since the tallest gun
+	# (apocalypse) sits alone at a column end and never brackets a neighbour.
 	var icons: Array[Sprite2D] = _mounts.icons()
-	var limit: float = 0.0
-	for icon in icons:
-		if icon.texture:
-			limit = maxf(limit, icon.texture.get_height() * icon.scale.y)
 	var worst: float = INF
 	var worst_pair: String = ""
 	for i in range(icons.size()):
 		for j in range(i + 1, icons.size()):
+			if icons[i].texture == null or icons[j].texture == null:
+				continue
+			var limit: float = minf(
+				icons[i].texture.get_height() * icons[i].scale.y,
+				icons[j].texture.get_height() * icons[j].scale.y)
 			var d: float = icons[i].position.distance_to(icons[j].position)
-			if d < worst:
+			if d < limit and d < worst:
 				worst = d
 				worst_pair = "%d/%d" % [i, j]
-	if worst < limit:
-		_fail(t, "icons %s only %.1fpx apart, under the %.1fpx icon height" % [
-			worst_pair, worst, limit])
-	else:
-		_ok(t, "closest pair %s is %.1fpx apart (>= %.1fpx icon height)" % [
-			worst_pair, worst, limit])
+	if worst != INF:
+		_fail(t, "icons %s only %.1fpx apart, under the shorter icon height" % [
+			worst_pair, worst])
+		return
+	_ok(t, "every pair of %d icons is at least the shorter icon's height apart" % icons.size())
 
-	# Icons must also stay on the 48x48 body rather than floating in space.
-	var furthest: float = 0.0
+	# Icons must stay on the LEFT or RIGHT of the body (never front/back). The
+	# two-column layout fixes x at ±SIDE_X, so every icon's |x| must be near
+	# SIDE_X. Vertically the column may extend a little past the body (6 per
+	# side), but it must stay roughly symmetric around the centre.
+	var side: float = _mounts.SIDE_X
+	var step: float = _mounts.SIDE_STEP
+	var max_y: float = step * 6.0   # generous: 6-per-side column spread
 	for icon in icons:
-		furthest = maxf(furthest, icon.position.length())
-	if furthest > _mounts.OUTER_RADIUS + 0.1:
-		_fail(t, "an icon sits %.1fpx from the body centre, past the %.1fpx outer ring" % [
-			furthest, _mounts.OUTER_RADIUS])
-	else:
-		_ok(t, "every mount within the %.0fpx outer ring" % _mounts.OUTER_RADIUS)
+		if absf(absf(icon.position.x) - side) > 0.1:
+			_fail(t, "icon at %s drifted off the side columns (|x| should be %.0f)" % [icon.position, side])
+			return
+		if absf(icon.position.y) > max_y:
+			_fail(t, "an icon sits at %s, off the side column (|y| > %.0f)" % [icon.position, max_y])
+			return
+	_ok(t, "every one of %d icons sits on the left/right columns" % icons.size())
 
 ## Drop the whole arsenal, both the director's bookkeeping and the live nodes,
 ## so the next grant starts from an empty player.

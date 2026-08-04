@@ -205,63 +205,38 @@ func _test_weapon() -> void:
 	else:
 		_ok("weapon", "granted a new weapon (%d slots used)" % WeaponDirector.slots_used())
 
-	# Fill every slot, then check the drop turns into a level-up instead of
-	# being silently thrown away.
-	for id in WeaponDirector.missing_weapon_ids():
-		WeaponDirector.add_weapon_by_id(id)
+	# Fill every slot with 12 DISTINCT weapons (8 base + 4 fusions): every count
+	# is 1, so no drop can complete a merge, and a further drop must be refused —
+	# not silently thrown away or turned into a level-up.
+	WeaponDirector._reset()
+	for c in player.get_children():
+		if c is BaseWeapon:
+			c.queue_free()
 	await _advance(0.2)
-	var base_count: int = WeaponDirector.WEAPON_CATALOG.size()
-	if WeaponDirector.slots_used() != base_count:
-		_fail("weapon", "catalog gave %d/%d base weapons" % [WeaponDirector.slots_used(), base_count])
-		return
-	_ok("weapon", "catalog grants all %d base weapons" % base_count)
-
-	# The remaining 4 ids are fusions. Normally they arrive through fuse(),
-	# which CONSUMES its ingredients and therefore lowers the slot count — so
-	# reaching 12 at once means adding them directly. This is the cap test, not
-	# a fusion test; fusion has its own selftest.
+	for id in WeaponDirector.WEAPON_CATALOG.keys():
+		WeaponDirector.add_weapon_by_id(String(id))
 	for fid in WeaponDirector.FUSION_RECIPES.keys():
 		_force_add(String(fid))
 	await _advance(0.2)
 	if not WeaponDirector.is_full():
-		_fail("weapon", "only %d/%d slots filled" % [WeaponDirector.slots_used(), WeaponDirector.MAX_WEAPONS])
+		_fail("weapon", "setup did not fill the arsenal (%d/%d slots)" % [
+			WeaponDirector.slots_used(), WeaponDirector.MAX_WEAPONS])
 		return
-	_ok("weapon", "base + fusion ids fill all %d slots" % WeaponDirector.MAX_WEAPONS)
+	_ok("weapon", "12 distinct weapons fill every slot without merging")
 
-	# The 13th must bounce. Built in code because there is no 13th id to load.
-	var dummy: WeaponConfig = WeaponConfig.new()
-	dummy.id = "selftest_dummy"
-	var any_scene: PackedScene = load("res://scenes/weapons/bullet_volley.tscn") as PackedScene
-	if WeaponDirector.add_weapon(dummy, any_scene):
-		_fail("weapon", "a 13th weapon got past the cap")
-	elif WeaponDirector.slots_used() != WeaponDirector.MAX_WEAPONS:
-		_fail("weapon", "rejected add still changed the count to %d" % WeaponDirector.slots_used())
-	else:
-		_ok("weapon", "the 13th weapon is rejected")
-
-	# Every owned id, not just the catalog ones: the level-up picks at random and
-	# 4 of the 12 slots hold fusion weapons the catalog does not list.
-	var levels_before: Dictionary = {}
-	for id in WeaponDirector.owned_weapon_ids():
-		levels_before[id] = WeaponDirector.weapon_level_of(id)
+	var before_full: int = WeaponDirector.slots_used()
 	_apply(PickupItem.Kind.WEAPON)
 	await _advance(0.1)
-	if WeaponDirector.slots_used() != WeaponDirector.MAX_WEAPONS:
-		_fail("weapon", "full arsenal grew to %d slots" % WeaponDirector.slots_used())
-		return
-	var leveled: bool = false
-	for id in levels_before.keys():
-		if WeaponDirector.weapon_level_of(String(id)) > int(levels_before[id]):
-			leveled = true
-			break
-	if leveled:
-		_ok("weapon", "drop on a full arsenal levels a weapon up instead")
+	if WeaponDirector.slots_used() != before_full:
+		_fail("weapon", "full arsenal with no mergeable pair changed the count to %d" % WeaponDirector.slots_used())
 	else:
-		_fail("weapon", "drop on a full arsenal did nothing at all")
+		_ok("weapon", "drop on a full non-mergeable arsenal is refused (slots stay %d)" % WeaponDirector.slots_used())
 
-## Equip a fusion weapon without running fuse(), so the slot cap can be tested
-## at its actual limit. Fusion recipes carry a config path but no scene path —
-## the scene always lives at scenes/weapons/<id>.tscn.
+# --- Helpers ---
+
+## Equip a fusion weapon without running fuse(), so the full-slot setup can
+## reach 12 distinct ids. Recipes carry a config path but no scene path — the
+## scene always lives at scenes/weapons/<id>.tscn.
 func _force_add(id: String) -> void:
 	var entry: Dictionary = WeaponDirector.FUSION_RECIPES.get(id, {})
 	if entry.is_empty():
@@ -270,8 +245,6 @@ func _force_add(id: String) -> void:
 	var scene: PackedScene = load("res://scenes/weapons/%s.tscn" % id) as PackedScene
 	if cfg is WeaponConfig and scene:
 		WeaponDirector.add_weapon(cfg as WeaponConfig, scene)
-
-# --- Helpers ---
 
 ## Instantiate a pickup of `kind` at `pos` and put it in the scene.
 func _drop(kind: int, pos: Vector2) -> PickupItem:

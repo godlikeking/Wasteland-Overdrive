@@ -37,3 +37,5 @@ boss_phase3_hp_frac = 0.3
 boss_xp_multiplier = 20.0
 boss_shake_on_death = 14.0
 item_drop_count = 3
+item_drop_chance = 1.0
+item_drop_scene = null
