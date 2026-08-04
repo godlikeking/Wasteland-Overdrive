@@ -63,6 +63,7 @@ func _ready() -> void:
 	await _test_enemy_bullet_does_not_eat_pierce()
 	await _test_targeting_range_cutoff()
 	await _test_weapon_holds_fire_out_of_range()
+	await _test_homing_survives_target_death()
 	print("=== range/pierce selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -268,6 +269,63 @@ func _test_weapon_holds_fire_out_of_range() -> void:
 		else:
 			_ok(t, "silent at 900px, fires at 200px")
 	w.queue_free()
+	_clear_enemies()
+	_clear_bullets()
+
+# --- homing --------------------------------------------------------------
+
+## A homing dart whose target dies mid-flight must notice and re-acquire.
+## `_is_valid_target` used to declare a statically typed `Node2D` parameter, and
+## Godot 4 rejects a freed reference at a typed Object parameter *before* the body
+## runs — so the guard meant to detect a dead target was itself the thing that
+## broke on one, spamming "previously freed ... is not a subclass of the expected
+## argument class" every physics frame for the rest of the dart's flight.
+func _test_homing_survives_target_death() -> void:
+	var t: String = "homing_target_freed"
+	GameState.pierce_count = 0
+	_clear_enemies()
+	_clear_bullets()
+	var near := FakeEnemy.new(14.0)
+	add_child(near)
+	near.global_position = Vector2(160, 0)
+	var far := FakeEnemy.new(14.0)
+	add_child(far)
+	far.global_position = Vector2(700, -260)
+	# Generous range so the dart cannot despawn out from under the assertions.
+	var b: Node2D = _spawn_bullet(Vector2.ZERO, Vector2.RIGHT * 300.0, 10.0, 5.0, 4000.0)
+	b.set_homing(5.0)
+	await _wait(0.05)
+	if b._homing_target != near:
+		_fail(t, "dart locked onto %s, expected the nearer enemy" % [b._homing_target])
+		_clear_enemies()
+		_clear_bullets()
+		return
+
+	# free(), not queue_free(): the reported error needs a genuinely freed object,
+	# not one that is merely queued and still passes is_instance_valid.
+	near.free()
+	# Two physics frames is well under RETARGET_INTERVAL (0.12s), so the timer
+	# cannot be what moves the dart off its dead target — only the validity guard.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if not is_instance_valid(b):
+		_fail(t, "dart despawned when its target was freed")
+		_clear_enemies()
+		return
+	if b._homing_target != far:
+		_fail(t, "dart held a freed target instead of re-acquiring (target=%s)" % [b._homing_target])
+		_clear_enemies()
+		_clear_bullets()
+		return
+	# The precise regression: a failed typed-argument check returns null, so
+	# comparing against false distinguishes "returned false" from "never ran".
+	var verdict: Variant = b._is_valid_target(near)
+	if verdict != false:
+		_fail(t, "_is_valid_target(freed) returned %s, want false" % [verdict])
+		_clear_enemies()
+		_clear_bullets()
+		return
+	_ok(t, "re-acquired within one frame of its target being freed")
 	_clear_enemies()
 	_clear_bullets()
 

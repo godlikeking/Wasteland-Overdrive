@@ -88,8 +88,17 @@ func _steer(delta: float) -> void:
 	velocity = Vector2.from_angle(turned) * speed
 	rotation = turned
 
-func _is_valid_target(node: Node2D) -> bool:
-	return node != null and is_instance_valid(node) and not node.is_queued_for_deletion()
+## `target` is deliberately untyped. A homing target can be freed mid-flight (the
+## enemy dies while the dart is still turning), and Godot 4 rejects a freed
+## reference at a statically typed Object parameter *before* the body runs — so
+## typing this `Node2D` made the call itself fail with "previously freed ... is
+## not a subclass of the expected argument class", which is the exact condition
+## we are here to detect. Same Variant idiom as elite_camp_director's `_is_alive`.
+func _is_valid_target(target: Variant) -> bool:
+	if not is_instance_valid(target):
+		return false
+	var node: Node = target as Node
+	return node != null and not node.is_queued_for_deletion()
 
 ## Nearest enemy we have not already punched through. Skipping `_hit_ids` stops
 ## a pierced dart from curling back onto the corpse it just flew through.

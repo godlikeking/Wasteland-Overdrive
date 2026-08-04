@@ -107,6 +107,7 @@
 - **穿透**：`GameState.pierce_count` 决定一颗子弹能额外打穿几个敌人，第 n 次命中的伤害为 `damage × 0.8^(n-1)`。同一敌人对同一颗子弹只结算一次（敌人没有无敌帧，重复进出碰撞圈会重复扣血 + 刷连击）。
 - 敌方弹幕（`enemy_projectile.tscn`）与敌人共用 layer 8，穿透扣减放在 `is_in_group("enemies")` 判断内部，所以飞过敌方弹幕不会白掉穿透次数。
 - 旋转刀的冲刺与闪电链**不受射程约束**，它们各有 `blade_dash_lifetime` / `chain_range` 管着。
+- **追踪飞镖的目标可能中途死掉**：`bullet.gd` 的 `_is_valid_target()` 参数刻意**不加静态类型**（`Variant`）。Godot 4 在**进入函数体之前**就会对静态类型的 Object 参数做检查并拒绝已释放的引用，所以把它标成 `Node2D` 会让「检查目标是否还活着」这件事本身在目标已释放时报错（`previously freed ... is not a subclass of the expected argument class`），而报错会中断整个 `_steer()`，飞镖就再也不会重新索敌、每个物理帧刷一条错误。同款 `Variant` 写法见 `elite_camp_director._is_alive()`。
 
 自检（exit 0 = 全绿）：
 
@@ -359,8 +360,8 @@ HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。�
 godot --headless res://scenes/dev/elite_camp_selftest.tscn    # 精英营地
 godot --headless res://scenes/dev/pickup_selftest.tscn        # 5 种道具 + 槽位上限/满槽合并
 godot --headless res://scenes/dev/weapon_merge_selftest.tscn  # 3 合 1 合并 + 曲线 + 级联
-godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（含满槽 12 图标两列）
-godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程与穿透
+godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（右手起两列 + 满槽 12 图标）
+godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 5 张道具贴图
