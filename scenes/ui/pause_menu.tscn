@@ -1,0 +1,102 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="1_pause"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.07, 0.08, 0.12, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.45, 0.6, 0.85, 1)
+
+[node name="PauseMenu" type="CanvasLayer"]
+layer = 9
+process_mode = 3
+script = ExtResource("1_pause")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.72)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(620, 380)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "已暂停"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+
+[node name="Spacer1" type="Control" parent="CenterContainer/Panel/MarginContainer/VBox"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="Columns" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 36
+
+[node name="WeaponColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox/Columns"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WeaponHeader" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox/Columns/WeaponColumn"]
+layout_mode = 2
+text = "武器 0／12"
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+
+[node name="WeaponList" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox/Columns/WeaponColumn"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="PassiveColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox/Columns"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PassiveHeader" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox/Columns/PassiveColumn"]
+layout_mode = 2
+text = "被动强化"
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.6, 0.9, 0.7, 1)
+
+[node name="PassiveList" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/VBox/Columns/PassiveColumn"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Spacer2" type="Control" parent="CenterContainer/Panel/MarginContainer/VBox"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Hint" type="Label" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "按 ESC 继续游戏"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.65, 0.7, 1)
+
+[node name="ResumeButton" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "继续"

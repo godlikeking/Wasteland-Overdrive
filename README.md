@@ -26,7 +26,7 @@
 ## 玩法
 
 - **WASD / 方向键**：移动
-- **Esc**：暂停 / 继续
+- **Esc**：暂停 / 继续（暂停时可查看武器等级与被动清单，见「暂停面板」）
 - 武器**自动**锁定并射击最近敌人
 - 击杀敌人掉落蓝色**经验宝石**，走近自动吸取
 - **升级**时弹出三张**被动**升级卡（武器不再从升级卡获得），选择一张永久强化本局角色
@@ -73,6 +73,7 @@
 - [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种掉落，武器从怪物掉落获得（含杂兵）
 - [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走左右两列布局
 - [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
+- [x] **暂停面板（Esc）**：暂停时列出每把武器的等级 + 合并进度，以及本局选过的被动卡与堆叠层数
 
 ## 已内建的 12 项被动升级
 
@@ -245,6 +246,29 @@ godot --headless res://scenes/dev/fusion_selftest.tscn   # exit 0 = 全绿
 godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # exit 0 = 全绿
 ```
 
+## 暂停面板（Esc）
+
+`scenes/ui/pause_menu.tscn` + `scripts/pause_menu.gd`，兼当本局的**装备清单**：
+
+- **武器列**：每行一个 `(id, 等级)` 组合，形如 `弹雨 Lv2 ×2`，右侧标**合并进度** `还差 1 把升 Lv3`（满级的标「已满级」）。按 `(id, 等级)` 而不是按 id 分组是必须的——合并要 3 把**同级**，所以「Lv1 一把 + Lv2 一把」不是「差一把」，而是两行各差两把。数据来自 `WeaponDirector.inventory_groups()`。
+- **被动列**：本局选过的升级卡 + 堆叠层数（`枪管增强 ×3`）。`GameState` 的那些倍率只记录**结果**、不记录是哪张卡造成的，所以另开了 `GameState.taken_upgrades`（id → 层数）这本账；写入口只有 `GameState.record_upgrade()` 一处，`level_up.gd` 选卡后调它。Dictionary 在 Godot 4 里保持插入顺序，所以列表天然按选取顺序排。
+
+**Esc 的归属很关键**：这个键**必须**由暂停面板自己处理，不能放在 `Game` 根节点上。`Game` 是 PAUSABLE 的（World / Player / SpawnDirector 都靠继承它的 process mode 才会在暂停时停下），所以 `paused = true` 之后 `Game._unhandled_input` 就再也收不到事件了——那正是「按 Esc 暂停之后无法恢复」这个 bug 的成因。给 `Game` 加 `PROCESS_MODE_ALWAYS` 也不行：子节点会一路继承过去，暂停就彻底失效了。面板自己是 `process_mode = 3`（ALWAYS），所以永远听得见那个解除暂停的按键。
+
+面板还要和别人的暂停共存，规则是三条自洽的判断，不需要引用任何兄弟节点：
+
+| 按下 Esc 时 | 动作 |
+|---|---|
+| 面板可见 | 关闭 + 恢复 |
+| 面板隐藏，且游戏**未**暂停 | 打开 + 暂停 |
+| 面板隐藏，但游戏**已**暂停 | 什么都不做（升级 / 结算 / 商店面板正拿着暂停权，恢复了会把游戏从它们的弹窗底下放出去） |
+
+```bash
+godot --headless res://scenes/dev/pause_selftest.tscn   # exit 0 = 全绿
+```
+
+自测里的 Esc 用例走的是 `push_input()` 真事件，**不是**直接调 handler——直接调用在出 bug 的旧接线下也会通过，因为那个 bug 的本质是事件根本没送到。（已实测：把面板的 process mode 改回 PAUSABLE，`esc_resumes` 立刻红，`esc_opens` 仍绿，正好对应「能暂停、不能恢复」的现象。）
+
 ## 精英营地（地图特定区域）
 
 地图生成时会在 `TilemapBuilder` 里额外挖出 `elite_camp_count`（默认 **6**）个营地：半径 3 格的圆盘，铺第 6 种瓦片 `T_CAMP`（暗混凝土 + 锈红警戒条纹）。
@@ -276,7 +300,7 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 
 ## 道具掉落
 
-精英、Boss 与**杂兵**死亡时掉道具，数量 / 概率由 `EnemyConfig` 数据驱动：`elite_brute.tres` = 1 个（100%）、`boss.tres` = 3 个（100%）、`chaser` / `dasher` / `shooter` = 1 个（**25%**）。掉落绑定在**「是精英」而不是「是营地刷的」**，所以 ELITE WAVE 和 5% roll 出来的精英一样掉。
+精英、Boss 与**杂兵**死亡时掉道具，数量 / 概率由 `EnemyConfig` 数据驱动：`elite_brute.tres` = 1 个（100%）、`boss.tres` = 3 个（100%）、`chaser` / `dasher` / `shooter` = 1 个（**12%**）。掉落绑定在**「是精英」而不是「是营地刷的」**，所以 ELITE WAVE 和 5% roll 出来的精英一样掉。
 
 道具是 `scenes/pickup_item.tscn`（结构照抄 `xp_gem.tscn`：Area2D，layer 16 Pickup / mask 2），进玩家 `PickupArea` → 归巢 → 到位生效 + 飘字 + 音效。地上会上下浮动，`LIFETIME` 30s 后消失，最后 5s 闪烁预警——否则没捡的道具会慢慢铺满地图。
 
@@ -286,9 +310,11 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 | 护盾 `SHIELD` | 22 | 抵消接下来 **2** 次伤害 | `GameState.shield_charges`，`player.take_damage` 开头扣层 |
 | 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
 | 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
-| 武器 `WEAPON` | 60 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
+| 武器 `WEAPON` | 36 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
 
-权重意图：**武器权重（60）压过其余四种之和的一半**，因为武器现在只能靠掉落获得，而升一级要凑 3 把同款——掉落量不够，合并系统就等于不存在。杂兵 25% × 武器 60/142 ≈ **每杀 9.5 只掉 1 把武器**，一局下来才够凑出几次合并。（改之前是杂兵 6% × 权重 30/112 ≈ 每 62 只 1 把，实测一局根本攒不出 3 把同款。）补血仍是单项最高的非武器权重——它是让一局活下去的那个效果。
+权重意图：**武器仍是单项最高的权重**，因为武器只能靠掉落获得，而升一级要凑 3 把同款——掉落量不够，合并系统就等于不存在。但它要是「常态」，捡枪就不再是事件了，所以掉率压到：杂兵 12% × 武器 36/118 ≈ **每杀 27 只掉 1 把武器**，一局下来够凑出几次合并、不至于满槽刷屏。补血仍是单项最高的非武器权重——它是让一局活下去的那个效果。
+
+> 掉率调过两轮：最初杂兵 6% × 权重 30/112 ≈ 每 62 只 1 把，一局根本攒不出 3 把同款；改成 25% × 60/142 ≈ 每 9.5 只 1 把又太密。现在的 12% / 36 是两者之间。
 
 **护盾**按「次数」而不是「伤害量」抵消：一层挡一下，不管这一下打多少。抵消时照常给无敌帧 + 蓝闪，但不掉血。玩家身上挂 `ShieldRing`（`_draw` 画圆环，层数越多越亮）。
 
@@ -363,6 +389,7 @@ godot --headless res://scenes/dev/weapon_merge_selftest.tscn  # 3 合 1 合并 +
 godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（右手起两列 + 满槽 12 图标）
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
+godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 5 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图
@@ -388,11 +415,11 @@ SecondGame/
 │   ├── pickup_item.tscn        # 道具（补血/护盾/炸弹/时停/武器 共用一个场景）
 │   ├── dev/                   # headless 自测场景
 │   ├── fx/                     # 浮字 + 粒子 + explosion
-│   ├── ui/                     # HUD / LevelUp / GameOver / UpgradeCard / Shop
+│   ├── ui/                     # HUD / LevelUp / GameOver / UpgradeCard / Shop / PauseMenu
 │   └── weapons/                # 8 基础 + 4 融合武器 + 飞刀 + 地雷场景
 ├── scripts/
 │   ├── globals/
-│   │   ├── game_state.gd      # Autoload: 状态 + 事件总线 + 属性倍率 + 护盾/时停
+│   │   ├── game_state.gd      # Autoload: 状态 + 事件总线 + 属性倍率 + 护盾/时停 + 被动账本
 │   │   ├── upgrade_db.gd      # Autoload: 升级数据表（纯被动）
 │   │   ├── meta_progress.gd   # Autoload: 永久货币 / 统计，落盘 user://
 │   │   └── system_check.gd    # Autoload: 启动期 autoload/脚本/场景/资源自检
@@ -412,13 +439,14 @@ SecondGame/
 │   ├── upgrade_card.gd
 │   ├── game_over.gd
 │   ├── shop.gd
+│   ├── pause_menu.gd          # Esc 暂停面板：武器等级/合并进度 + 被动清单
 │   ├── fx_manager.gd
 │   ├── floating_label.gd
 │   ├── burst_particles.gd
 │   ├── shake_camera.gd
 │   ├── weapon_mounts.gd       # 玩家身上的武器挂件布局与朝向
 │   ├── weapon_director.gd     # Autoload: 12 武器槽 + 合并 + 融合 + 跨场景清理
-│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / merge / ...）
+│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / merge / pause / ...）
 │   ├── weapons/
 │   │   ├── weapon.gd          # BaseWeapon 基类
 │   │   ├── weapon_config.gd   # WeaponConfig 资源类

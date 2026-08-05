@@ -58,7 +58,7 @@ func show_fusion_choices(candidates: Array) -> void:
 func _on_card_chosen(upgrade) -> void:
 	if upgrade and upgrade.apply is Callable:
 		upgrade.apply.call()
-		GameState.upgrade_applied.emit(upgrade.id)
+		GameState.record_upgrade(upgrade.id)
 	visible = false
 	get_tree().paused = false
 	choice_applied.emit()

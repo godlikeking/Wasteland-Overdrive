@@ -101,3 +101,19 @@ func roll(count: int) -> Array:
 	for i in range(min(count, pool.size())):
 		result.append(pool[i])
 	return result
+
+## Display name for an upgrade id. GameState's ledger only stores ids, so the
+## pause panel needs this to turn them back into card names. Falls back to the
+## raw id, which is visible in the list rather than a blank row.
+func name_of(id: String) -> String:
+	for u in _all:
+		if u.id == id:
+			return String(u.name)
+	return id
+
+## One-line "what it does" for an upgrade id, same lookup as `name_of`.
+func description_of(id: String) -> String:
+	for u in _all:
+		if u.id == id:
+			return String(u.description)
+	return ""

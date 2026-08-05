@@ -246,6 +246,35 @@ func levels_of(id: String) -> Array[int]:
 			out.append(w.level)
 	return out
 
+## The arsenal collapsed into one row per (id, level) pair, in mount order.
+## Each entry is `{id, name, level, count, max_level}`.
+##
+## The (id, level) split — rather than a plain per-id count — is what makes the
+## pause panel's merge progress meaningful: a merge consumes MERGE_COUNT copies
+## at the *same* level, so holding a Lv1 and a Lv2 is not "one away", it is two
+## separate rows that are each two away.
+func inventory_groups() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	# id|level -> index into `out`, so rows stay in first-mounted order.
+	var seen: Dictionary = {}
+	for w in _weapons:
+		if w == null or w.config == null:
+			continue
+		var key: String = "%s|%d" % [w.config.id, w.level]
+		if seen.has(key):
+			var at: int = int(seen[key])
+			out[at]["count"] = int(out[at]["count"]) + 1
+			continue
+		seen[key] = out.size()
+		out.append({
+			"id": w.config.id,
+			"name": display_name_of(w.config.id),
+			"level": w.level,
+			"count": 1,
+			"max_level": w.config.max_level,
+		})
+	return out
+
 ## Human-readable name for a weapon id, for HUD text and pickup labels. Falls
 ## back to the id so a missing entry is visible rather than blank.
 func display_name_of(id: String) -> String:

@@ -1,16 +1,17 @@
 extends Node2D
-## Root of the combat scene. Boots run state, wires level-up/game-over flow,
-## and handles pause/restart. All node lookups are defensive so a missing
-## child prints a clear error instead of crashing.
+## Root of the combat scene. Boots run state, wires the level-up / game-over
+## flow, and handles restart. All node lookups are defensive so a missing child
+## prints a clear error instead of crashing. Pausing belongs to PauseMenu — see
+## the note further down for why it cannot live here.
 
 @onready var player: Node = get_node_or_null("Player")
 @onready var hud: Node = get_node_or_null("HUD")
 @onready var level_up_ui: Node = get_node_or_null("LevelUp")
 @onready var game_over_ui: Node = get_node_or_null("GameOver")
 @onready var shop_ui: Node = get_node_or_null("Shop")
+@onready var pause_menu: Node = get_node_or_null("PauseMenu")
 
 var _pending_level_ups: int = 0
-var _wired: bool = false
 var _weapon_director: Node
 
 func _ready() -> void:
@@ -40,7 +41,6 @@ func _ready() -> void:
 	game_over_ui.open_shop_requested.connect(_on_open_shop)
 	if shop_ui and shop_ui.has_signal("closed"):
 		shop_ui.closed.connect(_on_shop_closed)
-	_wired = true
 
 	# Emit initial UI state
 	GameState.player_health_changed.emit(100.0, 100.0)
@@ -66,15 +66,15 @@ func _validate_children() -> bool:
 	if game_over_ui == null:
 		push_error("[Game] child 'GameOver' missing")
 		ok = false
+	if pause_menu == null:
+		push_error("[Game] child 'PauseMenu' missing")
+		ok = false
 	return ok
 
-func _unhandled_input(event: InputEvent) -> void:
-	if not _wired:
-		return
-	if event.is_action_pressed("pause"):
-		if level_up_ui.visible or game_over_ui.visible:
-			return
-		get_tree().paused = not get_tree().paused
+# NOTE: ESC is handled by PauseMenu, not here. This node is PAUSABLE (World,
+# Player and the spawn directors inherit their process mode from it and must
+# stop while paused), so it stops receiving input the moment the game pauses —
+# a pause toggle living here could pause but never resume. See pause_menu.gd.
 
 func _on_leveled_up(_lvl: int) -> void:
 	_pending_level_ups += 1

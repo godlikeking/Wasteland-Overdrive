@@ -28,5 +28,5 @@ projectile_damage = 8.0
 elite_shake = 7.0
 elite_xp_multiplier = 4.0
 item_drop_count = 1
-item_drop_chance = 0.25
+item_drop_chance = 0.12
 item_drop_scene = null

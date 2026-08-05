@@ -33,6 +33,13 @@ var is_running: bool = false
 var level: int = 1
 var current_xp: float = 0.0
 
+## Passive cards taken this run: upgrade id -> how many copies were stacked.
+## The multipliers below record the *result* of a pick but not which pick caused
+## it, so the pause panel's "被动强化" list needs this separate ledger.
+## Dictionaries keep insertion order in Godot 4, so iterating this replays the
+## picks in the order the player made them.
+var taken_upgrades: Dictionary = {}
+
 # --- Player stat multipliers (applied on top of base values) ---
 var damage_mult: float = 1.0
 var fire_rate_mult: float = 1.0     # attacks-per-second multiplier
@@ -134,9 +141,18 @@ func reset() -> void:
 	crit_damage_mult = 2.0
 	shield_charges = 0
 	time_stop_left = 0.0
+	taken_upgrades.clear()
 	shield_changed.emit(0)
 	time_stop_changed.emit(0.0)
 	_reset_combo()
+
+## Single funnel for "the player took a passive card": records the stack count
+## and then fires `upgrade_applied`. Callers go through this rather than emitting
+## the signal themselves so a pick can never bump a stat without landing in the
+## ledger the pause panel reads.
+func record_upgrade(id: String) -> void:
+	taken_upgrades[id] = int(taken_upgrades.get(id, 0)) + 1
+	upgrade_applied.emit(id)
 
 ## Roll for a crit hit. Returns the damage multiplier (≥1.0).
 ## 连击每 +1 暴击率 +1.5%（封顶 +30%）。
