@@ -5,6 +5,9 @@ extends Node
 
 class_name ToxicSwamp
 
+## 毒沼受伤闪色：偏黄绿的毒色，和正常受伤的红、毒池的亮绿都能分开。
+const SWAMP_FLASH: Color = Color(0.8, 1.4, 0.5)
+
 @export var body_path: NodePath
 @export var builder_path: NodePath
 @export var use_signal: bool = true   # listen to GameState for shared tuning
@@ -68,14 +71,16 @@ func _apply_swamp_damage() -> void:
 	var amount: float = _swamp_damage()
 	if amount <= 0.0:
 		return
-	if _body.has_method("take_damage"):
-		# Player.take_damage(amount) -> GameState.player_hurt signal -> red flash
-		# Enemy.take_damage(amount, hit_dir) -> we pass zero dir.
-		if _body.is_in_group("player"):
-			_body.take_damage(amount)
-		elif _body.has_method("take_damage"):
-			# Use 2-arg form on enemies.
-			_body.take_damage(amount, Vector2.ZERO)
+	if _body.is_in_group("player"):
+		# 走 DoT 通道，不走 take_damage。以前走的是后者，于是每 0.5 秒的 1 点
+		# 毒伤都在消耗一整层护盾（两层在一秒内蒸发）并触发一次 hit-stop
+		# （Engine.time_scale = 0.05），站进毒沼整个游戏就开始抽搐。
+		# 见 Player.take_dot_damage 的完整推导。
+		if _body.has_method("take_dot_damage"):
+			_body.take_dot_damage(amount, SWAMP_FLASH)
+	elif _body.has_method("take_damage"):
+		# 敌人用 2 参形式；它们没有护盾也不触发 hit-stop，原路不变。
+		_body.take_damage(amount, Vector2.ZERO)
 
 func _swamp_damage() -> float:
 	# Read fresh from config if available, else default 1.

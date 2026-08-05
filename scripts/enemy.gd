@@ -39,6 +39,15 @@ var _shoot_timer: float = 0.0
 var _boss_summon_accum: float = 0.0
 var _boss_bullet_accum: float = 0.0
 var _boss_phase: int = 1   # 1, 2, 3
+var _boss_poison_accum: float = 0.0
+## 爪击冷却计时（从 0 往上累，>= cooldown 才能起手）。
+var _claw_accum: float = 0.0
+## 预警剩余秒数；> 0 表示正在举爪，此时巨兽定住脚。
+var _claw_wind_left: float = 0.0
+## 起手瞬间锁定的朝向。锁死是有意的：这是玩家横向拉开就能躲的那个反制点，
+## 如果每帧跟着玩家转，爪击就变成了不可躲的必中伤害。
+var _claw_facing: Vector2 = Vector2.ZERO
+var _claw_fx: Node2D = null
 
 func setup_config(p_config: EnemyConfig) -> void:
 	config = p_config
@@ -68,9 +77,9 @@ func _apply_visuals() -> void:
 	var path: String = _sprite_path_for(config.id)
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-		# Boss is 4.5× (72px), elites stay 3× (48px) with a red tint.
+		# Boss is 7× (112px), elites stay 3× (48px) with a red tint.
 		if config.behavior == EnemyConfig.Behavior.BOSS:
-			sprite.scale = Vector2(4.5, 4.5)
+			sprite.scale = Vector2(7.0, 7.0)
 			sprite.modulate = Color(1.2, 0.6, 0.6)
 		elif config.behavior == EnemyConfig.Behavior.ELITE:
 			sprite.scale = Vector2(3.0, 3.0)
@@ -98,6 +107,13 @@ func _apply_visuals() -> void:
 	var cs: Node = get_node_or_null("CollisionShape2D")
 	if cs and cs.shape is CircleShape2D:
 		(cs.shape as CircleShape2D).radius = config.collision_radius
+	if config.behavior == EnemyConfig.Behavior.BOSS:
+		# 直径 112px 的身体放不进 64px 的障碍格缝隙，会被地形卡死在废墟后面
+		# 干瞪眼。巨兽踏碎废墟：清掉 World 层（bit 1）的碰撞遮罩，只留玩家层
+		# （bit 2）—— 接触伤害靠 get_slide_collision 走玩家层，不受影响。
+		# 寻路照旧：NavigationAgent 绕的是它现在已经能踩过去的障碍，
+		# 路径次优但不会错，比重写一套 BOSS 专用寻路安全。
+		set_collision_mask_value(1, false)
 
 func _sprite_path_for(id: String) -> String:
 	match id:
@@ -203,9 +219,15 @@ func _behavior_shooter(delta: float) -> void:
 
 # --- BOSS ----------------------------------------------------------
 # 3 阶段基于当前 HP 比例：
-#   P1 (>60%):    慢追 + 每 4s 召唤 2 只 chaser
-#   P2 (30-60%):  稍快追 + 每 3s 召唤 3 只 + 每 1.2s 1 发面向玩家
-#   P3 (<30%):    再快 + 每 2.5s 召唤 4 只 + 每 0.8s 3 发扇形弹幕
+#   P1 (>60%):    慢追 + 每 4s 召唤 2 只 chaser + 毒物 + 爪击
+#   P2 (30-60%):  稍快追 + 每 3s 召唤 3 只 + 每 1.2s 1 发 + 毒物加量
+#   P3 (<30%):    再快 + 每 2.5s 召唤 4 只 + 每 0.8s 3 发扇形 + 毒物再加量
+#
+# 两套攻击分工明确、覆盖不同距离，所以近身和拉开都各有一种压力：
+#   近战爪击（<= boss_claw_reach ≈ 190px）：预警 0.45s，起手即锁朝向，
+#     打的是一次离散重击（走 take_damage，无敌帧和护盾都生效）。
+#   远程毒物（任意距离）：抛毒团落地成毒池，走 DoT 通道（绕过护盾/无敌帧），
+#     打的是"这块地不能站"的空间压力。
 func _behavior_boss(delta: float) -> void:
 	_maybe_repath(delta)
 	# 更新阶段
@@ -223,10 +245,16 @@ func _behavior_boss(delta: float) -> void:
 		_announce_phase(prev_phase, _boss_phase)
 		GameState.boss_state_changed.emit(hp_frac, _boss_phase)
 
+	# 爪击先算：举爪期间要定住脚（那正是"预告"本身），所以它必须能否决移动。
+	_boss_claw(delta)
+
 	# 速度：P1 1.0×  P2 1.2×  P3 1.4×
 	var speed_mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
-	var dir: Vector2 = _steer_dir()
-	velocity = dir * _effective_speed() * speed_mult
+	if _claw_wind_left > 0.0:
+		velocity = Vector2.ZERO
+	else:
+		var dir: Vector2 = _steer_dir()
+		velocity = dir * _effective_speed() * speed_mult
 	move_and_slide()
 	_apply_contact_damage()
 
@@ -241,6 +269,18 @@ func _behavior_boss(delta: float) -> void:
 		_boss_summon_accum = 0.0
 		_boss_summon_minions(summon_n)
 
+	# 毒物：全阶段都有，阶段越高越密集。毒池是空间压力，不该只在残血才出现，
+	# 否则前 40% 的血量玩家可以站着不动纯输出。
+	var poison_int: float = config.boss_poison_interval
+	var poison_n: int = config.boss_poison_count
+	match _boss_phase:
+		2: poison_int *= 0.8;  poison_n += 1
+		3: poison_int *= 0.65; poison_n += 2
+	_boss_poison_accum += delta
+	if _boss_poison_accum >= poison_int:
+		_boss_poison_accum = 0.0
+		_boss_spit_poison(poison_n)
+
 	# 弹幕（P2 / P3）
 	if _boss_phase >= 2:
 		_boss_bullet_accum += delta
@@ -250,6 +290,77 @@ func _behavior_boss(delta: float) -> void:
 		if _boss_bullet_accum >= bullet_int:
 			_boss_bullet_accum = 0.0
 			_boss_volley()
+
+## 爪击状态机。两条分支：举爪中（推进预警、到点结算）和冷却中（够近就起手）。
+func _boss_claw(delta: float) -> void:
+	if _claw_wind_left > 0.0:
+		_claw_wind_left -= delta
+		if _claw_wind_left <= 0.0:
+			_claw_strike()
+		return
+	_claw_accum += delta
+	if _claw_accum < config.boss_claw_cooldown:
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+	var to_player: Vector2 = _player.global_position - global_position
+	if to_player.length() > config.boss_claw_reach:
+		return
+	# 起手：锁定朝向、生成预警特效。这一刻之后再转向就没有可躲性了。
+	_claw_accum = 0.0
+	_claw_wind_left = config.boss_claw_windup
+	_claw_facing = to_player.normalized()
+	_claw_fx = ClawSlash.new()
+	(_claw_fx as ClawSlash).setup(_claw_facing, config.boss_claw_reach,
+		config.boss_claw_arc, config.boss_claw_windup)
+	# 挂在自己名下，跟着身体走 —— 巨兽被击退时爪子不该留在原地。
+	add_child(_claw_fx)
+	GameState.request_camera_shake.emit(2.0, 0.12)
+
+## 预警结束的那一帧结算。用锁定的 _claw_facing 判定，不是当前朝向。
+func _claw_strike() -> void:
+	_claw_wind_left = 0.0
+	if _claw_fx != null and is_instance_valid(_claw_fx) and _claw_fx.has_method("strike"):
+		_claw_fx.strike()
+		# 特效留在巨兽名下自己活完 STRIKE_TIME。刻意不 reparent 到场景根：
+		# 在 _physics_process 里改父节点会撞上 "flushing queries" 报错，
+		# 而代价只是巨兽恰好在这 0.18s 内被打死时闪光跟着消失。
+	_claw_fx = null
+	GameState.request_camera_shake.emit(5.0, 0.2)
+	SfxPlayer.play("boom")
+	if _player == null or not is_instance_valid(_player):
+		return
+	if not ClawSlash.in_arc(global_position, _claw_facing,
+			_player.global_position, config.boss_claw_reach, config.boss_claw_arc):
+		return
+	if _player.has_method("take_damage"):
+		# 走正常受伤通道：一次离散重击就是无敌帧和护盾要挡的东西。
+		_player.take_damage(config.boss_claw_damage)
+
+## 朝玩家方向抛 n 团毒液。落点扇形铺开而不是全砸一点：目的是逼玩家移动，
+## 一坨叠在一起只会变成"绕开这一个圆"。
+func _boss_spit_poison(n: int) -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	var to_player: Vector2 = _player.global_position - global_position
+	var dist: float = to_player.length()
+	if dist < 0.01:
+		return
+	var base: float = to_player.angle()
+	var count: int = maxi(1, n)
+	# 单团直接砸脚下；多团时以玩家为中心张开一把扇子，中间那团仍然对准玩家，
+	# 所以站着不动永远是最差选择。
+	for i in range(count):
+		var spread: float = 0.0 if count == 1 else \
+			lerpf(-0.5, 0.5, float(i) / float(count - 1))
+		var ang: float = base + spread
+		var reach: float = dist * randf_range(0.85, 1.15)
+		var target: Vector2 = global_position + Vector2(cos(ang), sin(ang)) * reach
+		var glob := PoisonGlob.new()
+		glob.setup(global_position, target, config.boss_poison_flight,
+			config.boss_poison_pool_radius, config.boss_poison_dps,
+			config.boss_poison_tick, config.boss_poison_pool_life)
+		get_tree().current_scene.add_child(glob)
 
 func _announce_phase(prev: int, cur: int) -> void:
 	var list: Array = get_tree().get_nodes_in_group("fx_manager")

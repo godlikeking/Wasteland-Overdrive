@@ -3,14 +3,16 @@ extends Node2D
 ##   godot --headless res://scenes/dev/boss_selftest.tscn
 ## Exits 0 when green, 1 when any check fails.
 ##
-## The boss lands at 5 minutes, which no headless test can afford to wait for, so
+## The boss lands at 2 minutes, which no headless test can afford to wait for, so
 ## `GameState.time_alive` is set by hand — the director reads it fresh every
 ## frame, and `is_running` is left false so nothing else moves the clock. That
 ## also makes the countdown assertions exact instead of timing-dependent.
 ##
 ## Covers: the spawn ceilings that made t=300 unreachable, the boss arriving on
 ## schedule, the countdown firing once per second, the health/phase and death
-## signals the HUD bar hangs off, and the off-screen arrow geometry.
+## signals the HUD bar hangs off, the off-screen arrow geometry, the claw wedge
+## and its locked facing, the poison pool's DoT channel, and the values the
+## SHIPPED game.tscn hands the director.
 
 const BOSS_MARKER: GDScript = preload("res://scripts/ui/boss_marker.gd")
 
@@ -27,10 +29,16 @@ func _ready() -> void:
 	player.hp = player.max_hp
 	await _test_burst_cap()
 	await _test_spawn_rate_ceiling()
+	await _test_shipped_scene_ceilings()
 	await _test_live_enemy_cap()
 	await _test_boss_warning()
 	await _test_boss_spawn()
+	await _test_claw_geometry()
+	await _test_claw_locks_facing()
 	await _test_boss_health_signals()
+	await _test_poison_pool_dot()
+	await _test_poison_bypasses_shield()
+	await _test_dot_no_hit_stop()
 	await _test_marker_geometry()
 	print("=== boss selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -86,6 +94,55 @@ func _test_spawn_rate_ceiling() -> void:
 	else:
 		_ok("rate", "peak spawn rate is %.1f/s (burst %d every %.2fs)" % [
 			worst, director.max_burst, director.min_interval])
+
+## The same ceiling, but read off the SHIPPED scene instead of a script-built
+## director. Every other test here builds the director from the script, so a
+## property override in game.tscn is invisible to them — and one was: the scene
+## carried `min_interval = 0.18` while the script said 0.25, so the real game ran
+## at 22/s while this whole file went green at 16/s.
+##
+## `PackedScene.get_state()` reads the overrides without instantiating the world,
+## so this stays a cheap assertion rather than a second full game boot. It guards
+## ANY scene-vs-script divergence on these knobs, not just the one that bit.
+func _test_shipped_scene_ceilings() -> void:
+	var packed: PackedScene = load("res://scenes/game.tscn") as PackedScene
+	if packed == null:
+		_fail("shipped", "could not load res://scenes/game.tscn")
+		return
+	var st: SceneState = packed.get_state()
+	var idx: int = -1
+	for i in range(st.get_node_count()):
+		if String(st.get_node_name(i)) == "SpawnDirector":
+			idx = i
+			break
+	if idx < 0:
+		_fail("shipped", "game.tscn has no SpawnDirector node — the shipped cadence is unguarded")
+		return
+	var overrides: Dictionary = {}
+	for p in range(st.get_node_property_count(idx)):
+		overrides[String(st.get_node_property_name(idx, p))] = st.get_node_property_value(idx, p)
+	# Script default unless the scene overrides it: that pair IS the effective value.
+	#
+	# Defaults come from a THROWAWAY instance of the script, not from `director` —
+	# this scene overrides boss_spawn_time to 99999 and the cap tests rewrite
+	# min_interval, so reading the live node would compare game.tscn against the
+	# test harness instead of against the script.
+	var defaults: Node = (load("res://scripts/spawn_director.gd") as GDScript).new()
+	var burst: int = int(overrides.get("max_burst", defaults.max_burst))
+	var interval: float = float(overrides.get("min_interval", defaults.min_interval))
+	var boss_t: float = float(overrides.get("boss_spawn_time", defaults.boss_spawn_time))
+	defaults.free()
+	var worst: float = float(burst) / maxf(0.01, interval)
+	if worst > 20.0:
+		_fail("shipped", "game.tscn ships %.1f/s (max_burst %d / min_interval %.2fs), past the 20/s ceiling" % [
+			worst, burst, interval])
+	else:
+		_ok("shipped", "game.tscn ships %.1f/s (max_burst %d every %.2fs)" % [worst, burst, interval])
+	# And the shipped boss time has to be a real number the run can reach.
+	if boss_t <= 0.0 or boss_t > 600.0:
+		_fail("shipped", "game.tscn ships boss_spawn_time %.0fs, outside a reachable 0-600s" % boss_t)
+	else:
+		_ok("shipped", "game.tscn ships boss_spawn_time %.0fs" % boss_t)
 
 ## The population ceiling, exercised through the real cadence rather than the
 ## formula: the guard sits in `_process`, so only running it proves it is wired.
@@ -271,6 +328,251 @@ func _test_boss_health_signals() -> void:
 		_ok("boss_hp", "death emits boss_defeated once")
 	await _clear_enemies()
 
+# --- Claw ---------------------------------------------------------------
+
+## `ClawSlash.in_arc` is the entire claw hit test; the node around it only draws.
+## Checked as a pure function because a `_draw` result cannot be read back
+## headlessly — same reason `marker_for` is factored out.
+func _test_claw_geometry() -> void:
+	var from := Vector2.ZERO
+	var facing := Vector2.RIGHT
+	var reach: float = 100.0
+	var arc: float = PI / 2.0        # ±45°
+	var bad: Array[String] = []
+
+	# Straight ahead, well inside: the plain hit.
+	if not ClawSlash.in_arc(from, facing, Vector2(50, 0), reach, arc):
+		bad.append("dead ahead at half reach missed")
+	# Past the reach: the claw has a length, or it is a screen-wide attack.
+	if ClawSlash.in_arc(from, facing, Vector2(150, 0), reach, arc):
+		bad.append("target 1.5x past reach was hit")
+	# Behind: the wedge has a direction, or facing means nothing.
+	if ClawSlash.in_arc(from, facing, Vector2(-50, 0), reach, arc):
+		bad.append("target directly behind was hit")
+	# Straight to the side is 90°, outside a ±45° wedge.
+	if ClawSlash.in_arc(from, facing, Vector2(0, 50), reach, arc):
+		bad.append("target at 90° was inside a ±45° wedge")
+	# Both sides of the arc edge: the boundary has to be where the arc says.
+	if not ClawSlash.in_arc(from, facing, Vector2(50, 48), reach, arc):
+		bad.append("target at ~44° (just inside the edge) missed")
+	if ClawSlash.in_arc(from, facing, Vector2(50, 52), reach, arc):
+		bad.append("target at ~46° (just outside the edge) was hit")
+	# Symmetric: a wedge that only reaches one way would be a directional bug
+	# invisible in play (the boss turns to face you anyway).
+	if not ClawSlash.in_arc(from, facing, Vector2(50, -48), reach, arc):
+		bad.append("the wedge is not symmetric about the facing axis")
+	# A full-circle arc hits anything within reach; this is the path a config of
+	# arc = TAU takes, and it must not fold back to "nothing".
+	if not ClawSlash.in_arc(from, facing, Vector2(-50, 0), reach, TAU):
+		bad.append("arc = TAU did not hit a target behind")
+	# Degenerate inputs must answer, not crash or return NaN-driven nonsense.
+	if ClawSlash.in_arc(from, Vector2.ZERO, Vector2(10, 0), reach, arc):
+		bad.append("a zero-length facing still hit something")
+	if not ClawSlash.in_arc(from, facing, from, reach, arc):
+		bad.append("a target exactly on the origin missed")
+
+	if bad.is_empty():
+		_ok("claw_geometry", "the wedge respects reach, direction, arc edges and degenerate input")
+	else:
+		_fail("claw_geometry", "; ".join(bad))
+
+## The claw locks its facing when the wind-up STARTS. That lock is the whole
+## counterplay: stepping sideways during the 0.45s tell is how the attack is
+## dodged. If the facing tracked the player per frame the claw would be an
+## unavoidable tax, and `in_arc` would be untestable in isolation.
+##
+## Driven by calling `_boss_claw` directly rather than by awaiting frames: no
+## physics runs between the wind-up and the strike, so contact damage and the
+## swamp cannot pollute the hp reading.
+func _test_claw_locks_facing() -> void:
+	var boss: Node2D = _find_boss()
+	if boss == null:
+		_fail("claw_lock", "no boss on the field to swing")
+		return
+	var cfg: EnemyConfig = boss.config as EnemyConfig
+	boss.global_position = Vector2.ZERO
+	boss._player = player
+
+	# 1) Standing still in front: the claw connects, or the rest is vacuous.
+	_ready_player_for_hit()
+	player.global_position = Vector2(cfg.boss_claw_reach * 0.5, 0.0)
+	boss._claw_accum = cfg.boss_claw_cooldown
+	boss._boss_claw(0.0)                       # starts the wind-up, locks facing
+	if boss._claw_wind_left <= 0.0:
+		_fail("claw_lock", "a player inside reach did not start a wind-up")
+		return
+	var before: float = player.hp
+	boss._boss_claw(cfg.boss_claw_windup)      # wind-up elapses -> strike
+	var dealt: float = before - player.hp
+	if absf(dealt - cfg.boss_claw_damage) > 0.01:
+		_fail("claw_lock", "a standing target took %.1f, expected the claw's %.1f" % [dealt, cfg.boss_claw_damage])
+		return
+	_ok("claw_lock", "the claw connects for %.0f on a target that stands still" % cfg.boss_claw_damage)
+
+	# 2) Same wind-up, but the player steps to the far side: the LOCKED facing
+	# must miss. Position is changed after the wind-up begins, which is exactly
+	# what a player does during the tell.
+	_ready_player_for_hit()
+	player.global_position = Vector2(cfg.boss_claw_reach * 0.5, 0.0)
+	boss._claw_accum = cfg.boss_claw_cooldown
+	boss._boss_claw(0.0)
+	player.global_position = Vector2(-cfg.boss_claw_reach * 0.5, 0.0)   # behind
+	var before2: float = player.hp
+	boss._boss_claw(cfg.boss_claw_windup)
+	if player.hp < before2 - 0.01:
+		_fail("claw_lock", "stepping behind the locked facing still took %.1f — the claw tracks the player and cannot be dodged" % (before2 - player.hp))
+	else:
+		_ok("claw_lock", "stepping out of the locked wedge during the wind-up dodges the claw")
+
+	# 3) A target beyond reach never even starts a wind-up, so the boss does not
+	# root itself across the arena for an attack that cannot land.
+	_ready_player_for_hit()
+	player.global_position = Vector2(cfg.boss_claw_reach * 3.0, 0.0)
+	boss._claw_accum = cfg.boss_claw_cooldown
+	boss._claw_wind_left = 0.0
+	boss._boss_claw(0.0)
+	if boss._claw_wind_left > 0.0:
+		_fail("claw_lock", "the boss wound up at 3x the claw reach")
+	else:
+		_ok("claw_lock", "no wind-up against a target beyond reach")
+	boss._claw_wind_left = 0.0
+	player.global_position = Vector2.ZERO
+
+# --- Poison -------------------------------------------------------------
+
+## The pool is the only thing in the poison attack that deals damage (the glob in
+## flight deliberately does not), and it deals it per tick as `dps * tick` so the
+## tick length is granularity, never strength. Ticks are driven by calling
+## `_apply_tick` directly: no frames pass, so the swamp component and any enemy
+## contact cannot show up in the hp delta.
+func _test_poison_pool_dot() -> void:
+	await _park_player()
+	var pool: PoisonPool = PoisonPool.new()
+	pool.setup(100.0, 20.0, 0.5, 6.0)
+	add_child(pool)
+	pool.global_position = Vector2.ZERO
+
+	# Inside: 4 ticks of 20 dps * 0.5s = 40.
+	var before: float = player.hp
+	for i in range(4):
+		pool._apply_tick()
+	var dealt: float = before - player.hp
+	if absf(dealt - 40.0) > 0.01:
+		_fail("poison_dot", "4 ticks of 20dps x 0.5s dealt %.1f, expected 40" % dealt)
+	else:
+		_ok("poison_dot", "ticks deal dps x tick (%.0f over 4 ticks)" % dealt)
+
+	# Outside the radius: nothing at all. A pool that leaks damage past its own
+	# outline is unreadable — the drawn circle is the player's only information.
+	player.global_position = Vector2(140.0, 0.0)    # radius is 100
+	var before2: float = player.hp
+	for i in range(4):
+		pool._apply_tick()
+	if player.hp < before2 - 0.01:
+		_fail("poison_dot", "a player 40px outside the pool still took %.1f" % (before2 - player.hp))
+	else:
+		_ok("poison_dot", "no damage outside the drawn radius")
+
+	# The fade curve is what tells the player when the ground is walkable again.
+	var bad: Array[String] = []
+	pool._age = 0.0
+	if pool.alpha_mult() > 0.01:
+		bad.append("a brand-new pool starts fully visible instead of fading in")
+	pool._age = pool.life * 0.5
+	if pool.alpha_mult() < 0.99:
+		bad.append("a mid-life pool is not at full opacity")
+	pool._age = pool.life
+	if pool.alpha_mult() > 0.01:
+		bad.append("an expiring pool is still opaque")
+	if bad.is_empty():
+		_ok("poison_dot", "opacity fades in, holds, and fades out")
+	else:
+		_fail("poison_dot", "; ".join(bad))
+	pool.queue_free()
+	player.global_position = Vector2.ZERO
+	await _frames(1)
+
+## The DoT channel's defining property. `take_damage` absorbs a whole hit per
+## shield charge, so routing a 10-damage poison tick through it would trade one
+## charge for 10 damage and evaporate a two-charge shield in one second — a
+## shield that makes poison WORSE than no shield. DoT is a separate channel:
+## the shield neither blocks it nor is spent by it.
+##
+## The i-frame half matters just as much: `take_damage` early-returns for 0.4s
+## after a hit, which would throttle a 0.25s DoT tick down to 2.5 ticks/sec and
+## quietly halve every "high damage" number in the design.
+func _test_poison_bypasses_shield() -> void:
+	await _park_player()
+	GameState.shield_charges = 0
+	GameState.shield_left = 0.0
+	GameState.add_shield(2, 10.0)
+	player.invulnerable = true                    # i-frames wide open too
+	var charges_before: int = GameState.shield_charges
+	var hp_before: float = player.hp
+
+	var pool: PoisonPool = PoisonPool.new()
+	pool.setup(100.0, 20.0, 0.5, 6.0)
+	add_child(pool)
+	pool.global_position = Vector2.ZERO
+	for i in range(3):
+		pool._apply_tick()
+	var dealt: float = hp_before - player.hp
+
+	if absf(dealt - 30.0) > 0.01:
+		_fail("poison_shield", "3 ticks behind a 2-charge shield and full i-frames dealt %.1f, expected 30" % dealt)
+	else:
+		_ok("poison_shield", "poison ignores the shield and the i-frames (%.0f dealt)" % dealt)
+	if GameState.shield_charges != charges_before:
+		_fail("poison_shield", "poison spent %d shield charge(s) — a DoT would strip the whole shield in a second" % (charges_before - GameState.shield_charges))
+	else:
+		_ok("poison_shield", "the shield still has %d charge(s) after 3 poison ticks" % GameState.shield_charges)
+
+	pool.queue_free()
+	player.invulnerable = false
+	GameState.shield_charges = 0
+	GameState.shield_left = 0.0
+	GameState.shield_changed.emit(0)
+	await _frames(1)
+
+## DoT must not emit `player_hurt`. FxManager answers that signal with
+## `request_hit_stop(0.08)`, which sets `Engine.time_scale = 0.05` — so a DoT
+## firing it every tick would make the whole game stutter for as long as the
+## player stands in the pool.
+##
+## `player_hurt` is asserted rather than `Engine.time_scale` directly: this scene
+## has no FxManager, so time_scale would sit at 1.0 no matter how badly the
+## channel misbehaved. The signal is the actual contract; the stutter is only
+## its most visible consequence.
+func _test_dot_no_hit_stop() -> void:
+	await _park_player()
+	var hurts: Array[Vector2] = []
+	var on_hurt: Callable = func(p: Vector2) -> void: hurts.append(p)
+	GameState.player_hurt.connect(on_hurt)
+
+	var pool: PoisonPool = PoisonPool.new()
+	pool.setup(100.0, 20.0, 0.5, 6.0)
+	add_child(pool)
+	pool.global_position = Vector2.ZERO
+	for i in range(5):
+		pool._apply_tick()
+	if not hurts.is_empty():
+		_fail("dot_no_hit_stop", "5 poison ticks emitted player_hurt %d times — every one is a 0.08s global hit-stop" % hurts.size())
+	else:
+		_ok("dot_no_hit_stop", "5 poison ticks emitted no player_hurt")
+
+	# Control: a normal hit MUST still emit it, or the assertion above would pass
+	# just as happily on a player that never reports damage at all.
+	player.invulnerable = false
+	player.take_damage(5.0)
+	if hurts.is_empty():
+		_fail("dot_no_hit_stop", "take_damage emitted no player_hurt either — the test above proves nothing")
+	else:
+		_ok("dot_no_hit_stop", "take_damage still emits player_hurt (the hit-stop path is intact)")
+	GameState.player_hurt.disconnect(on_hurt)
+	pool.queue_free()
+	player.invulnerable = false
+	await _frames(1)
+
 # --- Off-screen marker --------------------------------------------------
 
 ## `marker_for` is the whole arrow: everything else is drawing. Checked as a pure
@@ -377,6 +679,25 @@ func _on_inset_edge(pos: Vector2, rect: Rect2, margin: float) -> bool:
 	# drifted off the rectangle entirely still fails.
 	return pos.x >= inner.position.x - eps and pos.x <= inner.end.x + eps \
 		and pos.y >= inner.position.y - eps and pos.y <= inner.end.y + eps
+
+## Put the player back in a state where the next hit is guaranteed to land: no
+## leftover i-frames, alive, and full. Without this a previous test's 0.4s
+## invulnerability would silently swallow the hit the next test is measuring.
+func _ready_player_for_hit() -> void:
+	player.invulnerable = false
+	player.alive = true
+	player.hp = player.max_hp
+
+## Empty field, player at the origin, clean slate. The origin is the one spot the
+## generator guarantees is plain sand and inside the map (`spawn_clear_radius` /
+## `spawn_no_swamp_radius`), so neither the swamp component nor the out-of-bounds
+## component can add damage to a reading. Enemies are cleared for the same reason:
+## contact damage looks exactly like poison damage in an hp delta.
+func _park_player() -> void:
+	await _clear_enemies()
+	player.global_position = Vector2.ZERO
+	_ready_player_for_hit()
+	await _frames(1)
 
 ## The BOSS-behaviour enemy on the field, if any. Elites share the scene and the
 ## script, so the behaviour flag is the only way to tell them apart.

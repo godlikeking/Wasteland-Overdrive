@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/shake_camera.gd" id="2_shake"]
 [ext_resource type="Script" path="res://scripts/world/toxic_swamp.gd" id="3_swamp"]
 [ext_resource type="Script" path="res://scripts/weapon_mounts.gd" id="4_mounts"]
 [ext_resource type="Script" path="res://scripts/shield_ring.gd" id="5_shield"]
+[ext_resource type="Script" path="res://scripts/world/out_of_bounds.gd" id="6_oob"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_player"]
 radius = 14.0
@@ -51,6 +52,10 @@ script = ExtResource("2_shake")
 
 [node name="ToxicSwamp" type="Node" parent="."]
 script = ExtResource("3_swamp")
+body_path = NodePath("..")
+
+[node name="OutOfBounds" type="Node" parent="."]
+script = ExtResource("6_oob")
 body_path = NodePath("..")
 
 [node name="WeaponMounts" type="Node2D" parent="."]

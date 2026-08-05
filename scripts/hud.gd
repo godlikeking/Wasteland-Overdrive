@@ -2,7 +2,8 @@ extends CanvasLayer
 ## In-game HUD showing health bar, XP bar, level, timer, combo, and the item
 ## status row (shield charges + countdown, time-stop countdown, weapon slots),
 ## plus the boss furniture: a full-width health bar, a large centre banner for
-## the arrival countdown, and the off-screen arrow (see ui/boss_marker.gd).
+## the arrival countdown, and the off-screen arrow (see ui/boss_marker.gd), and
+## the out-of-bounds furniture: a red screen tint plus a damage readout.
 ##
 ## Everything is signal-driven; `_process` is reserved for values GameState has
 ## no signal for. Adding a poll here means the value should have gained a signal.
@@ -20,6 +21,8 @@ extends CanvasLayer
 @onready var boss_name_label: Label = $MarginContainer/VBoxContainer/BossBar/BossNameLabel
 @onready var boss_health_bar: TextureProgressBar = $MarginContainer/VBoxContainer/BossBar/BossHealthBar
 @onready var boss_banner: Label = $BossBanner
+@onready var oob_vignette: ColorRect = $OobVignette
+@onready var oob_warning: Label = $OobWarning
 
 ## Last slot count we drew. WeaponDirector has no "arsenal changed" signal (and
 ## weapons come and go through several paths: level-up cards, pickups, fusion),
@@ -49,6 +52,7 @@ func _ready() -> void:
 	GameState.boss_state_changed.connect(_on_boss_state_changed)
 	GameState.boss_defeated.connect(_on_boss_defeated)
 	GameState.boss_incoming.connect(_on_boss_incoming)
+	GameState.out_of_bounds_changed.connect(_on_out_of_bounds_changed)
 	# Initial values
 	_on_health_changed(100.0, 100.0)
 	_on_xp_changed(0.0, 5.0)
@@ -64,6 +68,7 @@ func _ready() -> void:
 	boss_bar.visible = false
 	boss_banner.text = ""
 	boss_banner.modulate.a = 0.0
+	_on_out_of_bounds_changed(0.0, 0.0)
 
 func _process(_delta: float) -> void:
 	var slots: int = WeaponDirector.slots_used()
@@ -166,3 +171,20 @@ func _flash_banner(text: String, color: Color, hold: float) -> void:
 	_banner_tw.tween_property(boss_banner, "modulate:a", 1.0, 0.18)
 	_banner_tw.tween_interval(maxf(0.1, hold - 0.5))
 	_banner_tw.tween_property(boss_banner, "modulate:a", 0.0, 0.32)
+
+# --- Map boundary -------------------------------------------------------
+
+## 出界警告。**刻意不走 `_flash_banner`**：那个函数开头就 kill 掉 `_banner_tw`，
+## 而出界是个持续状态，每帧一次的调用会和 BOSS 横幅互相掐死（横幅永远播不完，
+## 出界提示也永远淡不进来）。这里直接写 alpha，不用 tween。
+##
+## alpha 跟 `depth` 走而不是跟时间走：往回跑的那一瞬间压力就必须看得见在减轻，
+## 否则这个读数只是噪音，玩家学不到"往哪边跑"。伤害读的是 `dps`（跟时间爬坡），
+## 所以两个通道分别对应"跑多远"和"待多久"这两件事。
+func _on_out_of_bounds_changed(depth: float, dps: float) -> void:
+	if depth <= 0.0:
+		oob_warning.text = ""
+		oob_vignette.color.a = 0.0
+		return
+	oob_warning.text = "脱离废土！ -%d/秒" % int(roundf(dps))
+	oob_vignette.color.a = clampf(0.12 + depth / 900.0, 0.12, 0.42)

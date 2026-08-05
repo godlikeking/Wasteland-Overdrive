@@ -38,6 +38,12 @@ signal boss_defeated
 ## Seconds before the boss arrives. 0 means "it is here / not coming".
 signal boss_incoming(seconds: float)
 
+# --- Map boundary ---
+## 玩家在地图外多深（像素）以及此刻的每秒伤害。depth = 0 表示回到图内，
+## HUD 收到就清警告。刻意只做信号、不加成员变量：HUD 全反应式（见 hud.gd
+## 头部），而这个值除了显示以外没有任何人需要查询。
+signal out_of_bounds_changed(depth: float, dps: float)
+
 # --- Run state ---
 var time_alive: float = 0.0
 var is_running: bool = false
@@ -185,6 +191,9 @@ func reset() -> void:
 	shield_changed.emit(0)
 	shield_time_changed.emit(0.0)
 	time_stop_changed.emit(0.0)
+	# 上一局死在图外时，HUD 的暗角和警告还挂着。重开必须先清掉，
+	# 否则新一局开局就顶着一层红。
+	out_of_bounds_changed.emit(0.0, 0.0)
 	_reset_combo()
 
 ## Single funnel for "the player took a passive card": records the stack count

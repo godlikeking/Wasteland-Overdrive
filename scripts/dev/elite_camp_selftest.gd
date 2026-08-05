@@ -76,8 +76,10 @@ func _test_determinism() -> void:
 func _test_spacing() -> void:
 	var cfg: WastelandConfig = world.wasteland_config
 	var cells: Array[Vector2i] = world.get_builder().elite_camps
-	var half: int = cfg.map_size_tiles / 2
-	var limit: int = half - 3 - cfg.elite_camp_radius_tiles
+	# 问 builder 要那个上限而不是在这里重算一遍。这条公式以前在
+	# tilemap_builder 和这个自检里各写了一份，改一边另一边就会假绿 ——
+	# 边界拆掉时正好碰上（半径从 half-3 变成 half-1）。
+	var limit: int = world.get_builder().camp_placement_limit()
 	var min_d: int = cfg.elite_camp_min_dist_tiles
 	var min_gap: int = cfg.elite_camp_min_gap_tiles
 	var bad: String = ""
@@ -87,7 +89,7 @@ func _test_spacing() -> void:
 			bad = "camp %s within %d tiles of spawn" % [c, min_d]
 			break
 		if absi(c.x) > limit or absi(c.y) > limit:
-			bad = "camp %s outside safe limit %d (would hit the pit border)" % [c, limit]
+			bad = "camp %s outside safe limit %d (would hang off the map edge)" % [c, limit]
 			break
 		for j in range(i + 1, cells.size()):
 			var d: Vector2i = c - cells[j]

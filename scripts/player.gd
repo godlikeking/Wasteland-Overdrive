@@ -86,6 +86,25 @@ func take_damage(amount: float) -> void:
 	if hp <= 0.0:
 		_die()
 
+## 持续伤害通道：毒沼、BOSS 毒池、出界扣血都走这里。故意**不**复用
+## take_damage，因为那条路的三个性质对 DoT 全是反作用：
+##   - `invulnerable` 早退会把 0.5s 一跳的毒压成最多 2.5 跳/秒；DoT 自己的
+##     tick 间隔才是节流器，再叠一层无敌帧只会让"持续高额"变成挠痒。
+##   - consume_shield() 是"整发吸收"语义，遇到 DoT 就变成 1 点伤害换 1 层
+##     护盾，两层在一秒内蒸发 —— 护盾会比没有还糟。DoT 是另一条通道，
+##     护盾既不抵挡也不被消耗。
+##   - player_hurt 会被 FxManager 接成 request_hit_stop → Engine.time_scale
+##     = 0.05；每跳发一次等于站在毒池里整个游戏持续抽搐。
+## 所以这里只做三件事：扣血、闪色、发血量信号。
+func take_dot_damage(amount: float, flash: Color = Color(1.3, 0.5, 0.4)) -> void:
+	if not alive or amount <= 0.0:
+		return
+	hp -= amount
+	_flash_dot(flash)
+	GameState.player_health_changed.emit(hp, max_hp)
+	if hp <= 0.0:
+		_die()
+
 ## Restore health, clamped to the current maximum. Used by the heal pickup.
 ## Returns the amount actually restored, so the caller can skip the "+N" label
 ## when the player was already at full health.
@@ -116,6 +135,13 @@ func _flash_heal() -> void:
 	sprite.modulate = Color(0.6, 1.6, 0.7)
 	var tw: Tween = create_tween()
 	tw.tween_property(sprite, "modulate", BASE_TINT, 0.3)
+
+## DoT 闪色。毒沼用默认红，毒池用绿，出界用深红；调用方传 flash 来区分。
+## 和 _flash_damage 共用 tween，DoT 闪完立刻能被正常受伤覆盖（反之亦然）。
+func _flash_dot(color: Color) -> void:
+	sprite.modulate = color
+	var tw: Tween = create_tween()
+	tw.tween_property(sprite, "modulate", BASE_TINT, 0.2)
 
 func _on_invuln_end() -> void:
 	invulnerable = false

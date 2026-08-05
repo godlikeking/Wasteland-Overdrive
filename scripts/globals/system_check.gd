@@ -28,6 +28,9 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/pickup_item.gd",
 	"res://scripts/explosion.gd",
 	"res://scripts/shield_ring.gd",
+	"res://scripts/poison_glob.gd",
+	"res://scripts/poison_pool.gd",
+	"res://scripts/claw_slash.gd",
 	"res://scripts/game.gd",
 	"res://scripts/hud.gd",
 	"res://scripts/level_up.gd",
@@ -64,6 +67,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/world/world.gd",
 	"res://scripts/world/toxic_swamp.gd",
 	"res://scripts/world/elite_camp_director.gd",
+	"res://scripts/world/out_of_bounds.gd",
 ]
 
 const REQUIRED_SCENES := [
@@ -142,6 +146,7 @@ const REQUIRED_GAME_STATE_SIGNALS := [
 	"combo_changed", "leveled_up",
 	"shield_changed", "shield_time_changed", "time_stop_changed",
 	"boss_spawned", "boss_state_changed", "boss_defeated", "boss_incoming",
+	"out_of_bounds_changed",
 ]
 
 var _failures: Array[String] = []

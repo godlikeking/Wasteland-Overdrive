@@ -1,12 +1,21 @@
 extends Node
 ## Procedural TileSet + map generator. Builds a 6-tile wasteland TileSet at
 ## runtime (sandy ground + rubble + scrap metal + pit + toxic swamp + elite
-## camp) and paints a 64x64 map. Exposes `swamp_cells` so player/enemy can
-## look up "am I in a swamp" without colliding with it (swamp is non-blocking),
-## and `elite_camps` so EliteCampDirector knows where the arenas are.
+## camp) and paints a `map_size_tiles` square map. Exposes `swamp_cells` so
+## player/enemy can look up "am I in a swamp" without colliding with it (swamp is
+## non-blocking), and `elite_camps` so EliteCampDirector knows where the arenas
+## are.
 ##
-## Performance: paints ~4096 cells once at _ready. The 6 sub-textures are
-## 64x64 each, generated via per-pixel loops; under 30ms on a modest CPU.
+## The map edge is NOT walled. There used to be a 2-cell pit band around the
+## whole map so nothing could escape; it is gone on purpose. A wall you can walk
+## up to and lean on teaches the player that the edge is a safe place to kite
+## against. Instead the map simply ends: `map_rect()` / `out_of_bounds_depth()`
+## define where, and the OutOfBounds component on the player turns "outside" into
+## escalating damage. The consequence lives in one place instead of being baked
+## into terrain.
+##
+## Performance: paints map_size_tiles² cells once at _ready (16384 at 128).
+## The 6 sub-textures are 64x64 each, generated via per-pixel loops.
 
 class_name TilemapBuilder
 
@@ -45,11 +54,9 @@ func build(p_tilemap: TileMap, p_config: WastelandConfig) -> void:
 		return
 	_build_tileset()
 	_paint_map()
-	# Camps come after the terrain so they can carve obstacles/swamp out of
-	# their arena, but before the borders so the escape-proof pit band still
-	# wins on the map edge.
+	# Camps come last so they can carve obstacles/swamp out of their arena. There
+	# is no border pass any more (see the class docs), so nothing overwrites them.
 	_place_elite_camps()
-	_paint_borders()
 	print("[TilemapBuilder] %dx%d map painted. Swamp cells: %d, elite camps: %d" % [
 		config.map_size_tiles, config.map_size_tiles, swamp_cells.size(), elite_camps.size()
 	])
@@ -57,6 +64,44 @@ func build(p_tilemap: TileMap, p_config: WastelandConfig) -> void:
 func is_swamp(world_pos: Vector2) -> bool:
 	var cell: Vector2i = tilemap.local_to_map(tilemap.to_local(world_pos))
 	return swamp_cells.has(cell)
+
+## World-space rectangle the map covers.
+##
+## Cells run (-size/2 .. size/2-1) on both axes and cell (x, y) occupies pixels
+## (x*TS .. x*TS+TS), so the rect starts at -size/2*TS and is size*TS wide. The
+## TileMap sits at the origin (`_paint_map` pins `tilemap.position`), so map
+## space and world space coincide.
+func map_rect() -> Rect2:
+	var size: int = config.map_size_tiles if config != null else 0
+	var half: float = float(size / 2) * float(TS)
+	return Rect2(Vector2(-half, -half), Vector2(float(size) * float(TS), float(size) * float(TS)))
+
+## How far outside `map_rect()` `world_pos` is, in pixels; 0.0 when inside.
+##
+## Returns a DISTANCE rather than a bool on purpose: the HUD warning has to be
+## able to fade in with how far out you are, and the damage ramp reads more
+## naturally as "deeper = worse". Diagonal exits use the true euclidean distance
+## to the rect, so cutting a corner is not cheaper than crossing an edge.
+func out_of_bounds_depth(world_pos: Vector2) -> float:
+	var r: Rect2 = map_rect()
+	var dx: float = maxf(maxf(r.position.x - world_pos.x, 0.0),
+		world_pos.x - (r.position.x + r.size.x))
+	var dy: float = maxf(maxf(r.position.y - world_pos.y, 0.0),
+		world_pos.y - (r.position.y + r.size.y))
+	if dx <= 0.0 and dy <= 0.0:
+		return 0.0
+	return Vector2(dx, dy).length()
+
+## Outermost cell index an elite camp centre may use.
+##
+## Single source of truth, shared with elite_camp_selftest: the formula used to
+## be written out in both places, so changing one silently left the other
+## asserting the old geometry. One cell of slack keeps a camp disc from hanging
+## off the map edge into the out-of-bounds zone.
+func camp_placement_limit() -> int:
+	if config == null:
+		return 0
+	return config.map_size_tiles / 2 - 1 - config.elite_camp_radius_tiles
 
 ## Camp centres in world space, for EliteCampDirector.
 func camp_centers() -> Array[Vector2]:
@@ -349,11 +394,7 @@ func _place_elite_camps() -> void:
 	var want: int = maxi(0, config.elite_camp_count)
 	if want == 0:
 		return
-	var size: int = config.map_size_tiles
-	var half: int = size / 2
-	# Stay clear of the 2-cell pit border, plus the camp radius so no camp
-	# tile lands inside the band and gets overwritten by _paint_borders.
-	var limit: int = half - 3 - config.elite_camp_radius_tiles
+	var limit: int = camp_placement_limit()
 	if limit <= config.elite_camp_min_dist_tiles:
 		push_warning("[TilemapBuilder] map too small for elite camps")
 		return
@@ -420,30 +461,6 @@ func _carve_camp(centre: Vector2i) -> void:
 			var cell := Vector2i(centre.x + dx, centre.y + dy)
 			tilemap.set_cell(0, cell, 0, _atlas(T_CAMP))
 			swamp_cells.erase(cell)
-
-func _paint_borders() -> void:
-	# Edge band = pit so enemies/player can't escape. The map occupies
-	# cells (-size/2 .. size/2-1, ...). We write the two outermost cells
-	# on each side; spawn_clear_radius is well inside that.
-	var size: int = config.map_size_tiles
-	var lo: int = -size / 2
-	var hi: int = size / 2 - 1
-	for x in range(lo, hi + 1):
-		for dy in range(2):
-			var t1: Vector2i = Vector2i(x, lo + dy)
-			var t2: Vector2i = Vector2i(x, hi - dy)
-			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
-			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
-			swamp_cells.erase(t1)
-			swamp_cells.erase(t2)
-	for y in range(lo, hi + 1):
-		for dx in range(2):
-			var t1: Vector2i = Vector2i(lo + dx, y)
-			var t2: Vector2i = Vector2i(hi - dx, y)
-			tilemap.set_cell(0, t1, 0, _atlas(T_PIT))
-			tilemap.set_cell(0, t2, 0, _atlas(T_PIT))
-			swamp_cells.erase(t1)
-			swamp_cells.erase(t2)
 
 # --- Helpers ---
 

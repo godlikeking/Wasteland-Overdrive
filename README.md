@@ -31,9 +31,10 @@
 - 击杀敌人掉落蓝色**经验宝石**，走近自动吸取
 - **升级**时弹出三张**被动**升级卡（武器不再从升级卡获得），选择一张永久强化本局角色
 - **接触敌人**扣血，血量归零结算重开
-- **地图**：4096×4096 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）/ **精英营地**
+- **地图**：8192×8192 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）/ **精英营地**
+- **地图边缘没有墙**：走出去不会被挡住，而是开始持续高额扣血（20/秒起、每 3 秒爬一档、封顶 80/秒，满血约 **3.5 秒**死），屏幕压一层红并显示 `脱离废土！ -N/秒`（详见「地图边界」一节）
 - 撞墙：玩家和敌人都被瓦砾 / 废铁 / 地坑挡住，**敌人在 0.4s 同步后会自动绕路**
-- **精英营地**：地图上 6 个锈红警戒条纹地砖圈，走近会刷出精英怪；杀掉掉 **1 个道具**，营地进 45s 冷却后重刷（详见「精英营地」一节）
+- **精英营地**：地图上 12 个锈红警戒条纹地砖圈，走近会刷出精英怪；杀掉掉 **1 个道具**，营地进 45s 冷却后重刷（详见「精英营地」一节）
 - **道具**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 / **磁石** 六种，走近自动吸取；磁石会把**全图**掉落物（含经验宝石）一次吸过来（详见「道具掉落」一节）
 - **武器来源**：怪物掉落（含杂兵），可同时持有多把相同武器，**3 把同款同级武器自动合成 1 把更高级**（详见「武器合并」一节）
 - 最多同时装备 **12 把武器**，挂件全部画在玩家左右两侧
@@ -53,10 +54,10 @@
 - [x] 数据驱动敌人（EnemyConfig Resource）+ 哨兵敌人射击子弹
 - [x] 多武器系统：弹雨 / 旋转刀阵 / 闪电链 + 武器从怪物掉落（可重复持有）
 - [x] WeaponDirector autoload 管理武器槽与等级
-- [x] **程序化废土 TileMap（运行时生成 5 种子瓦片，4096×4096 地图）**
+- [x] **程序化废土 TileMap（运行时生成 6 种子瓦片，8192×8192 地图，无边界墙）**
 - [x] **武器合并**：3 把同款同级武器自动合成 1 把更高级（等级曲线 +100% 伤害 / +50% 射速，冷却型武器同步缩放）
 - [x] **物理碰撞（瓦砾 / 废铁 / 地坑 写入 TileData collision_polygons）**
-- [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
+- [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**（走 DoT 通道，见「地图边界」一节末尾）
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
 - [x] **SystemCheck 启动诊断：autoload / 脚本 / 场景 / 资源 / 输入 / 升级库**
 - [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；12 把武器挂件 + 2 种子弹 + 6 种道具手画（同调色板，`tools/` 下可复现）
@@ -65,7 +66,8 @@
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
 - [x] **击杀爆裂粒子**：增强版 burst_particles（28 粒、彩尘，精英偏紫红）
 - [x] **2 张新增被动升级**：暴击瞄准镜（+5%）、穿甲弹头（+0.5× 倍率）
-- [x] **5 分钟 Boss 战**：废土巨兽（1000 HP、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「5 分钟 BOSS」一节）
+- [x] **2 分钟 Boss 战**：废土巨兽（**2500 HP、112px 体型**、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「BOSS 降临与难度天花板」一节）
+- [x] **BOSS 远程毒物 + 近战爪击**：抛毒团落地成毒池（持续 DoT），近身则先定住脚画预警扇形、0.45s 后挥爪（朝向在预警开始时就锁死，可以横向闪避）；见「BOSS：毒物与爪击」一节
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器各持有一把 Lv3 副本时可触发融合面板（可选开启）；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
@@ -75,6 +77,7 @@
 - [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走左右两列布局
 - [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
 - [x] **暂停面板（Esc）**：暂停时列出每把武器的等级 + 合并进度，以及本局选过的被动卡与堆叠层数
+- [x] **地图边界代价化**：地图 128×128 格（8192px）、**删掉了边缘那圈坑墙**，出界改为持续爬坡扣血 + 屏幕红晕警告；敌人生成点也会挑一条落在图内的边（见「地图边界」一节）
 
 ## 已内建的 12 项被动升级
 
@@ -272,11 +275,13 @@ godot --headless res://scenes/dev/pause_selftest.tscn   # exit 0 = 全绿
 
 ## 精英营地（地图特定区域）
 
-地图生成时会在 `TilemapBuilder` 里额外挖出 `elite_camp_count`（默认 **6**）个营地：半径 3 格的圆盘，铺第 6 种瓦片 `T_CAMP`（暗混凝土 + 锈红警戒条纹）。
+地图生成时会在 `TilemapBuilder` 里额外挖出 `elite_camp_count`（默认 **12**）个营地：半径 3 格的圆盘，铺第 6 种瓦片 `T_CAMP`（暗混凝土 + 锈红警戒条纹）。地图从 64 格加大到 128 格后面积变成 4 倍，营地数量同步从 6 提到 12，否则跑半张图见不到一个。
 
-营地是**确定性**的——选点复用地形自己的 `_hash2`，同一个 seed 两次生成落在同样的格子上，所以「地图特定区域」是可复现的地点，不是随机事件。选点逐个拒绝：离出生点 < `elite_camp_min_dist_tiles`(14 格)、进边界 pit 带、离已选营地 < `elite_camp_min_gap_tiles`(14 格)。
+营地是**确定性**的——选点复用地形自己的 `_hash2`，同一个 seed 两次生成落在同样的格子上，所以「地图特定区域」是可复现的地点，不是随机事件。选点逐个拒绝：离出生点 < `elite_camp_min_dist_tiles`(14 格)、超出 `camp_placement_limit()`、离已选营地 < `elite_camp_min_gap_tiles`(14 格)。
 
-营地圆盘**不注册 physics / navigation**，并且会 `swamp_cells.erase` 掉压在下面的毒沼——营地必须能走进去打，不能变成一块挡路的装饰。铺设顺序插在 `_paint_map()` 之后、`_paint_borders()` 之前，所以营地覆盖地形障碍，但边界 pit 带仍然优先。
+`camp_placement_limit()` = `map_size_tiles/2 - 1 - elite_camp_radius_tiles`，是营地中心能用的最外圈格。它**存在的理由是消掉一处公式复制**：这个式子以前在 `tilemap_builder.gd` 和 `elite_camp_selftest.gd` 里各写了一份（当时是 `half - 3 - radius`，为了避开 2 格宽的边界 pit 带），拆墙时只改一边，另一边就会拿旧几何断言、一路绿灯。现在边界没有墙了，1 格余量的作用变成"营地圆盘不能吊在图外的扣血区上"，自检 `camps_inside` 会连圆盘边缘一起验。
+
+营地圆盘**不注册 physics / navigation**，并且会 `swamp_cells.erase` 掉压在下面的毒沼——营地必须能走进去打，不能变成一块挡路的装饰。铺设顺序在 `_paint_map()` 之后，而且现在它是**最后**一道铺设——边界 pit 带已经删掉，没有任何东西会再覆盖营地。
 
 `scripts/world/elite_camp_director.gd`（挂在 `game.tscn` 的 `Game` 下）负责刷怪：
 
@@ -452,14 +457,16 @@ godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # 含 drop_level 
 | 1 | 瓦砾 | 阻挡 | 物理碰撞 + 视觉是废铁/碎石 |
 | 2 | 废铁 | 阻挡 | 物理碰撞 + 视觉是深色金属 |
 | 3 | 地坑 | 阻挡 | 物理碰撞 + 视觉是深坑 |
-| 4 | 毒沼 | **不挡** | 减速 50% + 每 0.5s 扣 1 滴血（玩家+敌人） |
+| 4 | 毒沼 | **不挡** | 减速 50% + 每 0.5s 扣 1 滴血（玩家+敌人，走 DoT 通道） |
 | 5 | 精英营地 | **不挡** | 暗混凝土 + 锈红警戒条纹，`EliteCampDirector` 的刷怪点 |
 
-默认 64×64 格地图、seed=1337，障碍合计 10%，毒沼 5%，出生点 11×11 安全区，6 处半径 3 格的精英营地。
+默认 **128×128** 格地图（8192×8192 px，以原点为中心）、seed=1337，障碍合计 10%，毒沼 5%，出生点 11×11 安全区，**12** 处半径 3 格的精英营地。**地图四周没有墙**——边界的代价在「地图边界」一节。
 
-## 5 分钟 BOSS：难度天花板与 BOSS UI
+## BOSS 降临与难度天花板
 
-`boss_spawn_time = 300` 一直是对的，**但在此之前没人活着见过它**。原因在难度曲线本身：
+BOSS 由 `spawn_director.gd` 的 `boss_spawn_time` 决定，**当前值 120 秒**（2 分钟）。这个旋钮曾经是 300，注释也写着「5 分钟触发 Boss」；改成 120 后注释一度还留着旧值，现在两处都是 120 —— 想改节奏只需要动这一个 export。
+
+`boss_spawn_time = 300` 那会儿一直是对的，**但在此之前没人活着见过它**。原因在难度曲线本身：
 
 ```
 interval = lerp(base_interval 1.2 → min_interval, t / difficulty_ramp_time)
@@ -480,6 +487,26 @@ burst    = 1 + int(t * burst_growth 0.02)     # 无上限
 - `burst_for(t)` 抽成**纯函数**，这样自检可以直接断言 t=600 的 burst 而不用真的跑 10 分钟。
 - `live_enemies()` 会过滤 `is_queued_for_deletion()` 的敌人：刚死的敌人还会在 `enemies` 组里待一帧，不滤掉的话一次大清场会让天花板在尸体早就无所谓之后仍然堵着不刷。
 
+### 这张表上一版是假的：16 只/秒 曾经从未生效
+
+`min_interval` 的脚本默认值改成了 0.25，但 `scenes/game.tscn` 里那个 `SpawnDirector` 节点**带着一行 `min_interval = 0.18` 的场景覆盖**。场景覆盖赢过脚本默认值，所以真实游戏跑的一直是 4/0.18 = **22.2 只/秒**，而 README 和 commit 里都写着 16。
+
+问题不在于改错了一个数，而在于**测试测不到它**：`boss_selftest` 是自己 `new` 一个 `SpawnDirector` 的，永远看不到场景里的覆盖值，所以整套天花板测试全绿、真实游戏超标 39%。
+
+修法是删掉那行覆盖（让脚本成为唯一来源），再加一条读**出厂场景**的测试：
+
+```gdscript
+var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
+```
+
+`shipped_scene_ceilings` 用 `PackedScene.get_state()` 直接读节点的属性覆盖，不实例化整个世界，然后拿"覆盖值 → 没覆盖就取脚本默认值"这一对算实际峰值。它对**任何**旋钮的场景/脚本分歧都有效，不只是 `min_interval`。反证过：把 `min_interval = 0.18` 加回 game.tscn，它立刻报 `game.tscn ships 22.2/s (max_burst 4 / min_interval 0.18s), past the 20/s ceiling`。
+
+> 一个测试里的坑：那些默认值必须从 `(load("res://scripts/spawn_director.gd") as GDScript).new()` 这样一个**临时实例**上读，不能从自检场景里那个 director 上读——自检场景自己把 `boss_spawn_time` 覆盖成了 99999，拿它当"默认值"会变成用测试脚手架去比对出厂场景。
+
+### ⚠️ 一处已知失衡：BOSS 比精英波先到
+
+`boss_spawn_time = 120`，但精英波在 `_process` 里的门是 `t >= 300.0`，`_pick_archetype` 的混合期是 3:30。也就是说**打完 BOSS 才开始出精英**。这是平衡问题不是 bug，所以按原样留着并记在这里：要么把精英门降到 120~150，要么接受"BOSS 是中期考试"。改哪个都只动一个常量。
+
 ### BOSS UI（三件套，都挂在 `GameState` 的信号上）
 
 | 信号 | 发出方 | 消费方 |
@@ -490,12 +517,122 @@ burst    = 1 + int(t * burst_growth 0.02)     # 无上限
 | `boss_defeated()` | `enemy._die()` | 收起血条和箭头 |
 
 - **提醒增大**：横幅字号 **64**，降临前 `boss_warn_lead = 6` 秒开始播报，文字带整秒倒计时（`BOSS 即将降临  5`）。BOSS 落点在玩家 **+360px** 方向随机，配上提前量，它不会直接压在脸上出现。
-- **血条**：屏幕顶部横贯条，`boss_spawned` 时出现，之后**只由 `boss_state_changed` 驱动**——伤害是唯一能让血条动的事件，而它本来就是逐次命中的事件，没必要每帧轮询。
+- **血条**：屏幕顶部横贯条，`boss_spawned` 时出现，之后**只由 `boss_state_changed` 驱动**——伤害是唯一能让血条动的事件，而它本来就是逐次命中的事件，没必要每帧轮询。`boss_state_changed` 传的是**比例**而不是绝对血量，所以血量从 1000 提到 2500 时 HUD 一行都不用改。
 - **屏幕外红色箭头**（`scripts/ui/boss_marker.gd`）：BOSS 出画时在屏幕边缘画红色三角指向它。世界坐标 → 屏幕坐标走 `get_viewport().get_canvas_transform() * boss.global_position`（HUD 是 CanvasLayer，它的局部坐标就是屏幕坐标）。
   - 边缘定位抽成纯静态函数 `marker_for(screen_pos, rect, margin) -> Dictionary`，用**射线 vs 盒**（把方向向量缩放到先撞上的那条半轴）而不是逐轴 clamp——逐轴 clamp 在斜角方向会把箭头贴错边。自检直接断言几何结果，不看画面。
   - `margin` 会被 clamp 到窗口半宽/半高，避免窗口比 `2*margin` 还小时缩出一个负尺寸矩形（箭头会镜像）。
 
-验收时实测：`step_until _boss_spawned` 在 `time_alive = 300.0025` 命中；BOSS 掉到 550/1000 时血条 `fill = 0.55`、标题 `废土巨兽  阶段 1`；把 BOSS 挪到玩家 +(1400,-900) 后箭头落在 `(1133, 46)`（y 正好等于 `EDGE_MARGIN 46`，即贴在上边缘）、角度 −0.567 rad 指向右上，并在该位置采到实际渲染像素 `(0.99, 0.40, 0.22)`——确认是真的画出来了，而不只是算对了。
+验收时实测（`boss_spawn_time` 当时是 300）：`step_until _boss_spawned` 在 `time_alive = 300.0025` 命中；BOSS 掉到一半时血条 `fill = 0.55`、标题 `废土巨兽  阶段 1`；把 BOSS 挪到玩家 +(1400,-900) 后箭头落在 `(1133, 46)`（y 正好等于 `EDGE_MARGIN 46`，即贴在上边缘）、角度 −0.567 rad 指向右上，并在该位置采到实际渲染像素 `(0.99, 0.40, 0.22)`——确认是真的画出来了，而不只是算对了。
+
+## BOSS：毒物与爪击
+
+废土巨兽从"一个大号的追踪怪"变成了有两套攻击的战斗：**远程抛毒** + **近战爪击**。数值全在 `data/enemies/boss.tres`，字段定义在 `scripts/enemy_config.gd`。
+
+| 项 | 值 | 说明 |
+|---|---|---|
+| `max_hp` | **2500**（原 1000） | HUD 血条走比例，不用改 UI |
+| `sprite_size` / `sprite.scale` | **112px** / **7.0×**（原 72px / 4.5×） | 源图是 16×16 |
+| `collision_radius` | **56**（原 36） | 跟着体型走，否则打不到的地方看起来能打 |
+| `contact_damage` | 25 | 接触伤害 |
+
+**体型加大带来的副作用必须一起处理**：直径 112px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
+
+### 远程毒物
+
+```
+boss_poison_interval 3.0   boss_poison_count 3      boss_poison_flight 0.55
+boss_poison_pool_radius 95 boss_poison_pool_life 6  boss_poison_dps 14  boss_poison_tick 0.5
+```
+
+`PoisonGlob`（`scripts/poison_glob.gd`）飞 `flight` 秒落地，生成 `PoisonPool`（`scripts/poison_pool.gd`）。
+
+- **毒团飞行途中不伤人，也没有 Area2D**：落点才是威胁，飞行弧线是玩家的躲避线索。命中判定 100% 在毒池里，只有一个伤害来源。
+- **飞行用固定时长而不是固定速度**：预警窗口必须与距离无关。固定速度会让贴身喷的毒在玩家能反应之前落地，而远处喷的又慢到没威胁。（`boss_poison_speed` 这个旋钮曾经存在过，但没有任何代码读它，已经删掉。）
+- 多团时以玩家为中心张开一把扇子、中间那团仍然对准玩家，所以**站着不动永远是最差选择**。
+- 阶段缩放：P2 数量 +1、间隔 ×0.8；P3 数量 +2、间隔 ×0.65。
+- **不加贴图，全程序化 `_draw()`**：`tools/gen_bullets.py` 的调色板是金/红/品红，**一点绿都没有**，而 `verify()` 会拒绝调色板外的颜色。而且毒池半径随配置变化、本来就必须按半径画。和 `explosion.gd` 同一个模式。
+
+### 近战爪击
+
+```
+boss_claw_damage 34  boss_claw_reach 190  boss_claw_arc 1.9 (≈109°)
+boss_claw_windup 0.45  boss_claw_cooldown 2.6
+```
+
+| 阶段 | 发生的事 |
+|---|---|
+| 距离 ≤ `reach` 且冷却好了 | **锁定朝向** `_claw_facing`、生成 `ClawSlash` 预警弧、`velocity = 0`（定住脚就是那个预告） |
+| 预警 0.45s 结束 | `ClawSlash` 转命中态；玩家若仍在楔形内 → `take_damage(34)` |
+
+**朝向为什么必须在预警开始时就锁死**：这是整套设计里唯一可以被反制的点。如果命中帧重新朝玩家算一次方向，那么这个扇形攻击就永远打得中——玩家没有任何操作能躲开，"预警"变成纯装饰。锁死之后横向绕过侧面就是有效躲避，玩家学得到东西。自检 `claw_locks_facing` 正面守着这条：预警开始后把玩家挪到弧外，伤害必须是 0。反证过，把判定改成用当前方向，它立刻报 `stepping behind the locked facing still took 34.0 — the claw tracks the player and cannot be dodged`。
+
+**爪击走正常的 `take_damage`**（不是下面那条 DoT 通道）：它是一次离散重击，无敌帧和护盾正是为这种伤害设计的。
+
+**伤害由 BOSS 自己在命中帧结算，`ClawSlash` 纯视觉**：不像 `explosion.gd` 那样把伤害埋在特效里，单一伤害来源更好查。判定则抽成纯静态函数，照 `boss_marker.gd:marker_for` 的先例——这是自检唯一能验证 `_draw` 类逻辑的办法：
+
+```gdscript
+static func in_arc(from: Vector2, facing: Vector2, target: Vector2,
+		reach: float, arc: float) -> bool
+```
+
+`claw_geometry` 断言 10 个用例：正前方命中、1.5× reach 落空、正后方落空、90° 落空、弧边界两侧（≈44° 中 / ≈46° 空）、对称的 −44°、`arc = TAU` 时背后也中、零长 facing 不炸、目标与原点重合时算命中。
+
+## 地图边界：没有墙，只有代价
+
+地图从 64 格加大到 **128 格**（8192×8192 px，以原点为中心），并且**删掉了原来那圈 2 格宽的边界坑墙**。
+
+删墙的理由：一堵能走过去靠着的墙，会教玩家"地图边缘是个安全的放风筝位置"——贴边打怪只需要照顾 180°。墙不是边界，它是个战术道具。现在地图就是**结束了**，代价单独存在。
+
+### 三个 API（`tilemap_builder.gd`，`world.gd` 转发）
+
+| 方法 | 语义 |
+|---|---|
+| `map_rect() -> Rect2` | 地图覆盖的世界矩形。格子跑 `-size/2 .. size/2-1`，格 (x,y) 占像素 `x*TS .. x*TS+TS`，所以矩形从 `-size/2*TS` 开始 |
+| `out_of_bounds_depth(pos) -> float` | 在矩形外多少**像素**；在里面返回 0 |
+| `camp_placement_limit() -> int` | 营地中心能用的最外圈格（见「精英营地」一节） |
+
+`out_of_bounds_depth` **返回距离而不是 bool**，有两个具体原因：HUD 的红晕要能随"出去多深"淡入；斜着出界时用的是到矩形的**真欧氏距离**，所以抄近路穿角不会比正面跨边便宜。
+
+### 出界扣血（`scripts/world/out_of_bounds.gd`）
+
+```
+depth = 0  → 清警告、_out_time 归零
+depth > 0  → _out_time += delta
+             dps = base 20 * clampf(1 + _out_time / ramp 3.0, 1, ramp_max 4.0)
+             每 tick 0.25s → player.take_dot_damage(dps * tick, 深红)
+             GameState.out_of_bounds_changed.emit(depth, dps)
+```
+
+20/秒起跳、每 3 秒爬一档、封顶 **80/秒**。100 血从跨界到死 **3.5 秒**（`bounds_selftest` 里按离散跳数实测的数字，不是连续积分的估算）——是道真墙，但擦过一个角还来得及跑回来。
+
+两个刻意的设计：
+
+- **只挂玩家，没有复用 `ToxicSwamp` 那种"玩家和敌人都挂"的写法**。`toxic_swamp.gd` 同时挂在 `enemy.tscn` 上，而敌人本来就生成在镜头外——玩家贴边时半数生成点落在图外。如果敌人也吃出界伤害，边界就会变成一台自动刷分机：站在角上等敌人自己融化。**出界是给玩家的规则，不是全局物理。**
+- **地图还没生成时直接 return**。`map_rect()` 在那之前是零尺寸的，会把"图外"读成整个世界，开局第一帧就把玩家烧死。没有地图 = 没有边界。
+
+### 为什么必须新开一条 DoT 通道（改这里前先读这段）
+
+出界扣血、BOSS 毒池、毒沼三者都是持续伤害，而 `player.gd` 原来的 `take_damage` 有三个对 DoT 完全反作用的性质：
+
+| `take_damage` 的性质 | 对 DoT 的后果 |
+|---|---|
+| `if invulnerable: return`（0.4s 无敌帧） | 0.25s 一跳被压到最多 2.5 跳/秒，"持续高额"直接失效 |
+| `consume_shield()` 是"整发吸收" | 1 点毒伤换 1 层护盾，两层在一秒内蒸发——护盾比没有还糟 |
+| `player_hurt` → `fx_manager` → `request_hit_stop(0.08)` → `Engine.time_scale = 0.05` | **每跳卡顿全局 0.08 秒**，站在毒池里整个游戏抽搐 |
+
+所以 `take_dot_damage(amount, flash)` 只做三件事：扣血、闪色、发 `player_health_changed`。护盾既不抵挡也不被消耗，无敌帧不参与节流（DoT 自己的 `tick` 间隔才是节流器），也不发 `player_hurt`。
+
+**这同时修了一个现存 bug**：`toxic_swamp.gd` 原本就走 `take_damage`，也就是说改之前的毒沼**每 0.5 秒消耗一层护盾、并且卡顿一次全局时间**。它是这条通道的第一个受益者，不是新增范围。
+
+三条性质各有一条自检守着，且都反证过——把 `take_dot_damage` 改成转发给 `take_damage`，`poison_dot` / `poison_shield` / `dot_no_hit_stop` / `bypass` 四条一起变红。其中 `dot_no_hit_stop` 断言的是 `player_hurt` 的发出次数（5 跳必须 0 次），而不是 `Engine.time_scale`——自检场景里没有 `FxManager`，直接测 time_scale 会假绿，所以测那个**触发它的信号**，另外配一条对照（`take_damage(5.0)` 必须至少发 1 次）。
+
+### 敌人生成点也得跟着改
+
+`_random_offscreen_point()` 原来完全不看地图，玩家贴边时半数生成点落进图外的虚空。
+
+**修法不是 clamp 到 `map_rect`**：把一个图外的点夹进矩形，会把它夹到玩家附近甚至**屏幕内**——敌人当脸凭空出现比敌人站在图外更糟。现在的做法是四条边随机打乱后依次试，取第一个落在图内的；四条都不行（玩家已经跑到图外很远）就退回原行为，宁可在虚空里生成，也不要因为玩家越界就整个停止出怪。
+
+实测（`bounds_selftest`）：玩家贴一条边时 **200/200** 落在图内、**0/200** 落在屏幕内；站在角上时 **90%** 落在图内，剩下的走 fallback。角落做不到 100% 是已知且刻意的——那里两条边完全不可用、另两条只有一部分可用。
 
 ## 全部自检
 
@@ -509,13 +646,14 @@ godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（�
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
-godot --headless res://scenes/dev/boss_selftest.tscn           # 5 分钟 BOSS 到点刷出 + 难度天花板 + 屏幕外箭头
+godot --headless res://scenes/dev/boss_selftest.tscn           # BOSS 到点刷出 + 难度天花板 + 出厂场景值 + 爪击/毒池/DoT 通道
+godot --headless res://scenes/dev/bounds_selftest.tscn         # 地图尺寸 + 拆墙 + 出界爬坡扣血 + 绕过护盾/无敌帧 + 营地/生成点不落虚空
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 6 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图
 ```
 
-`SystemCheck` 也会在每次运行时把新增的脚本 / 场景 / 资源 / `GameState` 字段一并核对（包括 12 把武器的 `.tres` 与 `.tscn`、`pickup_item` / `explosion` / `shield_ring` / `elite_camp_director` / `boss_marker`、`shield_charges` / `shield_left` / `time_stop_left`，以及 `boss_incoming` / `boss_spawned` / `boss_state_changed` 等信号是否真的存在），缺一个就在 Output 面板报 FAIL。
+`SystemCheck` 也会在每次运行时把新增的脚本 / 场景 / 资源 / `GameState` 字段一并核对（包括 12 把武器的 `.tres` 与 `.tscn`、`pickup_item` / `explosion` / `shield_ring` / `elite_camp_director` / `boss_marker` / `poison_glob` / `poison_pool` / `claw_slash` / `out_of_bounds`、`shield_charges` / `shield_left` / `time_stop_left`，以及 `boss_incoming` / `boss_spawned` / `boss_state_changed` / `out_of_bounds_changed` 等信号是否真的存在），缺一个就在 Output 面板报 FAIL。dev 自检场景照惯例不入 system_check——它们自己就是检查者。
 
 ## 项目结构
 
@@ -546,15 +684,18 @@ SecondGame/
 │   ├── player.gd
 │   ├── bullet.gd
 │   ├── enemy.gd
-│   ├── enemy_config.gd        # EnemyConfig 资源类（含 item_drop_count）
+│   ├── enemy_config.gd        # EnemyConfig 资源类（含 item_drop_count + boss 爪击/毒物字段）
 │   ├── enemy_projectile.gd
-│   ├── spawn_director.gd      # 波次 + 敌人类型编排 + spawn_enemy_at()
+│   ├── spawn_director.gd      # 波次 + 敌人类型编排 + spawn_enemy_at() + 生成点挑图内的边
+│   ├── poison_glob.gd         # BOSS 抛出的毒团，飞行 flight 秒后落地成池
+│   ├── poison_pool.gd         # 毒池：半径内按 tick 走 take_dot_damage，全程 _draw()
+│   ├── claw_slash.gd          # 爪击预警弧 + 命中扫击（in_arc 纯函数）
 │   ├── xp_gem.gd
 │   ├── pickup_item.gd         # 6 种道具的掉落权重与效果（含磁石吸全图）
 │   ├── explosion.gd           # 炸弹道具与地雷共用的范围伤害
 │   ├── shield_ring.gd         # 玩家身上的护盾圆环（含临过期闪烁）
 │   ├── game.gd
-│   ├── hud.gd                 # 含护盾倒计时 / BOSS 顶部血条 / BOSS 大横幅
+│   ├── hud.gd                 # 含护盾倒计时 / BOSS 顶部血条 / BOSS 大横幅 / 出界红晕与警告
 │   ├── ui/
 │   │   └── boss_marker.gd     # BOSS 出画时的屏幕边缘红色箭头（marker_for 纯函数）
 │   ├── level_up.gd
@@ -568,7 +709,7 @@ SecondGame/
 │   ├── shake_camera.gd
 │   ├── weapon_mounts.gd       # 玩家身上的武器挂件布局与朝向
 │   ├── weapon_director.gd     # Autoload: 12 武器槽 + 合并 + 融合 + 跨场景清理
-│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / merge / pause / ...）
+│   ├── dev/                   # 自测脚本（pickup / elite_camp / mount / merge / pause / boss / bounds / ...）
 │   ├── weapons/
 │   │   ├── weapon.gd          # BaseWeapon 基类
 │   │   ├── weapon_config.gd   # WeaponConfig 资源类
@@ -588,15 +729,16 @@ SecondGame/
 │   │   └── blade.gd
 │   └── world/                 # Iter4: 程序化废土地形
 │       ├── wasteland_config.gd   # 资源：地图尺寸/种子/密度/精英营地
-│       ├── tilemap_builder.gd    # 运行时生成 TileSet + 铺地图 + 挖营地
+│       ├── tilemap_builder.gd    # 运行时生成 TileSet + 铺地图 + 挖营地 + map_rect/depth
 │       ├── elite_camp_director.gd # 营地刷怪 / 冷却 / 激活半径
-│       ├── world.gd              # 场景入口（持有 TileMap）
-│       └── toxic_swamp.gd        # 角色身上的毒沼 slow + dot 效果
+│       ├── world.gd              # 场景入口（持有 TileMap，转发边界查询）
+│       ├── toxic_swamp.gd        # 角色身上的毒沼 slow + dot 效果（DoT 通道）
+│       └── out_of_bounds.gd      # 玩家身上的出界爬坡扣血（绕过护盾/无敌帧）
 ├── data/
 │   ├── enemies/               # 5 EnemyConfig .tres（含 boss）
 │   ├── weapons/               # 12 WeaponConfig .tres
 │   └── world/
-│       └── default_wasteland.tres  # 64x64 地图默认配置（seed=1337）
+│       └── default_wasteland.tres  # 128x128 地图默认配置（seed=1337，12 营地）
 ├── tools/
 │   ├── gen_weapon_mounts.py   # 生成 + 校验 12 张武器挂件贴图（Python + Pillow）
 │   ├── gen_pickups.py         # 生成 + 校验 6 张道具贴图（Python + Pillow）
@@ -636,21 +778,22 @@ SecondGame/
 - 音效是程序合成的 5 个短音，没有 BGM
 - 毒沼只有减速/扣血，无视觉毒气动画
 - 敌人寻路未启用 avoidance（避免 60+ 实体时性能塌方）
-- 地图固定 4096×4096，未做"越打越大"扩展
+- 地图固定 8192×8192，未做"越打越大"扩展
 - 融合是单向的，融合后无法拆回基础武器；一局最多融合一次（每个融合物的基础副本被消耗）
 - 射程只约束子弹；旋转刀与闪电链仍各走自己的 `blade_dash_lifetime` / `chain_range` 逻辑
 - `chain_lightning.gd` 与 `apocalypse.gd` 的电链未校验 `config.chain_range`（`storm_volley` / `lightning_blade` 有校验）
 - 玩家精灵本身仍无朝向 / 无动画（`player.gd` 里没有 `flip_h` / `rotation`），只有武器挂件会转
 - 武器挂件只有 13×8 ~ 16×10 格有效分辨率，造型全靠轮廓辨认，细节做不进去；文生图模型在这个尺度上不可用（详见「武器挂件」一节）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
-- 精英营地固定 6 处、只刷 `elite_brute` 一种，没有营地专属的更强变体或多波
+- 精英营地固定 12 处、只刷 `elite_brute` 一种，没有营地专属的更强变体或多波
 - 道具没有稀有度分层，权重是写死的常量，不随时间或难度变化（武器**内部**有稀有度，见「武器稀有度」）
 - 融合门槛很高：每种材料要 9 把才到 Lv3，3 件组共需 27 把特定掉落，即使按最高权重 20 也是**长线目标**，一局大概率摸不到 3 件组
 - 磁石只吸掉落物，不吸敌人掉落之外的东西；也没有「吸取半径永久变大」这类被动可以叠
 - 时间暂停只 early-return 敌人与敌弹的 `_physics_process`，敌人身上正在跑的 tween（击退、闪白）不受影响
 - 护盾时限是写死的 `SHIELD_SECONDS = 15`，没有「护盾持续时间 +X%」这类被动可以叠；HUD 只显示一位小数的倒计时，没有环形进度条
 - BOSS 只有一个（`boss.tres`），`boss_spawn_time` 过后不会再刷第二只，也没有 5/10/15 分钟的多阶段 BOSS 序列
-- `max_live_enemies = 110` 是全局上限而不是按屏幕/按类型的，所以后期远处的杂兵也会占用配额；`max_burst` 与 `min_interval` 的组合上限（16 只/秒）是手算的，没有自动的 DPS 平衡校验
+- `max_live_enemies = 110` 是全局上限而不是按屏幕/按类型的，所以后期远处的杂兵也会占用配额；`max_burst` 与 `min_interval` 的组合上限（16 只/秒）由 `shipped_scene_ceilings` 守着出厂场景值，但曲线的其它部分没有自动的 DPS 平衡校验
+- BOSS 爪击是"锁朝向单次判定"，没有多段连抓、没有后续追击；出界惩罚也只对玩家生效（刻意，见「地图边界」一节）
 
 ## 扩展路线（不属于 MVP）
 

@@ -41,3 +41,20 @@ func camp_centers() -> Array[Vector2]:
 	if builder == null:
 		return []
 	return builder.camp_centers()
+
+## World rectangle the map covers. Zero-size until the builder has run, which
+## reads as "everything is out of bounds" — so callers must treat a zero-size
+## rect as "no map yet" rather than trusting it. See OutOfBounds, which skips
+## its whole tick while the rect is empty.
+func map_rect() -> Rect2:
+	if builder == null:
+		return Rect2()
+	return builder.map_rect()
+
+## Pixels outside the map, 0.0 when inside. See TilemapBuilder for the semantics;
+## this forwarder exists so gameplay code can ask the "world" group directly
+## instead of reaching through get_builder().
+func out_of_bounds_depth(world_pos: Vector2) -> float:
+	if builder == null:
+		return 0.0
+	return builder.out_of_bounds_depth(world_pos)

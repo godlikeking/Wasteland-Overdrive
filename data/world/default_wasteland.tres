@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_wcfg")
-map_size_tiles = 64
+map_size_tiles = 128
 tile_size = 64
 seed_value = 1337
 rubble_density = 0.05
@@ -18,3 +18,4 @@ swamp_damage_per_tick = 1.0
 swamp_tick_interval = 0.5
 swamp_cluster_scale = 0.18
 obstacle_cluster_scale = 0.22
+elite_camp_count = 12

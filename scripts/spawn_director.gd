@@ -5,16 +5,26 @@ extends Node2D
 ## Archetype cadence (seconds alive):
 ##   0:00 -> only chasers
 ##   1:00 -> introduce dasher (20% chance at any non-elite spawn)
-##   2:00 -> introduce shooter (30% chance)
+##   2:00 -> introduce shooter (30% chance) + BOSS lands (`boss_spawn_time`)
 ##   3:30 -> mixed: chaser/dasher/shooter at 50/20/30
 ##   5:00 -> every 30s, an elite spawns in addition to the normal cadenced
+##
+## NOTE: `boss_spawn_time` is 120s while the elite cadence is gated at t >= 300,
+## so the boss now lands three minutes BEFORE the first elite wave. That ordering
+## is a deliberate tuning choice ("boss as midterm"), not an oversight — if it
+## ever needs fixing, lower the 300.0 gate in `_process`, not the boss time.
 ##
 ## Difficulty: spawn interval shrinks from `base_interval` to `min_interval`
 ## over `difficulty_ramp_time`, mirroring the original EnemySpawner. Two ceilings
 ## keep the late game finishable rather than merely survivable: `max_burst` on
 ## the per-tick count and `max_live_enemies` on the population. Both were added
 ## because the uncapped curve reached ~39 spawns/second by t=300, so nobody ever
-## lived to see the 5-minute boss the code was already spawning correctly.
+## lived to see the boss the code was already spawning correctly.
+##
+## `min_interval` must NOT be overridden in game.tscn: the scene used to ship
+## 0.18 while this script said 0.25, so the real peak was 22/s while every test
+## (which builds a director from the script) saw 16/s and passed. The shipped
+## values are now asserted by boss_selftest's `shipped_scene_ceilings`.
 
 @export var enemy_scene: PackedScene
 @export var xp_gem_scene: PackedScene
@@ -40,7 +50,7 @@ extends Node2D
 @export var max_live_enemies: int = 110
 @export var start_wave_shake: float = 5.0
 @export var elite_interval: float = 30.0
-@export var boss_spawn_time: float = 300.0   # 5 分钟触发 Boss
+@export var boss_spawn_time: float = 120.0   # 2 分钟触发 Boss
 ## Seconds of warning before the boss lands, so it doesn't appear on top of you.
 @export var boss_warn_lead: float = 6.0
 
@@ -92,7 +102,12 @@ func _inject_runtime_refs(list: Array) -> void:
 			ec.scene = enemy_scene
 		if ec.xp_gem_scene == null:
 			ec.xp_gem_scene = xp_gem_scene
-		if ec.behavior == EnemyConfig.Behavior.SHOOTER and ec.projectile_scene == null:
+		# SHOOTER 和 BOSS 都开枪。BOSS 一度漏在这个条件外面，于是 P2/P3 的
+		# _boss_volley 每次都在 _fire_projectile 的 `projectile_scene == null`
+		# 早退里静默失败 —— 弹幕从来没打出来过，而且没有任何报错。
+		if ec.projectile_scene == null and (
+				ec.behavior == EnemyConfig.Behavior.SHOOTER
+				or ec.behavior == EnemyConfig.Behavior.BOSS):
 			ec.projectile_scene = enemy_projectile_scene
 		# Only archetypes that actually drop items need the scene, so a missing
 		# export can't silently break trash mobs.
@@ -282,6 +297,33 @@ func _random_offscreen_point() -> Vector2:
 			zoom = (cam as Camera2D).zoom
 	var half: Vector2 = (vp / zoom) * 0.5 + Vector2(spawn_padding, spawn_padding)
 	var side: int = randi() % 4
+	# 四条边打乱后依次试，取第一个落在地图内的。
+	#
+	# **刻意不 clamp 到 map_rect**：把一个图外的点夹进矩形会把它夹到玩家附近
+	# 甚至屏幕内 —— 敌人当脸凭空出现比敌人站在图外更糟。换边是唯一能同时
+	# 保住"在镜头外"和"在地图内"这两个性质的做法。
+	#
+	# 四条边都不行（玩家已经跑到图外很远）就退回原行为：宁可在虚空里生成，
+	# 也不要因为玩家越界就整个停止出怪。
+	var sides: Array[int] = [0, 1, 2, 3]
+	sides.shuffle()
+	var world: Node = _map_world()
+	if world != null:
+		for s in sides:
+			var p: Vector2 = _side_point(cam_pos, half, s)
+			if world.out_of_bounds_depth(p) <= 0.0:
+				return p
+	return _side_point(cam_pos, half, side)
+
+## 地图边界的持有者，没有就返回 null。自检里构造的 SpawnDirector 没有 World，
+## 必须干净地退化成"不做边界过滤"而不是报错。
+func _map_world() -> Node:
+	for w in get_tree().get_nodes_in_group("world"):
+		if w != null and w.has_method("out_of_bounds_depth"):
+			return w
+	return null
+
+func _side_point(cam_pos: Vector2, half: Vector2, side: int) -> Vector2:
 	match side:
 		0: return cam_pos + Vector2(randf_range(-half.x, half.x), -half.y)
 		1: return cam_pos + Vector2(randf_range(-half.x, half.x), half.y)
