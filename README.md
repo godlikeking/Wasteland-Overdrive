@@ -34,7 +34,7 @@
 - **地图**：4096×4096 像素的程序化废土地形，含沙地 / 瓦砾 / 废铁 / 地坑 / **毒沼**（减速 + 持续扣血）/ **精英营地**
 - 撞墙：玩家和敌人都被瓦砾 / 废铁 / 地坑挡住，**敌人在 0.4s 同步后会自动绕路**
 - **精英营地**：地图上 6 个锈红警戒条纹地砖圈，走近会刷出精英怪；杀掉掉 **1 个道具**，营地进 45s 冷却后重刷（详见「精英营地」一节）
-- **道具**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种，走近自动吸取（详见「道具掉落」一节）
+- **道具**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 / **磁石** 六种，走近自动吸取；磁石会把**全图**掉落物（含经验宝石）一次吸过来（详见「道具掉落」一节）
 - **武器来源**：怪物掉落（含杂兵），可同时持有多把相同武器，**3 把同款同级武器自动合成 1 把更高级**（详见「武器合并」一节）
 - 最多同时装备 **12 把武器**，挂件全部画在玩家左右两侧
 
@@ -59,7 +59,7 @@
 - [x] **毒沼：玩家和敌人减速 50% + 每 0.5s 扣 1 滴血**
 - [x] **敌人 NavigationAgent2D 绕墙寻路（带 warmup + 三层 fallback）**
 - [x] **SystemCheck 启动诊断：autoload / 脚本 / 场景 / 资源 / 输入 / 升级库**
-- [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；12 把武器挂件 + 2 种子弹 + 5 种道具手画（同调色板，`tools/` 下可复现）
+- [x] **真实像素素材**：玩家 / 4 敌人 / 经验宝石 / 旋转刀取自 Kenney Tiny Dungeon 16×16；12 把武器挂件 + 2 种子弹 + 6 种道具手画（同调色板，`tools/` 下可复现）
 - [x] **程序化音效 SfxPlayer**：开火 / 命中 / 击杀 / 拾取 / 升级 / 道具 / 爆炸 共 7 短音（无外部 wav）
 - [x] **连击系统**：连续击杀累积连击、1.5s 无击杀归零、3/8/15 三级（连击/爆发/烈焰）
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
@@ -70,7 +70,8 @@
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器各持有一把 Lv3 副本时可触发融合面板（可选开启）；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
 - [x] **精英营地**：地图程序化生成 6 处专属地砖营地，走近刷精英、杀死进 45s 冷却重刷
-- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 五种掉落，武器从怪物掉落获得（含杂兵）
+- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 / 磁石 六种掉落，武器从怪物掉落获得（含杂兵）
+- [x] **武器稀有度**：武器掉落按权重 20:12:7:4 分档，稀有武器**掉落即高等级**作为补偿（详见「武器稀有度」一节）
 - [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走左右两列布局
 - [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
 - [x] **暂停面板（Esc）**：暂停时列出每把武器的等级 + 合并进度，以及本局选过的被动卡与堆叠层数
@@ -311,10 +312,18 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 | 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
 | 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
 | 武器 `WEAPON` | 36 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
+| 磁石 `MAGNET` | 14 | **吸取全图掉落物**：经验宝石 + 所有道具 | 遍历 `MAGNET_GROUPS` 逐个调 `attract_to()` |
+| **合计** | **132** | | |
 
-权重意图：**武器仍是单项最高的权重**，因为武器只能靠掉落获得，而升一级要凑 3 把同款——掉落量不够，合并系统就等于不存在。但它要是「常态」，捡枪就不再是事件了，所以掉率压到：杂兵 12% × 武器 36/118 ≈ **每杀 27 只掉 1 把武器**，一局下来够凑出几次合并、不至于满槽刷屏。补血仍是单项最高的非武器权重——它是让一局活下去的那个效果。
+权重意图：**武器仍是单项最高的权重**，因为武器只能靠掉落获得，而升一级要凑 3 把同款——掉落量不够，合并系统就等于不存在。但它要是「常态」，捡枪就不再是事件了，所以掉率压到：杂兵 12% × 武器 36/132 ≈ **每杀 31 只掉 1 把武器**，一局下来够凑出几次合并、不至于满槽刷屏。补血仍是单项最高的非武器权重——它是让一局活下去的那个效果。
 
 > 掉率调过两轮：最初杂兵 6% × 权重 30/112 ≈ 每 62 只 1 把，一局根本攒不出 3 把同款；改成 25% × 60/142 ≈ 每 9.5 只 1 把又太密。现在的 12% / 36 是两者之间。
+
+**磁石吸的是「全图」而不是「屏幕内」**：`_effect_magnet()` 遍历 `MAGNET_GROUPS = ["xp_gems", "pickup_items"]`，对每个成员调它自己的 `attract_to(player)`，也就是**走各自原本的归巢路径**（宝石和道具的 `pickup_scene_speed 320` / `seek_accel 900` 完全一致）。所以不是瞬间到手，而是一圈掉落物同时向内收拢；道具到达时照常触发**自己的效果**——磁石旁边躺着三个炸弹是个真连招，这是有意的。
+
+- **必须排除自己**：磁石本身就在 `pickup_items` 组里，`node == self` 要跳过（否则自吸→重复施放）。跳过的是 SELF 而不是 MAGNET 这个种类——一枚磁石吸到另一枚磁石是安全的，那枚到达时再吸一次，不递归。两条都有自检锁着。
+- **顺手修的隐身 bug**：寿命最后 5 秒 `sprite.visible` 会按 `fmod` 闪烁，而开始 seek 后没人把它设回 `true`——闪烁期间被捡走的道具会**隐身飞过来**。以前很难注意到，磁石一次性吸走全图（必然包含将要过期的）之后会很明显，所以 `attract_to()` 里补了 `sprite.visible = true`。
+- **经验宝石没有寿命**（`xp_gem.gd` 无 `_age`），后期地上可能积几十上百颗，一次吸完会在几帧内连续 `add_xp`。实测吸 24 颗直接把等级顶上去并弹出升级面板——`game.gd` 的 `_pending_level_ups` 排队机制正确吃下连续升级，不丢 XP。**磁石很容易连锁升级**，这是它的实际价值所在。
 
 **护盾**按「次数」而不是「伤害量」抵消：一层挡一下，不管这一下打多少。抵消时照常给无敌帧 + 蓝闪，但不掉血。玩家身上挂 `ShieldRing`（`_draw` 画圆环，层数越多越亮）。
 
@@ -324,14 +333,14 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 
 **顺手修的一个老 bug**：`enemy.gd` 的 `_flash()` 原本补间回 `config.sprite_color`，但 `_apply_visuals` 给精英/BOSS 上的是 `Color(1.4,0.6,0.6)` / `Color(1.2,0.6,0.6)`——精英挨一下就永久掉红染。现在 `_apply_visuals` 缓存 `_base_tint`，`_flash()` 和时停解冻都补间回它。
 
-贴图由 `tools/gen_pickups.py` 生成（和挂件同一套字符画 + Kenney Tiny Dungeon 调色板 + `--check` 校验），5 张 16×16，`SPRITE_SCALE 2.0` 和经验宝石一致：
+贴图由 `tools/gen_pickups.py` 生成（和挂件同一套字符画 + Kenney Tiny Dungeon 调色板 + `--check` 校验），6 张 16×16，`SPRITE_SCALE 2.0` 和经验宝石一致：
 
 ```bash
 python tools/gen_pickups.py          # 重新生成到 assets/sprites/pickups/ 并校验
 python tools/gen_pickups.py --check  # 只校验现有文件
 ```
 
-自检（5 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并）：
+自检（6 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并 / 磁石吸全图 / 磁石不吸自己）：
 
 ```bash
 godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
@@ -365,6 +374,68 @@ HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。�
 
 每把都配了 `WeaponConfig` 数据 + 挂件图标（`UpgradeDB` 不再负责武器解锁/升级，武器只从掉落获得）。`shotgun` / `homing_dart` 复用 `bullet.tscn`，`mine_layer` 用 `mine.tscn`——两者的场景引用都在 `WeaponDirector` 的 `BULLET_USERS` / `MINE_USERS` 里注入，`.tres` 留 null，`data/` 目录里不出现场景引用。
 
+## 武器稀有度（掉落权重 + 掉落等级）
+
+武器道具给哪一把不再是均匀随机。**强力武器稀少，但掉落即高等级**——这两半必须一起看，缺任一半都会做坏。
+
+### 掉落权重（`WEAPON_CATALOG` 里的 `weight`）
+
+权重是「怎么获得」而不是武器自身属性，所以和 `config` / `scene` 并列放在 catalog 条目里，不进 `.tres`。
+
+| 武器 | 权重 | 占比 | 理由 |
+|---|---|---|---|
+| `bullet_volley` 弹雨 | 20 | 18.2% | **融合材料，必须常见** |
+| `orbiting_blades` 刀阵 | 20 | 18.2% | **融合材料，必须常见** |
+| `chain_lightning` 闪电链 | 20 | 18.2% | **融合材料，必须常见** |
+| `shotgun` 散弹枪 | 20 | 18.2% | 基础近战型 |
+| `homing_dart` 追踪飞镖 | 12 | 10.9% | 自动瞄准，不用贴脸 |
+| `flamethrower` 火焰喷射器 | 7 | 6.4% | 持续锥形覆盖 |
+| `laser_lance` 磁轨激光 | 7 | 6.4% | 520 长贯穿线 |
+| `mine_layer` 地雷布设器 | 4 | 3.6% | 55 伤害 × 150 半径 × 同时 6 颗 |
+| **合计** | **110** | | |
+
+抽取被提成**无副作用的纯函数** `_roll_weighted_id(pool)`，`grant_random_weapon()` 只是它的调用方。这样自检能采样两万次验分布而不会真的加武器/触发合并（`grant_random_weapon()` 有副作用，没法用来测分布）。满槽分支走同一个函数，只是 pool 先被 `_can_complete_merge` 过滤——**稀有度在满槽时依然生效**。
+
+### 掉落等级（`WeaponConfig.drop_level`）
+
+等级是武器自身属性，和已有的 `max_level` 是兄弟概念，所以进 `.tres`（符合项目「数据放 .tres」约定）。
+
+| 武器 | `drop_level` | 一把掉落物的实际价值 |
+|---|---|---|
+| 火焰喷射器 / 磁轨激光 | 2 | 等于常见武器攒 3 把 |
+| 地雷布设器 | 3 | 等于常见武器攒 9 把 |
+| 其余 5 把 | 1（默认，`.tres` 不用改） | |
+
+**没有这一半，稀有度就是纯粹的负面设计**：合并要 3 把**同款同级**，一把稀有到永远凑不满 3 把的武器会**严格劣于**常见武器——它占着一个槽却永远停在 Lv1。`drop_level` 让单把稀有武器一落地就值那个槽。稀有武器仍能正常合并（3 把 Lv2 火焰 → 1 把 Lv3），自检 `rare_merge` 锁着这条。
+
+### 为什么融合材料必须是最常见的（改这张表前先读这段）
+
+这是整套数值里最容易被后人改错的地方——「弹雨/刀阵/闪电链是开局武器，应该最稀有才对」是个很自然但会**直接废掉融合系统**的想法。算一遍：
+
+1. 合并是 `MERGE_COUNT = 3` 把**同 id 同级** → 升一级。所以 Lv2 要 3 把 Lv1，**Lv3 要 9 把 Lv1**。
+2. 融合要 `BASE_WEAPONS` 三种**各持有一把 Lv3**（`fuse()` 每种消耗一个副本）。
+3. 于是完成一次 3 件组融合需要 **9 × 3 = 27 把特定 id 的掉落**。
+
+27 把不是「稀有度可以调节」的量级，而是**只有当这三种各占 18% 时才够得着**的量级。任何低于 20 的权重都会把融合从「长线目标」变成「不可能」。所以：
+
+- 三种融合材料的权重**必须并列最高**，且必须彼此相等（否则木桶效应，最稀的那种卡死全部 4 个融合物）
+- 它们的 `drop_level` **必须留在 1**：掉落即 Lv2 会让「3 把同级」的分母错位——手上混着 Lv1 和 Lv2 副本时两边都凑不满，反而更难到 Lv3
+- 要让某把武器变稀有，请从 `homing_dart` / `flamethrower` / `laser_lance` / `mine_layer` 里调，这四把不在任何融合配方里
+
+### 一起改掉的 `_can_complete_merge` 硬编码
+
+`_can_complete_merge` 原本写死 `w.level == 1`，注释是「A newly granted copy is level 1」——有了 `drop_level` 这句话就不成立了。满槽时掉一把 Lv2 激光，它会去找 Lv1 副本，找不到 → **明明能合并却被拒**（静默丢掉一把稀有武器）。现在按该 id 的掉落等级比对：`var lv: int = drop_level_of(id)`。自检 `full_slot_accepts_rare_pair` 专门锁这条修复（反证过：改回 `== 1` 立刻变红）。
+
+`drop_level_of()` 从 catalog 的 config 路径 load 再读 `drop_level`（`ResourceLoader` 有缓存，不贵）。**融合武器不在 `WEAPON_CATALOG` 里**（它们是造出来的、不掉落），path 会是空串，而 `ResourceLoader.load("")` 是**硬报错而不是返回 null**——所以有一条显式的空路径守卫返回 1。`_can_complete_merge` 对每次 add 都跑，包括融合武器，这条守卫是必需的。
+
+自检：
+
+```bash
+godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # 含 drop_level / rare_merge / full_slot_accepts_rare_pair / drop_weights
+```
+
+`drop_weights` 采样 20000 次断言 弹雨 > 飞镖 > 地雷 的顺序、地雷占比落在 4/110 的宽容差区间（±5σ 以上，不会偶发红）、以及 catalog 里每个 id 都抽得到。
+
 
 
 | ID | 类型 | 物理 | 效果 |
@@ -384,14 +455,14 @@ HUD 底部状态行会显示 `护盾 ×N` / `时停 N.Ns` / `武器 N／12`。�
 
 ```bash
 godot --headless res://scenes/dev/elite_camp_selftest.tscn    # 精英营地
-godot --headless res://scenes/dev/pickup_selftest.tscn        # 5 种道具 + 槽位上限/满槽合并
+godot --headless res://scenes/dev/pickup_selftest.tscn        # 6 种道具 + 磁石吸全图 + 槽位上限/满槽合并
 godot --headless res://scenes/dev/weapon_merge_selftest.tscn  # 3 合 1 合并 + 曲线 + 级联
 godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（右手起两列 + 满槽 12 图标）
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
-python tools/gen_pickups.py --check                           # 5 张道具贴图
+python tools/gen_pickups.py --check                           # 6 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图
 ```
 
@@ -430,7 +501,7 @@ SecondGame/
 │   ├── enemy_projectile.gd
 │   ├── spawn_director.gd      # 波次 + 敌人类型编排 + spawn_enemy_at()
 │   ├── xp_gem.gd
-│   ├── pickup_item.gd         # 5 种道具的掉落权重与效果
+│   ├── pickup_item.gd         # 6 种道具的掉落权重与效果（含磁石吸全图）
 │   ├── explosion.gd           # 炸弹道具与地雷共用的范围伤害
 │   ├── shield_ring.gd         # 玩家身上的护盾圆环
 │   ├── game.gd
@@ -477,7 +548,7 @@ SecondGame/
 │       └── default_wasteland.tres  # 64x64 地图默认配置（seed=1337）
 ├── tools/
 │   ├── gen_weapon_mounts.py   # 生成 + 校验 12 张武器挂件贴图（Python + Pillow）
-│   ├── gen_pickups.py         # 生成 + 校验 5 张道具贴图（Python + Pillow）
+│   ├── gen_pickups.py         # 生成 + 校验 6 张道具贴图（Python + Pillow）
 │   └── gen_bullets.py         # 生成 + 校验 2 张子弹贴图（Python + Pillow）
 └── README.md
 ```
@@ -522,7 +593,9 @@ SecondGame/
 - 武器挂件只有 13×8 ~ 16×10 格有效分辨率，造型全靠轮廓辨认，细节做不进去；文生图模型在这个尺度上不可用（详见「武器挂件」一节）
 - `blade.gd:_return_to_orbit` 在所属武器已被 `queue_free` 后仍会尝试 reparent，冲刺中的刀会刷一条 `Can't add child` 报错（不影响功能）
 - 精英营地固定 6 处、只刷 `elite_brute` 一种，没有营地专属的更强变体或多波
-- 道具没有稀有度分层，权重是写死的常量，不随时间或难度变化
+- 道具没有稀有度分层，权重是写死的常量，不随时间或难度变化（武器**内部**有稀有度，见「武器稀有度」）
+- 融合门槛很高：每种材料要 9 把才到 Lv3，3 件组共需 27 把特定掉落，即使按最高权重 20 也是**长线目标**，一局大概率摸不到 3 件组
+- 磁石只吸掉落物，不吸敌人掉落之外的东西；也没有「吸取半径永久变大」这类被动可以叠
 - 时间暂停只 early-return 敌人与敌弹的 `_physics_process`，敌人身上正在跑的 tween（击退、闪白）不受影响
 
 ## 扩展路线（不属于 MVP）

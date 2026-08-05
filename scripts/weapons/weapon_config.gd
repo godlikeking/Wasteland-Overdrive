@@ -19,6 +19,12 @@ class_name WeaponConfig
 @export var base_damage: float = 10.0
 @export var base_fire_rate: float = 2.5
 @export var max_level: int = 8
+## Level a freshly dropped copy starts at. Rare weapons drop pre-levelled so a
+## single copy is already worth its slot: a weapon rare enough that a run never
+## sees MERGE_COUNT copies would otherwise be strictly WORSE than a common one,
+## since merging is the only way a weapon levels. Drop weights live in
+## WeaponDirector.WEAPON_CATALOG; keep the two in step.
+@export var drop_level: int = 1
 
 # Optional knobs (weapons read only the ones they need)
 @export var projectile_scene: PackedScene

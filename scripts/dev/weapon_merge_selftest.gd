@@ -27,6 +27,10 @@ func _ready() -> void:
 	await _test_max_level_ceiling()
 	await _test_full_slot_refuses()
 	await _test_full_slot_accepts_completing_merge()
+	await _test_drop_levels()
+	await _test_rare_weapon_still_merges()
+	await _test_full_slot_accepts_rare_pair()
+	await _test_drop_weights()
 	print("=== weapon merge selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -121,27 +125,33 @@ func _test_two_do_not_merge() -> void:
 	if WeaponDirector.slots_used() != 2:
 		_fail(t, "%d slots after 2 copies, want 2" % WeaponDirector.slots_used())
 		return
-	if WeaponDirector.weapon_level_of("laser_lance") != 1:
-		_fail(t, "level %d, want 1 (a pair must not merge)" % WeaponDirector.weapon_level_of("laser_lance"))
+	# Compared against the drop level rather than a literal 1: the laser is a
+	# rare weapon and drops pre-levelled, so hardcoding 1 here would make this
+	# test a tripwire for the drop table instead of for merging.
+	var want: int = WeaponDirector.drop_level_of("laser_lance")
+	if WeaponDirector.weapon_level_of("laser_lance") != want:
+		_fail(t, "level %d, want %d (a pair must not merge)" % [WeaponDirector.weapon_level_of("laser_lance"), want])
 		return
-	_ok(t, "2 copies stay at 2 slots Lv1")
+	_ok(t, "2 copies stay at 2 slots Lv%d" % want)
 
 func _test_mixed_levels_do_not_merge() -> void:
 	# 2x Lv1 + 1x Lv2 is NOT a mergeable triple — the levels must match.
+	# Uses the shotgun (drop_level 1) so the arithmetic below stays readable;
+	# a pre-levelled rare weapon would work identically, just shifted up.
 	var t: String = "mixed_levels"
 	await _clear()
-	WeaponDirector.add_weapon_by_id("mine_layer")
-	WeaponDirector.add_weapon_by_id("mine_layer")
-	WeaponDirector.add_weapon_by_id("mine_layer")
+	WeaponDirector.add_weapon_by_id("shotgun")
+	WeaponDirector.add_weapon_by_id("shotgun")
+	WeaponDirector.add_weapon_by_id("shotgun")
 	await _advance(0.1)
 	# Now we have 1x Lv2. Add one more Lv1 -> 1x Lv2 + 1x Lv1 (no triple).
-	WeaponDirector.add_weapon_by_id("mine_layer")
+	WeaponDirector.add_weapon_by_id("shotgun")
 	await _advance(0.1)
 	if WeaponDirector.slots_used() != 2:
 		_fail(t, "%d slots for 1x Lv2 + 1x Lv1, want 2" % WeaponDirector.slots_used())
 		return
-	if WeaponDirector.weapon_level_of("mine_layer") != 2:
-		_fail(t, "max level %d, want 2" % WeaponDirector.weapon_level_of("mine_layer"))
+	if WeaponDirector.weapon_level_of("shotgun") != 2:
+		_fail(t, "max level %d, want 2" % WeaponDirector.weapon_level_of("shotgun"))
 		return
 	_ok(t, "2x Lv1 + 1x Lv2 do not form a triple")
 
@@ -223,6 +233,110 @@ func _test_full_slot_accepts_completing_merge() -> void:
 		_fail(t, "bullet_volley level %d, want 2" % WeaponDirector.weapon_level_of("bullet_volley"))
 		return
 	_ok(t, "a merge-completing drop on a full arsenal shrank it to %d slots" % WeaponDirector.slots_used())
+
+# --- rarity / drop level --------------------------------------------------
+
+func _test_drop_levels() -> void:
+	# Rare weapons drop pre-levelled. This locks the data, not just the plumbing:
+	# if someone clears drop_level out of a .tres, the compensation for rarity is
+	# silently gone and the weapon becomes a dead slot.
+	var t: String = "drop_levels"
+	var want: Dictionary = {"shotgun": 1, "laser_lance": 2, "mine_layer": 3}
+	for id in want.keys():
+		await _clear()
+		WeaponDirector.add_weapon_by_id(String(id))
+		await _advance(0.1)
+		var got: int = WeaponDirector.weapon_level_of(String(id))
+		if got != int(want[id]):
+			_fail(t, "%s dropped at Lv%d, want Lv%d" % [id, got, int(want[id])])
+			return
+	_ok(t, "shotgun Lv1 / laser Lv2 / mine Lv3 on drop")
+
+func _test_rare_weapon_still_merges() -> void:
+	# A pre-levelled weapon must still merge normally, or rarity would mean
+	# "permanently stuck at drop level" instead of "harder to find".
+	var t: String = "rare_merges"
+	await _clear()
+	var base: int = WeaponDirector.drop_level_of("flamethrower")
+	for i in range(3):
+		WeaponDirector.add_weapon_by_id("flamethrower")
+	await _advance(0.1)
+	if WeaponDirector.slots_used() != 1:
+		_fail(t, "%d slots after 3 rare copies, want 1" % WeaponDirector.slots_used())
+		return
+	if WeaponDirector.weapon_level_of("flamethrower") != base + 1:
+		_fail(t, "level %d, want %d (3x Lv%d should merge)" % [
+			WeaponDirector.weapon_level_of("flamethrower"), base + 1, base])
+		return
+	_ok(t, "3x Lv%d flamethrower merge into 1x Lv%d" % [base, base + 1])
+
+func _test_full_slot_accepts_rare_pair() -> void:
+	# Regression guard for _can_complete_merge: it used to compare against a
+	# hardcoded level 1. A rare weapon drops at Lv2, so with that old code a full
+	# arsenal holding 2 Lv2 lasers would find no Lv1 copies, conclude nothing
+	# could merge, and refuse a drop that in fact frees two slots.
+	var t: String = "full_rare_pair"
+	await _clear()
+	WeaponDirector.add_weapon_by_id("laser_lance")
+	WeaponDirector.add_weapon_by_id("laser_lance")
+	var others: Array = ["bullet_volley", "chain_lightning", "shotgun", "mine_layer",
+		"flamethrower", "homing_dart", "orbiting_blades"]
+	for id in others:
+		WeaponDirector.add_weapon_by_id(String(id))
+	for fid in WeaponDirector.FUSION_RECIPES.keys():
+		_force_add_fusion(String(fid))
+	await _advance(0.1)
+	if not WeaponDirector.is_full():
+		_fail(t, "setup did not fill the arsenal (%d slots)" % WeaponDirector.slots_used())
+		return
+	var lv: int = WeaponDirector.drop_level_of("laser_lance")
+	if not WeaponDirector._can_complete_merge("laser_lance"):
+		_fail(t, "_can_complete_merge(laser_lance) false with 2 Lv%d copies" % lv)
+		return
+	var before: int = WeaponDirector.slots_used()
+	var granted: String = WeaponDirector.grant_random_weapon()
+	if granted != "laser_lance":
+		_fail(t, "full arsenal granted '%s', want laser_lance (the only mergeable id)" % granted)
+		return
+	if WeaponDirector.slots_used() != before - 1:
+		_fail(t, "slots %d -> %d, want %d" % [before, WeaponDirector.slots_used(), before - 1])
+		return
+	if WeaponDirector.weapon_level_of("laser_lance") != lv + 1:
+		_fail(t, "laser level %d, want %d" % [WeaponDirector.weapon_level_of("laser_lance"), lv + 1])
+		return
+	_ok(t, "full arsenal accepts a rare Lv%d drop that completes a merge" % lv)
+
+func _test_drop_weights() -> void:
+	# Samples the weighted draw directly: grant_random_weapon() mounts weapons and
+	# triggers merges, so it cannot be sampled in a loop. Bounds are deliberately
+	# loose (5+ sigma) — a distribution test that fails one run in fifty is worse
+	# than no test at all.
+	var t: String = "drop_weights"
+	var pool: Array[String] = []
+	for id in WeaponDirector.WEAPON_CATALOG.keys():
+		pool.append(String(id))
+	var n: int = 20000
+	var hits: Dictionary = {}
+	for i in range(n):
+		var id: String = WeaponDirector._roll_weighted_id(pool)
+		hits[id] = int(hits.get(id, 0)) + 1
+	var common: int = int(hits.get("bullet_volley", 0))
+	var mid: int = int(hits.get("homing_dart", 0))
+	var rare: int = int(hits.get("mine_layer", 0))
+	if not (common > mid and mid > rare):
+		_fail(t, "ordering broken: bullet_volley %d, homing_dart %d, mine_layer %d" % [common, mid, rare])
+		return
+	# mine_layer is 4 of 110 total weight = 3.64%.
+	var pct: float = 100.0 * float(rare) / float(n)
+	if pct < 2.0 or pct > 5.5:
+		_fail(t, "mine_layer drew %.2f%%, want ~3.6%% (2.0-5.5%%)" % pct)
+		return
+	# Every catalog id must be reachable, or a weapon is unobtainable.
+	for id in pool:
+		if int(hits.get(id, 0)) == 0:
+			_fail(t, "%s never drawn in %d samples" % [id, n])
+			return
+	_ok(t, "weights ordered, mine_layer %.2f%% of %d draws, all 8 reachable" % [pct, n])
 
 ## Equip a fusion weapon without running fuse(), so the full-slot setups can
 ## reach 12 distinct ids. Recipes carry a config path but no scene path — the

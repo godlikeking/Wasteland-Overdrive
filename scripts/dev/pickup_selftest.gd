@@ -3,11 +3,13 @@ extends Node2D
 ##   godot --headless res://scenes/dev/pickup_selftest.tscn
 ## Exits 0 when green, 1 when any check fails.
 ##
-## Covers all five item kinds, plus the two behaviours that are easy to get
-## wrong: the shield running out of charges, and time-stop freezing enemies
-## without freezing the player.
+## Covers all six item kinds, plus the behaviours that are easy to get wrong:
+## the shield running out of charges, time-stop freezing enemies without
+## freezing the player, and the magnet vacuuming the map without vacuuming
+## itself.
 
 const PICKUP_SCENE: PackedScene = preload("res://scenes/pickup_item.tscn")
+const GEM_SCENE: PackedScene = preload("res://scenes/xp_gem.tscn")
 
 var _failures: int = 0
 
@@ -24,6 +26,8 @@ func _ready() -> void:
 	await _test_time_stop()
 	await _test_bomb()
 	await _test_weapon()
+	await _test_magnet()
+	await _test_magnet_ignores_itself()
 	print("=== pickup selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -232,7 +236,117 @@ func _test_weapon() -> void:
 	else:
 		_ok("weapon", "drop on a full non-mergeable arsenal is refused (slots stay %d)" % WeaponDirector.slots_used())
 
+func _test_magnet() -> void:
+	# Everything is staged FAR outside the pickup radius, and the test first
+	# proves the drops sit still on their own — otherwise "they all came in"
+	# would only be measuring the normal overlap pickup, not the magnet.
+	await _clear_drops()
+	var far: float = 1200.0
+	var gems: Array[Node2D] = []
+	for i in range(3):
+		gems.append(_drop_gem(player.global_position + Vector2(far + 120.0 * float(i), 0)))
+	var items: Array[PickupItem] = [
+		_drop(PickupItem.Kind.HEAL, player.global_position + Vector2(-far, 0)),
+		_drop(PickupItem.Kind.SHIELD, player.global_position + Vector2(0, -far)),
+	]
+	await _advance(0.5)
+	var moved: int = 0
+	for g in gems:
+		if not is_instance_valid(g) or g.global_position.distance_to(player.global_position) < far - 50.0:
+			moved += 1
+	for it in items:
+		if not is_instance_valid(it) or it.global_position.distance_to(player.global_position) < far - 50.0:
+			moved += 1
+	if moved > 0:
+		_fail("magnet", "%d drops homed in with no magnet — staging is inside the pickup radius" % moved)
+		return
+	_ok("magnet", "5 drops sit still ~%.0fpx away while no magnet exists" % far)
+
+	# HEAL at full hp would apply invisibly, so half the player first; the shield
+	# charge count is the second observable arrival.
+	player.hp = player.max_hp * 0.5
+	GameState.shield_charges = 0
+	var hp_before: float = player.hp
+	_apply(PickupItem.Kind.MAGNET)
+	await _advance(0.2)
+	var seeking: int = 0
+	for g in gems:
+		if is_instance_valid(g) and g._seeking:
+			seeking += 1
+	for it in items:
+		if is_instance_valid(it) and it._seeking:
+			seeking += 1
+	if seeking != 5:
+		_fail("magnet", "only %d/5 drops started homing after the magnet" % seeking)
+		return
+	_ok("magnet", "all 5 drops (3 gems + 2 items) start homing")
+
+	# They must actually arrive AND fire their own effects. A magnet that pulls
+	# items in without triggering them would be a downgrade, not a pickup.
+	# 1200px at 320px/s is ~3.8s; 6s leaves room for the acceleration ramp.
+	await _advance(6.0)
+	var left: int = 0
+	for g in gems:
+		if is_instance_valid(g) and not g.is_queued_for_deletion():
+			left += 1
+	for it in items:
+		if is_instance_valid(it) and not it.is_queued_for_deletion():
+			left += 1
+	if left > 0:
+		_fail("magnet", "%d/5 drops never reached the player" % left)
+	else:
+		_ok("magnet", "all 5 drops arrive and are consumed")
+	if player.hp <= hp_before:
+		_fail("magnet", "the vacuumed heal never applied (hp stayed %.1f)" % player.hp)
+	elif GameState.shield_charges != PickupItem.SHIELD_CHARGES:
+		_fail("magnet", "the vacuumed shield never applied (%d charges)" % GameState.shield_charges)
+	else:
+		_ok("magnet", "vacuumed items still apply their own effect on arrival")
+
+func _test_magnet_ignores_itself() -> void:
+	# A magnet is itself in `pickup_items`, so the sweep walks over its own node.
+	# Without the self-skip it would call attract_to on itself while mid-collect
+	# and fly off toward the player as a live pickup. `_seeking` on the magnet is
+	# the direct evidence, so that is what gets asserted.
+	await _clear_drops()
+	var lone: PickupItem = _drop(PickupItem.Kind.MAGNET, player.global_position + Vector2(900, 0))
+	await _advance(0.2)
+	lone._effect_magnet(player)
+	if lone._seeking:
+		_fail("magnet_self", "the magnet attracted itself")
+	else:
+		_ok("magnet_self", "a lone magnet does not attract itself")
+
+	# Skipping SELF must not have become skipping the whole MAGNET kind: a second
+	# magnet lying on the ground is a legitimate target.
+	var other: PickupItem = _drop(PickupItem.Kind.MAGNET, player.global_position + Vector2(-900, 0))
+	await _advance(0.2)
+	lone._effect_magnet(player)
+	if not other._seeking:
+		_fail("magnet_self", "a second magnet on the ground was not vacuumed")
+	elif lone._seeking:
+		_fail("magnet_self", "the magnet attracted itself once another magnet existed")
+	else:
+		_ok("magnet_self", "a different magnet is still vacuumed normally")
+	await _clear_drops()
+
 # --- Helpers ---
+
+## Instantiate an XP gem at `pos`. Gems are half of what the magnet exists for,
+## so the test stages the real node rather than a stand-in.
+func _drop_gem(pos: Vector2) -> Node2D:
+	var gem: Node2D = GEM_SCENE.instantiate()
+	gem.global_position = pos
+	get_tree().current_scene.add_child(gem)
+	return gem
+
+## Clear every gem and item off the map. The magnet tests count what a sweep
+## touches, so leftovers from an earlier test would show up as phantom pulls.
+func _clear_drops() -> void:
+	for group in PickupItem.MAGNET_GROUPS:
+		for node in get_tree().get_nodes_in_group(group):
+			node.queue_free()
+	await _advance(0.2)
 
 ## Equip a fusion weapon without running fuse(), so the full-slot setup can
 ## reach 12 distinct ids. Recipes carry a config path but no scene path — the

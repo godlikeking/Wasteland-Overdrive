@@ -58,51 +58,68 @@ func _reset() -> void:
 	_world_container = null
 	print("[WeaponDirector] reset on player death")
 
+## Every weapon a drop can grant. `weight` is the drop-table weight (see
+## `_roll_weighted_id`): the stronger the weapon, the rarer it is.
+##
+## The three FUSION ingredients (bullet_volley / chain_lightning /
+## orbiting_blades) are deliberately among the COMMONEST entries, which looks
+## backwards until you count: fusion needs each of them at MAX_FUSE_LEVEL, and
+## every level costs MERGE_COUNT copies, so Lv3 is 9 drops of that exact id.
+## Making an ingredient rare does not make fusion feel earned, it makes fusion
+## unreachable. Rarity is spent on the weapons nothing else depends on.
 const WEAPON_CATALOG := {
 	"bullet_volley": {
 		"name": "弹雨",
+		"weight": 20,
 		"config": "res://data/weapons/bullet_volley.tres",
 		"scene": "res://scenes/weapons/bullet_volley.tscn",
 		"projectile": "res://scenes/bullet.tscn",
 	},
 	"orbiting_blades": {
 		"name": "环绕刀刃",
+		"weight": 20,
 		"config": "res://data/weapons/orbiting_blades.tres",
 		"scene": "res://scenes/weapons/orbiting_blades.tscn",
 		"blade": "res://scenes/weapons/blade.tscn",
 	},
 	"chain_lightning": {
 		"name": "连锁闪电",
+		"weight": 20,
 		"config": "res://data/weapons/chain_lightning.tres",
 		"scene": "res://scenes/weapons/chain_lightning.tscn",
 	},
 	"shotgun": {
 		"name": "散弹枪",
+		"weight": 20,
 		"config": "res://data/weapons/shotgun.tres",
 		"scene": "res://scenes/weapons/shotgun.tscn",
 		"projectile": "res://scenes/bullet.tscn",
 	},
+	"homing_dart": {
+		"name": "追踪飞镖",
+		"weight": 12,
+		"config": "res://data/weapons/homing_dart.tres",
+		"scene": "res://scenes/weapons/homing_dart.tscn",
+		"projectile": "res://scenes/bullet.tscn",
+	},
+	"flamethrower": {
+		"name": "火焰喷射器",
+		"weight": 7,
+		"config": "res://data/weapons/flamethrower.tres",
+		"scene": "res://scenes/weapons/flamethrower.tscn",
+	},
 	"laser_lance": {
 		"name": "磁轨激光",
+		"weight": 7,
 		"config": "res://data/weapons/laser_lance.tres",
 		"scene": "res://scenes/weapons/laser_lance.tscn",
 	},
 	"mine_layer": {
 		"name": "地雷布设器",
+		"weight": 4,
 		"config": "res://data/weapons/mine_layer.tres",
 		"scene": "res://scenes/weapons/mine_layer.tscn",
 		"mine": "res://scenes/weapons/mine.tscn",
-	},
-	"flamethrower": {
-		"name": "火焰喷射器",
-		"config": "res://data/weapons/flamethrower.tres",
-		"scene": "res://scenes/weapons/flamethrower.tscn",
-	},
-	"homing_dart": {
-		"name": "追踪飞镖",
-		"config": "res://data/weapons/homing_dart.tres",
-		"scene": "res://scenes/weapons/homing_dart.tscn",
-		"projectile": "res://scenes/bullet.tscn",
 	},
 }
 
@@ -304,13 +321,17 @@ func owned_weapon_ids() -> Array[String]:
 			out.append(w.config.id)
 	return out
 
-## Used by the weapon pickup item. Grants a random catalog weapon and returns
-## its id. Copies are allowed, so this picks uniformly across all 8 base ids
-## rather than only unowned ones — that is what lets duplicates accumulate.
+## Used by the weapon pickup item. Grants a weapon and returns its id. Copies
+## are allowed, so this draws from all 8 base ids rather than only unowned ones —
+## that is what lets duplicates accumulate toward a merge.
+##
+## The draw is weighted by rarity (see WEAPON_CATALOG), so a strong weapon is a
+## rarer sight than a common one.
 ##
 ## When the arsenal is full, only ids that can immediately complete a merge are
-## granted (that hand frees 2 slots). Returns "" when nothing could be granted
-## so the caller can say "武器槽已满" instead of silently swallowing the drop.
+## granted (that hand frees 2 slots). Rarity still applies within that filtered
+## pool. Returns "" when nothing could be granted so the caller can say
+## "武器槽已满" instead of silently swallowing the drop.
 func grant_random_weapon() -> String:
 	var pool: Array[String] = []
 	if is_full():
@@ -321,14 +342,61 @@ func grant_random_weapon() -> String:
 	else:
 		for id in WEAPON_CATALOG.keys():
 			pool.append(String(id))
-	if pool.is_empty():
+	var id: String = _roll_weighted_id(pool)
+	if id == "":
 		return ""
-	var id: String = pool[randi() % pool.size()]
 	add_weapon_by_id(id)
 	# add_weapon_by_id can still bail on a missing asset, so confirm.
 	if count_of(id) == 0:
 		return ""
 	return id
+
+## Weighted draw from `pool` using each id's WEAPON_CATALOG weight. Returns ""
+## for an empty pool.
+##
+## Deliberately free of side effects: `grant_random_weapon` actually mounts a
+## weapon and can trigger a merge, so it is useless for verifying the
+## distribution. The self-test samples this instead, tens of thousands of times.
+func _roll_weighted_id(pool: Array[String]) -> String:
+	if pool.is_empty():
+		return ""
+	var total: int = 0
+	for id in pool:
+		total += weight_of(id)
+	if total <= 0:
+		# Every candidate weighted 0 (or a bad table). Fall back to uniform so a
+		# drop is never silently swallowed by a data error.
+		return pool[randi() % pool.size()]
+	var roll: int = randi() % total
+	for id in pool:
+		roll -= weight_of(id)
+		if roll < 0:
+			return id
+	return pool[pool.size() - 1]
+
+## Drop-table weight for `id`. Unknown ids weigh 0 so a typo cannot quietly
+## become the commonest drop in the game.
+func weight_of(id: String) -> int:
+	var entry: Dictionary = WEAPON_CATALOG.get(id, {})
+	return int(entry.get("weight", 0))
+
+## Level a freshly dropped copy of `id` starts at, read from its WeaponConfig.
+## Rare weapons drop pre-levelled, so a single copy is already worth its slot.
+## ResourceLoader caches the .tres, so this stays cheap despite the load.
+##
+## Ids outside WEAPON_CATALOG (fusion results, which are crafted rather than
+## dropped) have no drop level and answer 1. The empty-path guard matters:
+## `_can_complete_merge` runs for every add, fusion weapons included, and
+## ResourceLoader.load("") is a hard error, not a null.
+func drop_level_of(id: String) -> int:
+	var entry: Dictionary = WEAPON_CATALOG.get(id, {})
+	var path: String = String(entry.get("config", ""))
+	if path == "":
+		return 1
+	var cfg: Resource = ResourceLoader.load(path)
+	if cfg is WeaponConfig:
+		return maxi(1, (cfg as WeaponConfig).drop_level)
+	return 1
 
 func add_weapon(config: WeaponConfig, scene: PackedScene) -> bool:
 	if config == null or scene == null:
@@ -349,9 +417,10 @@ func add_weapon(config: WeaponConfig, scene: PackedScene) -> bool:
 	var inst: Node = scene.instantiate()
 	parent.add_child(inst)
 	if inst is BaseWeapon:
-		(inst as BaseWeapon).setup(config, 1)
+		var lv: int = maxi(1, config.drop_level)
+		(inst as BaseWeapon).setup(config, lv)
 		_weapons.append(inst as BaseWeapon)
-		print("[WeaponDirector] added %s (lv1)" % config.id)
+		print("[WeaponDirector] added %s (lv%d)" % [config.id, lv])
 		_try_merge_all()
 		return true
 	return false
@@ -413,9 +482,10 @@ func add_weapon_with_extras(config: WeaponConfig, scene: PackedScene, extras: Di
 			inst.setup_blade_scene(v as PackedScene)
 	parent.add_child(inst)
 	if inst is BaseWeapon:
-		(inst as BaseWeapon).setup(config, 1)
+		var lv: int = maxi(1, config.drop_level)
+		(inst as BaseWeapon).setup(config, lv)
 		_weapons.append(inst as BaseWeapon)
-		print("[WeaponDirector] added %s (lv1)" % config.id)
+		print("[WeaponDirector] added %s (lv%d)" % [config.id, lv])
 		_try_merge_all()
 		return true
 	return false
@@ -456,12 +526,16 @@ func _has_any(id: String) -> bool:
 
 ## Could a single new `id` copy complete a 3-way merge right now? Used by the
 ## full-slot grant path: the only things worth accepting at full capacity are
-## drops that immediately free slots. A newly granted copy is level 1, so it
-## can only complete a merge with copies that are already at level 1.
+## drops that immediately free slots.
+##
+## The comparison is against `drop_level_of(id)`, NOT a hardcoded 1: rare
+## weapons drop pre-levelled, so a freshly granted magnetic laser arrives at
+## Lv2 and can only pair with the Lv2 copies already held.
 func _can_complete_merge(id: String) -> bool:
+	var lv: int = drop_level_of(id)
 	var n: int = 0
 	for w in _weapons:
-		if w and w.config and w.config.id == id and w.level == 1:
+		if w and w.config and w.config.id == id and w.level == lv:
 			n += 1
 			if n >= MERGE_COUNT - 1:
 				return true

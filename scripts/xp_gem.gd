@@ -50,5 +50,13 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	var parent := area.get_parent()
 	if parent and parent.is_in_group("player"):
-		_target = parent
-		_seeking = true
+		attract_to(parent)
+
+## Start homing toward `player` without waiting for a PickupArea overlap. The
+## MAGNET pickup vacuums the whole map through this, so gems far outside the
+## pickup radius still come in along their normal seek path.
+func attract_to(player: Node2D) -> void:
+	if _seeking or player == null or not is_instance_valid(player):
+		return
+	_target = player
+	_seeking = true

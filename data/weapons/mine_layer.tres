@@ -14,6 +14,7 @@ icon_size = Vector2(20, 10)
 base_damage = 55.0
 base_fire_rate = 0.5
 max_level = 8
+drop_level = 3
 mine_scene = null
 mine_interval = 2.2
 mine_arm_time = 0.4

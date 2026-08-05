@@ -4,27 +4,29 @@ class_name PickupItem
 ## then applies its effect. Structure mirrors xp_gem.gd (same layer/mask, same
 ## seek-then-grant flow) so the two pickups behave identically to the player.
 ##
-## Five kinds, all resolved through `_apply_effect`:
+## Six kinds, all resolved through `_apply_effect`:
 ##   HEAL       回血 30% 上限
-##   WEAPON     给一把没有的武器（满槽/全持有则升一把）
+##   WEAPON     给一把随机武器（按稀有度加权；满槽只收能立刻合并的）
 ##   BOMB       半径 420 内全体伤害
 ##   TIME_STOP  敌人冻结 4s
 ##   SHIELD     抵消接下来 2 次伤害
+##   MAGNET     把全图掉落物（宝石 + 道具）吸向玩家
 
-enum Kind { HEAL, WEAPON, BOMB, TIME_STOP, SHIELD }
+enum Kind { HEAL, WEAPON, BOMB, TIME_STOP, SHIELD, MAGNET }
 
 ## Roll weights. Heal is the most common consumable because it is the effect
 ## that keeps a run alive. The weapon drop is still the heaviest single entry —
 ## the 3-into-1 merge is the only way a weapon levels, so a run has to be able
 ## to accumulate copies — but it is tuned so weapons stay an event rather than a
-## stream: trash drops an item 12% of the time and 36/118 of those rolls are
-## weapons, i.e. roughly one weapon per 27 kills.
+## stream: trash drops an item 12% of the time and 36/132 of those rolls are
+## weapons, i.e. roughly one weapon per 30 kills.
 const DROP_WEIGHTS: Dictionary = {
 	Kind.HEAL: 24,
 	Kind.SHIELD: 22,
 	Kind.BOMB: 20,
 	Kind.TIME_STOP: 16,
 	Kind.WEAPON: 36,
+	Kind.MAGNET: 14,
 }
 
 const HEAL_PCT: float = 0.30
@@ -103,8 +105,23 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	var parent: Node = area.get_parent()
 	if parent and parent.is_in_group("player"):
-		_target = parent as Node2D
-		_seeking = true
+		attract_to(parent as Node2D)
+
+## Start homing toward `player` without waiting for a PickupArea overlap. The
+## MAGNET pickup vacuums the whole map through this, so items far outside the
+## pickup radius still come in along their normal seek path — and still apply
+## their own effect on arrival.
+func attract_to(player: Node2D) -> void:
+	if _seeking or player == null or not is_instance_valid(player):
+		return
+	_target = player
+	_seeking = true
+	# The expiry blink leaves `sprite.visible` wherever the last fmod landed, and
+	# once seeking starts nothing drives it again — so an item grabbed during the
+	# blink window would fly in invisible. A magnet sweeps up everything at once,
+	# near-expiry items included, which makes that very easy to hit.
+	if sprite:
+		sprite.visible = true
 
 func _collect(player: Node2D) -> void:
 	_apply_effect(player)
@@ -125,6 +142,8 @@ func _apply_effect(player: Node2D) -> void:
 		Kind.SHIELD:
 			GameState.add_shield(SHIELD_CHARGES)
 			_label("护盾 +%d" % SHIELD_CHARGES, Color(0.5, 1.0, 1.0))
+		Kind.MAGNET:
+			_effect_magnet(player)
 
 func _effect_heal(player: Node2D) -> void:
 	if not player.has_method("heal"):
@@ -161,6 +180,30 @@ func _effect_bomb() -> void:
 	get_tree().current_scene.add_child(boom)
 	_label("轰！", Color(1.0, 0.6, 0.2))
 
+## Groups vacuumed by MAGNET. Both scripts expose `attract_to`, which is the
+## only thing this effect needs from them.
+const MAGNET_GROUPS: Array[String] = ["xp_gems", "pickup_items"]
+
+## Vacuum every drop on the map toward the player. Gems and items both come in
+## along their own normal seek path, so each still applies its own effect on
+## arrival — a magnet lying next to three bombs really is a combo, on purpose.
+func _effect_magnet(player: Node2D) -> void:
+	var n: int = 0
+	for group in MAGNET_GROUPS:
+		for node in get_tree().get_nodes_in_group(group):
+			# Skip ourselves: we are mid-collect and about to free. Without this
+			# the magnet would count itself and re-enter its own effect.
+			if node == self or node.is_queued_for_deletion():
+				continue
+			if node.has_method("attract_to"):
+				node.attract_to(player)
+				n += 1
+	if n > 0:
+		_label("磁石回收 ×%d" % n, Color(0.85, 0.6, 1.0))
+	else:
+		# Nothing on the ground — say so rather than flashing a silent "×0".
+		_label("场上无掉落", Color(0.7, 0.7, 0.7))
+
 func _label(text: String, color: Color) -> void:
 	var fx: Node = get_tree().get_first_node_in_group("fx_manager")
 	if fx and fx.has_method("_spawn_label"):
@@ -191,6 +234,7 @@ func _sprite_name() -> String:
 		Kind.BOMB: return "bomb.png"
 		Kind.TIME_STOP: return "time_stop.png"
 		Kind.SHIELD: return "shield.png"
+		Kind.MAGNET: return "magnet.png"
 	return "heal.png"
 
 func _fallback_color() -> Color:
@@ -200,6 +244,7 @@ func _fallback_color() -> Color:
 		Kind.BOMB: return Color(0.95, 0.55, 0.2)
 		Kind.TIME_STOP: return Color(0.5, 0.85, 1.0)
 		Kind.SHIELD: return Color(0.4, 1.0, 0.95)
+		Kind.MAGNET: return Color(0.85, 0.6, 1.0)
 	return Color(1, 1, 1)
 
 func _start_bob() -> void:
