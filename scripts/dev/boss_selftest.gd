@@ -3,7 +3,7 @@ extends Node2D
 ##   godot --headless res://scenes/dev/boss_selftest.tscn
 ## Exits 0 when green, 1 when any check fails.
 ##
-## The boss lands at 2 minutes, which no headless test can afford to wait for, so
+## The boss lands at 5 minutes, which no headless test can afford to wait for, so
 ## `GameState.time_alive` is set by hand — the director reads it fresh every
 ## frame, and `is_running` is left false so nothing else moves the clock. That
 ## also makes the countdown assertions exact instead of timing-dependent.
@@ -11,8 +11,8 @@ extends Node2D
 ## Covers: the spawn ceilings that made t=300 unreachable, the boss arriving on
 ## schedule, the countdown firing once per second, the health/phase and death
 ## signals the HUD bar hangs off, the off-screen arrow geometry, the claw wedge
-## and its locked facing, the poison pool's DoT channel, and the values the
-## SHIPPED game.tscn hands the director.
+## and its locked facing, the dash's locked line and single hit, the poison
+## pool's DoT channel, and the values the SHIPPED game.tscn hands the director.
 
 const BOSS_MARKER: GDScript = preload("res://scripts/ui/boss_marker.gd")
 
@@ -35,6 +35,7 @@ func _ready() -> void:
 	await _test_boss_spawn()
 	await _test_claw_geometry()
 	await _test_claw_locks_facing()
+	await _test_dash_machine()
 	await _test_boss_health_signals()
 	await _test_poison_pool_dot()
 	await _test_poison_bypasses_shield()
@@ -438,6 +439,179 @@ func _test_claw_locks_facing() -> void:
 	boss._claw_wind_left = 0.0
 	player.global_position = Vector2.ZERO
 
+# --- Dash ----------------------------------------------------------------
+
+## The dash fills the mid range (220-480px): outside the claw's wedge but too
+## close to just walk. Like the claw, the DIRECTION locks when the wind-up
+## starts — a straight-line charge only connects if the player stands in the
+## line, so stepping sideways is the whole dodge.
+##
+## Unlike the claw test, THIS one moves the boss through physics
+## (`move_and_collide`), so two things are different:
+## - The boss's own `_physics_process` is disabled: it would run `_behavior_boss`
+##   on real frames (navigation, summons, poison) and pollute the reading.
+## - Every player teleport that precedes boss motion is followed by a couple of
+##   real physics frames. Teleports alone never reach the physics server, and a
+##   dash into a stale "ghost" body reads as a bogus collision — that is exactly
+##   the 209px/25px drift this test caught on its first run.
+## Fake deltas still drive the machine, so the player's InvulnTimer cannot tick
+## and every hp delta stays exact.
+func _test_dash_machine() -> void:
+	var boss: Node2D = _find_boss()
+	if boss == null:
+		_fail("dash", "no boss on the field to dash")
+		return
+	var cfg: EnemyConfig = boss.config as EnemyConfig
+	boss.set_physics_process(false)
+	boss.global_position = Vector2.ZERO
+	boss._player = player
+	# Fresh machine: the claw test left teleports and zeroed timers behind.
+	boss._dash_accum = 0.0
+	boss._dash_wind_left = 0.0
+	boss._dash_run_left = 0.0
+	boss._dash_recover_left = 0.0
+	# Clear the origin first: the claw test's last act parked the player ON the
+	# boss. Sync the server before anything moves.
+	player.global_position = Vector2(400.0, 0.0)
+	await _physics_frames(2)
+
+	# 1) Wind-up: mid range + cooldown ready -> telegraph spawns, direction
+	#    locks, and the boss does NOT move (rooting IS the tell).
+	_ready_player_for_hit()
+	player.global_position = Vector2(300.0, 0.0)
+	await _physics_frames(2)
+	boss._dash_accum = cfg.boss_dash_cooldown
+	boss._boss_dash(0.0)
+	if boss._dash_wind_left <= 0.0:
+		_fail("dash", "a player at 300px did not start a wind-up")
+		return
+	if boss._dash_facing.distance_to(Vector2.RIGHT) > 0.01:
+		_fail("dash", "locked facing is %s, expected (1, 0)" % str(boss._dash_facing))
+		return
+	if boss._dash_fx == null:
+		_fail("dash", "no dash telegraph spawned")
+		return
+	var pos0: Vector2 = boss.global_position
+	boss._boss_dash(cfg.boss_dash_windup * 0.5)
+	if boss.global_position != pos0:
+		_fail("dash", "the boss moved during the wind-up")
+		return
+	_ok("dash", "wind-up roots the boss, locks the direction, spawns the telegraph")
+
+	# 2) The dash is a STRAIGHT LINE along the locked facing. Player steps off
+	#    the line by 220px (perpendicular): the boss covers the full distance
+	#    without deviating and without landing a hit. The player also moves to
+	#    the far side MID-dash — if the charge re-aimed per frame it would end
+	#    somewhere else entirely and this assertion would fail.
+	_ready_player_for_hit()
+	player.global_position = Vector2(0.0, 220.0)
+	await _physics_frames(2)
+	var before: float = player.hp
+	boss._boss_dash(cfg.boss_dash_windup)        # wind-up elapses -> dash starts
+	if boss._dash_run_left <= 0.0:
+		_fail("dash", "the dash did not start when the wind-up elapsed")
+		return
+	var start: Vector2 = boss.global_position
+	var t: float = cfg.boss_dash_duration
+	var step: float = 0.05
+	while t > 0.0001:
+		var d: float = minf(step, t)
+		boss._boss_dash(d)
+		t -= d
+		if absf(t - cfg.boss_dash_duration * 0.5) < step * 0.5:
+			player.global_position = Vector2(0.0, -400.0)   # dart across mid-dash
+	var disp: Vector2 = boss.global_position - start
+	var expect: Vector2 = Vector2.RIGHT * (cfg.boss_dash_speed * cfg.boss_dash_duration)
+	if disp.distance_to(expect) > 1.0:
+		_fail("dash", "dashed %s, expected the locked line %s (%.0fpx)" % [str(disp), str(expect), expect.length()])
+		return
+	if absf(player.hp - before) > 0.01:
+		_fail("dash", "a player 220px off the line took %.1f damage" % (before - player.hp))
+		return
+	if boss._dash_run_left > 0.0 or boss._dash_recover_left <= 0.0:
+		_fail("dash", "the dash did not end in recovery")
+		return
+	_ok("dash", "%.0fpx straight along the locked line, 0 damage to an off-line player" % expect.length())
+
+	# 3) A player standing IN the line gets exactly one hit, and only from the
+	#    dash's own damage — not from contact. The wind-up starts with the player
+	#    in range, then the player steps INTO the line before it elapses.
+	_ready_player_for_hit()
+	boss.global_position = Vector2.ZERO   # #2 left the boss at the end of its dash
+	player.global_position = Vector2(300.0, 0.0)
+	await _physics_frames(2)
+	boss._dash_accum = cfg.boss_dash_cooldown
+	boss._dash_wind_left = 0.0
+	boss._dash_recover_left = 0.0
+	boss._boss_dash(0.0)                            # wind-up, facing locked (1,0)
+	player.global_position = Vector2(100.0, 0.0)    # step into the line
+	await _physics_frames(2)
+	var before3: float = player.hp
+	boss._boss_dash(cfg.boss_dash_windup)           # wind-up elapses -> dash
+	t = cfg.boss_dash_duration
+	while t > 0.0001:
+		var d3: float = minf(step, t)
+		boss._boss_dash(d3)
+		t -= d3
+	var dealt3: float = before3 - player.hp
+	if absf(dealt3 - cfg.boss_dash_damage) > 0.01:
+		_fail("dash", "an on-line player took %.1f, expected exactly the dash's %.1f" % [dealt3, cfg.boss_dash_damage])
+		return
+	if not boss._dash_hit_done:
+		_fail("dash", "the dash hit landed but _dash_hit_done was not set")
+		return
+	_ok("dash", "one hit of %.0f on a player standing in the line" % cfg.boss_dash_damage)
+
+	# 4) Recovery is a root: the boss stays planted while it counts down, then
+	#    the machine returns to cooldown.
+	if boss._dash_recover_left <= 0.0:
+		_fail("dash", "no recovery after the dash ended")
+		return
+	var pos4: Vector2 = boss.global_position
+	var rec: float = boss._dash_recover_left
+	boss._boss_dash(rec * 0.5)
+	if boss.global_position != pos4:
+		_fail("dash", "the boss moved during recovery")
+		return
+	_ok("dash", "recovery roots the boss for %.2fs" % rec)
+
+	# 5) Cooldown and range gates: too soon, too close (< min), too far (> max)
+	#    — none of them may start a wind-up.
+	boss.global_position = Vector2.ZERO   # distances are measured from the boss
+	boss._dash_accum = 0.0
+	boss._dash_wind_left = 0.0
+	boss._dash_run_left = 0.0
+	boss._dash_recover_left = 0.0         # #4 left 0.175s of recovery
+	boss._boss_dash(0.0)
+	if boss._dash_wind_left > 0.0:
+		_fail("dash", "wound up with the cooldown not ready")
+		return
+	player.global_position = Vector2(50.0, 0.0)
+	boss._dash_accum = cfg.boss_dash_cooldown
+	boss._boss_dash(0.0)
+	if boss._dash_wind_left > 0.0:
+		_fail("dash", "wound up at %dpx, inside the claw's range" % int(cfg.boss_dash_min_range))
+		return
+	player.global_position = Vector2(600.0, 0.0)
+	boss._dash_accum = cfg.boss_dash_cooldown
+	boss._boss_dash(0.0)
+	if boss._dash_wind_left > 0.0:
+		_fail("dash", "wound up at 600px, beyond the max range")
+		return
+	player.global_position = Vector2(300.0, 0.0)
+	boss._dash_accum = cfg.boss_dash_cooldown
+	boss._boss_dash(0.0)
+	if boss._dash_wind_left <= 0.0:
+		_fail("dash", "a player at 300px with the cooldown ready did not wind up")
+		return
+	_ok("dash", "cooldown and the %d-%dpx range gate the wind-up" % [int(cfg.boss_dash_min_range), int(cfg.boss_dash_max_range)])
+
+	boss._dash_wind_left = 0.0
+	boss._dash_run_left = 0.0
+	boss._dash_recover_left = 0.0
+	boss.set_physics_process(true)
+	player.global_position = Vector2.ZERO
+
 # --- Poison -------------------------------------------------------------
 
 ## The pool is the only thing in the poison attack that deals damage (the glob in
@@ -720,6 +894,13 @@ func _clear_enemies() -> void:
 func _frames(n: int) -> void:
 	for i in range(n):
 		await get_tree().process_frame
+
+## Real PHYSICS frames. Used by the dash test to let the physics server catch up
+## with synchronous teleports; process frames would not do that (the server only
+## syncs bodies during the physics step).
+func _physics_frames(n: int) -> void:
+	for i in range(n):
+		await get_tree().physics_frame
 
 func _ok(tag: String, msg: String) -> void:
 	print("  [ok] %s: %s" % [tag, msg])

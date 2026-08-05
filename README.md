@@ -66,8 +66,8 @@
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
 - [x] **击杀爆裂粒子**：增强版 burst_particles（28 粒、彩尘，精英偏紫红）
 - [x] **2 张新增被动升级**：暴击瞄准镜（+5%）、穿甲弹头（+0.5× 倍率）
-- [x] **2 分钟 Boss 战**：废土巨兽（**2500 HP、112px 体型**、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「BOSS 降临与难度天花板」一节）
-- [x] **BOSS 远程毒物 + 近战爪击**：抛毒团落地成毒池（持续 DoT），近身则先定住脚画预警扇形、0.45s 后挥爪（朝向在预警开始时就锁死，可以横向闪避）；见「BOSS：毒物与爪击」一节
+- [x] **5 分钟 Boss 战**：废土巨兽（**5000 HP、224px 体型**、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「BOSS 降临与难度天花板」一节）
+- [x] **BOSS 远程毒物 + 近战爪击 + 直线冲刺**：抛毒团落地成毒池（持续 DoT），近身则先定住脚画预警扇形、0.45s 后挥爪（朝向在预警开始时就锁死，可以横向闪避）；中距离会蓄力后沿锁定方向直线冲刺（见「BOSS：毒物与爪击」与「BOSS 冲刺」两节）
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器各持有一把 Lv3 副本时可触发融合面板（可选开启）；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
@@ -464,7 +464,7 @@ godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # 含 drop_level 
 
 ## BOSS 降临与难度天花板
 
-BOSS 由 `spawn_director.gd` 的 `boss_spawn_time` 决定，**当前值 120 秒**（2 分钟）。这个旋钮曾经是 300，注释也写着「5 分钟触发 Boss」；改成 120 后注释一度还留着旧值，现在两处都是 120 —— 想改节奏只需要动这一个 export。
+BOSS 由 `spawn_director.gd` 的 `boss_spawn_time` 决定，**当前值 300 秒**（5 分钟）。这个旋钮从 300 改成 120 过（连同注释一起改），后来又改回 300 —— 想改节奏只需要动这一个 export。
 
 `boss_spawn_time = 300` 那会儿一直是对的，**但在此之前没人活着见过它**。原因在难度曲线本身：
 
@@ -503,9 +503,9 @@ var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
 
 > 一个测试里的坑：那些默认值必须从 `(load("res://scripts/spawn_director.gd") as GDScript).new()` 这样一个**临时实例**上读，不能从自检场景里那个 director 上读——自检场景自己把 `boss_spawn_time` 覆盖成了 99999，拿它当"默认值"会变成用测试脚手架去比对出厂场景。
 
-### ⚠️ 一处已知失衡：BOSS 比精英波先到
+### ⚠️ 曾经的一处失衡：BOSS 比精英波先到
 
-`boss_spawn_time = 120`，但精英波在 `_process` 里的门是 `t >= 300.0`，`_pick_archetype` 的混合期是 3:30。也就是说**打完 BOSS 才开始出精英**。这是平衡问题不是 bug，所以按原样留着并记在这里：要么把精英门降到 120~150，要么接受"BOSS 是中期考试"。改哪个都只动一个常量。
+`boss_spawn_time` 曾经是 120 而精英波的门是 `t >= 300.0`，意味着**打完 BOSS 才开始出精英**。后来 `boss_spawn_time` 改回 300，这条失衡自动消失了——两者现在同时到点。如果再把 BOSS 提前，记得这条会回来：要么把精英门跟着降，要么接受"BOSS 是中期考试"。
 
 ### BOSS UI（三件套，都挂在 `GameState` 的信号上）
 
@@ -526,16 +526,16 @@ var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
 
 ## BOSS：毒物与爪击
 
-废土巨兽从"一个大号的追踪怪"变成了有两套攻击的战斗：**远程抛毒** + **近战爪击**。数值全在 `data/enemies/boss.tres`，字段定义在 `scripts/enemy_config.gd`。
+废土巨兽从"一个大号的追踪怪"变成了有三套攻击的战斗：**远程抛毒** + **近战爪击** + **直线冲刺**。数值全在 `data/enemies/boss.tres`，字段定义在 `scripts/enemy_config.gd`。
 
 | 项 | 值 | 说明 |
 |---|---|---|
-| `max_hp` | **2500**（原 1000） | HUD 血条走比例，不用改 UI |
-| `sprite_size` / `sprite.scale` | **112px** / **7.0×**（原 72px / 4.5×） | 源图是 16×16 |
-| `collision_radius` | **56**（原 36） | 跟着体型走，否则打不到的地方看起来能打 |
+| `max_hp` | **5000**（原 1000 → 2500） | HUD 血条走比例，不用改 UI |
+| `sprite_size` / `sprite.scale` | **224px** / **14.0×**（原 112px / 7.0×） | 源图是 16×16 |
+| `collision_radius` | **112**（原 56） | 跟着体型走，否则打不到的地方看起来能打 |
 | `contact_damage` | 25 | 接触伤害 |
 
-**体型加大带来的副作用必须一起处理**：直径 112px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
+**体型加大带来的副作用必须一起处理**：直径 224px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
 
 ### 远程毒物
 
@@ -576,6 +576,32 @@ static func in_arc(from: Vector2, facing: Vector2, target: Vector2,
 ```
 
 `claw_geometry` 断言 10 个用例：正前方命中、1.5× reach 落空、正后方落空、90° 落空、弧边界两侧（≈44° 中 / ≈46° 空）、对称的 −44°、`arc = TAU` 时背后也中、零长 facing 不炸、目标与原点重合时算命中。
+
+### 直线冲刺
+
+```
+boss_dash_damage 45  boss_dash_windup 0.5  boss_dash_speed 950
+boss_dash_duration 0.32（≈304px）  boss_dash_recover 0.35  boss_dash_cooldown 5.0
+boss_dash_min_range 220  boss_dash_max_range 480  boss_dash_hit_radius 135
+```
+
+| 阶段 | 发生的事 |
+|---|---|
+| 距离 ∈ [220, 480] 且冷却好了 | **锁定方向** `_dash_facing`、生成 `DashTelegraph` 预告线、定住脚（步行 70 的 ~13 倍速度，这预告必须看得见） |
+| 蓄力 0.5s 结束 | 沿锁定方向以 950px/s 直线冲 0.32s；玩家进入 `hit_radius`（135 = 112 身体 + 玩家 + 余量）→ 恰好结算一次 `take_damage(45)` |
+| 冲完 | 硬直 0.35s（定在原地，这是反打窗口），然后回到普通寻路 |
+
+**这个技能补的是爪击和步行之间的空档**：220 以下归爪击（reach 190），480 以上就正常追，中距离靠冲刺快速拉近——三套攻击各管一段距离，不会互相重叠触发。
+
+**方向和爪击一样在起手时锁死**，理由也完全一样：如果冲刺每帧重新对准玩家，这条线就永远追得上人，横向让开就不再是躲避。自检 `dash_machine` 专门在冲刺中途把玩家瞬移到另一侧——如果实现偷偷跟了人，位移断言（必须是锁定的 304px 直线）立刻变红。反证过：把 `_dash_facing` 换成每帧当前方向，它报 `dashed (0.0, -19.0), expected the locked line (304.0, 0.0)`。
+
+其他刻意设计：
+
+- **冲刺期间跳过接触伤害（25）**：冲刺命中是位置判定，接触伤害走碰撞判定，两者会在同一帧双份结算。冲刺时单一伤害来源 = `dash_damage`，和爪击"伤害由 BOSS 自己结算"同一套哲学。
+- **命中走正常的 `take_damage`**：离散重击，护盾和无敌帧按设计抵挡——无敌帧在身时冲空也正常，和爪击同一套规则。
+- **位移用 `move_and_collide(velocity * delta)` 而不是 `move_and_slide`**：自检要用假 delta 驱动状态机并断言精确位移，而 `move_and_slide` 内部用的是真实物理帧 delta。代价是侧滑行为更少，但 BOSS 本来就只跟玩家对撞，撞上就是终点。
+- **阶段缩放与毒物同一套**：P2 冷却 ×0.8、P3 冷却 ×0.65 + 速度 ×1.2。
+- `DashTelegraph`（`scripts/dash_telegraph.gd`）纯视觉：蓄力期画沿线的半透明长条 + 三个方向箭头（随进度变亮），命中帧变亮色残影 0.15s 后自灭。伤害不在它里面。
 
 ## 地图边界：没有墙，只有代价
 
@@ -646,7 +672,7 @@ godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（�
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
-godot --headless res://scenes/dev/boss_selftest.tscn           # BOSS 到点刷出 + 难度天花板 + 出厂场景值 + 爪击/毒池/DoT 通道
+godot --headless res://scenes/dev/boss_selftest.tscn           # BOSS 到点刷出 + 难度天花板 + 出厂场景值 + 爪击/毒池/冲刺/DoT 通道
 godot --headless res://scenes/dev/bounds_selftest.tscn         # 地图尺寸 + 拆墙 + 出界爬坡扣血 + 绕过护盾/无敌帧 + 营地/生成点不落虚空
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 6 张道具贴图
@@ -690,6 +716,7 @@ SecondGame/
 │   ├── poison_glob.gd         # BOSS 抛出的毒团，飞行 flight 秒后落地成池
 │   ├── poison_pool.gd         # 毒池：半径内按 tick 走 take_dot_damage，全程 _draw()
 │   ├── claw_slash.gd          # 爪击预警弧 + 命中扫击（in_arc 纯函数）
+│   ├── dash_telegraph.gd      # 冲刺预告线 + 命中残影（纯视觉，无伤害判定）
 │   ├── xp_gem.gd
 │   ├── pickup_item.gd         # 6 种道具的掉落权重与效果（含磁石吸全图）
 │   ├── explosion.gd           # 炸弹道具与地雷共用的范围伤害
@@ -793,7 +820,7 @@ SecondGame/
 - 护盾时限是写死的 `SHIELD_SECONDS = 15`，没有「护盾持续时间 +X%」这类被动可以叠；HUD 只显示一位小数的倒计时，没有环形进度条
 - BOSS 只有一个（`boss.tres`），`boss_spawn_time` 过后不会再刷第二只，也没有 5/10/15 分钟的多阶段 BOSS 序列
 - `max_live_enemies = 110` 是全局上限而不是按屏幕/按类型的，所以后期远处的杂兵也会占用配额；`max_burst` 与 `min_interval` 的组合上限（16 只/秒）由 `shipped_scene_ceilings` 守着出厂场景值，但曲线的其它部分没有自动的 DPS 平衡校验
-- BOSS 爪击是"锁朝向单次判定"，没有多段连抓、没有后续追击；出界惩罚也只对玩家生效（刻意，见「地图边界」一节）
+- BOSS 爪击/冲刺都是"锁朝向单次判定"：没有多段连抓、没有后续追击，冲刺也不可转向；出界惩罚也只对玩家生效（刻意，见「地图边界」一节）
 
 ## 扩展路线（不属于 MVP）
 

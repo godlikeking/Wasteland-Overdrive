@@ -31,6 +31,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/poison_glob.gd",
 	"res://scripts/poison_pool.gd",
 	"res://scripts/claw_slash.gd",
+	"res://scripts/dash_telegraph.gd",
 	"res://scripts/game.gd",
 	"res://scripts/hud.gd",
 	"res://scripts/level_up.gd",

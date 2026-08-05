@@ -48,6 +48,21 @@ var _claw_wind_left: float = 0.0
 ## 如果每帧跟着玩家转，爪击就变成了不可躲的必中伤害。
 var _claw_facing: Vector2 = Vector2.ZERO
 var _claw_fx: Node2D = null
+## 冲刺冷却计时（从 0 往上累，>= cooldown 才能起手）。
+var _dash_accum: float = 0.0
+## 蓄力剩余秒数；> 0 表示正在蓄力，此时巨兽定住脚。
+var _dash_wind_left: float = 0.0
+## 冲刺剩余秒数；> 0 表示正在冲，此时只沿 _dash_facing 直线移动。
+## （名字避开通用 DASHER 行为占用的 `_dash_time_left` —— 两个行为互不相干，
+## 共用一个字段是埋雷。）
+var _dash_run_left: float = 0.0
+## 冲完的硬直剩余秒数；> 0 表示定在原地，这是玩家反打的窗口。
+var _dash_recover_left: float = 0.0
+## 起手瞬间锁定的冲刺方向。和 _claw_facing 同一个锁死理由。
+var _dash_facing: Vector2 = Vector2.ZERO
+## 本次冲刺是否已经结算过命中：一次冲刺至多打一次。
+var _dash_hit_done: bool = false
+var _dash_fx: Node2D = null
 
 func setup_config(p_config: EnemyConfig) -> void:
 	config = p_config
@@ -77,9 +92,9 @@ func _apply_visuals() -> void:
 	var path: String = _sprite_path_for(config.id)
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-		# Boss is 7× (112px), elites stay 3× (48px) with a red tint.
+		# Boss is 14× (224px), elites stay 3× (48px) with a red tint.
 		if config.behavior == EnemyConfig.Behavior.BOSS:
-			sprite.scale = Vector2(7.0, 7.0)
+			sprite.scale = Vector2(14.0, 14.0)
 			sprite.modulate = Color(1.2, 0.6, 0.6)
 		elif config.behavior == EnemyConfig.Behavior.ELITE:
 			sprite.scale = Vector2(3.0, 3.0)
@@ -108,7 +123,7 @@ func _apply_visuals() -> void:
 	if cs and cs.shape is CircleShape2D:
 		(cs.shape as CircleShape2D).radius = config.collision_radius
 	if config.behavior == EnemyConfig.Behavior.BOSS:
-		# 直径 112px 的身体放不进 64px 的障碍格缝隙，会被地形卡死在废墟后面
+		# 直径 224px 的身体放不进 64px 的障碍格缝隙，会被地形卡死在废墟后面
 		# 干瞪眼。巨兽踏碎废墟：清掉 World 层（bit 1）的碰撞遮罩，只留玩家层
 		# （bit 2）—— 接触伤害靠 get_slide_collision 走玩家层，不受影响。
 		# 寻路照旧：NavigationAgent 绕的是它现在已经能踩过去的障碍，
@@ -247,16 +262,23 @@ func _behavior_boss(delta: float) -> void:
 
 	# 爪击先算：举爪期间要定住脚（那正是"预告"本身），所以它必须能否决移动。
 	_boss_claw(delta)
+	# 冲刺其次。返回 true 表示这一帧巨兽在冲刺中 —— 冲刺分支自己
+	# move_and_slide + 命中检查，这里的普通移动必须整个跳过，否则一帧动两次。
+	var dashing: bool = _boss_dash(delta)
 
 	# 速度：P1 1.0×  P2 1.2×  P3 1.4×
 	var speed_mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
-	if _claw_wind_left > 0.0:
-		velocity = Vector2.ZERO
-	else:
-		var dir: Vector2 = _steer_dir()
-		velocity = dir * _effective_speed() * speed_mult
-	move_and_slide()
-	_apply_contact_damage()
+	if not dashing:
+		# 举爪 / 蓄力 / 硬直都定住脚 —— 定住本身就是预警的一部分。
+		if _claw_wind_left > 0.0 or _dash_wind_left > 0.0 or _dash_recover_left > 0.0:
+			velocity = Vector2.ZERO
+		else:
+			var dir: Vector2 = _steer_dir()
+			velocity = dir * _effective_speed() * speed_mult
+		move_and_slide()
+		# 冲刺期间跳过接触伤害：冲刺命中由 _boss_dash 自己结算，单一伤害来源，
+		# 否则冲过去的一帧会吃到 25（接触）+ 45（冲刺）两份。
+		_apply_contact_damage()
 
 	# 召唤节奏
 	var summon_int: float = config.boss_summon_interval
@@ -336,6 +358,92 @@ func _claw_strike() -> void:
 	if _player.has_method("take_damage"):
 		# 走正常受伤通道：一次离散重击就是无敌帧和护盾要挡的东西。
 		_player.take_damage(config.boss_claw_damage)
+
+## 冲刺状态机。四段：蓄力（定住脚画预告线）→ 冲刺（沿锁定的 _dash_facing
+## 直线高速移动，途中结算一次命中）→ 硬直（定住脚，玩家反打窗口）→ 冷却。
+##
+## 返回 true 表示本帧正处于冲刺中 —— 调用方（_behavior_boss）必须跳过它
+## 自己的 move_and_slide，因为冲刺分支已经动过身体了。
+##
+## 命中判定是**位置**检查而不是 get_slide_collision：冲刺速度 950px/s 下
+## 一帧走 ~16px，玩家碰撞圈（14）+ 巨兽身体（112）的叠加窗口足够宽，位置
+## 判定不会漏；而接触伤害通道走碰撞，两条通道同帧触发会双份伤害，所以冲刺
+## 期间_behavior_boss 会跳过 _apply_contact_damage，这里就是唯一伤害来源。
+func _boss_dash(delta: float) -> bool:
+	if _dash_wind_left > 0.0:
+		# 蓄力：只数秒。定脚由 _behavior_boss 的速度否决完成。
+		_dash_wind_left -= delta
+		if _dash_wind_left <= 0.0:
+			_dash_start()
+		return false
+	if _dash_run_left > 0.0:
+		# 冲刺：沿锁定方向直线冲。move_and_collide 带显式位移 —— 和爪击测试
+		# 一样，自检要能直接用假 delta 驱动状态机并断言精确位移；move_and_slide
+		# 用的是真实物理帧 delta，会破坏这种可测性。撞上玩家身体会自然截停
+		# —— "撞到人就是终点"；玩家让开则冲满全程。
+		_dash_run_left -= delta
+		velocity = _dash_facing * _dash_speed_now()
+		move_and_collide(velocity * delta)
+		_dash_hit_check()
+		if _dash_run_left <= 0.0:
+			_dash_run_left = 0.0
+			_dash_recover_left = config.boss_dash_recover
+			GameState.request_camera_shake.emit(3.0, 0.15)
+		return true
+	if _dash_recover_left > 0.0:
+		_dash_recover_left -= delta
+		if _dash_recover_left <= 0.0:
+			_dash_recover_left = 0.0
+		return false
+	# 冷却：够近（但别近到爪击范围内）就起手。
+	_dash_accum += delta
+	if _dash_accum < config.boss_dash_cooldown:
+		return false
+	if _player == null or not is_instance_valid(_player):
+		return false
+	var to_player: Vector2 = _player.global_position - global_position
+	var dist: float = to_player.length()
+	if dist < config.boss_dash_min_range or dist > config.boss_dash_max_range:
+		return false
+	# 起手：锁定方向、生成预告线。这一刻之后再转向就没有可躲性了。
+	_dash_accum = 0.0
+	_dash_wind_left = config.boss_dash_windup
+	_dash_facing = to_player.normalized()
+	_dash_hit_done = false
+	var expect_len: float = config.boss_dash_speed * config.boss_dash_duration
+	_dash_fx = DashTelegraph.new()
+	(_dash_fx as DashTelegraph).setup(_dash_facing, expect_len, config.boss_dash_windup)
+	add_child(_dash_fx)
+	GameState.request_camera_shake.emit(1.5, 0.1)
+	return false
+
+## 蓄力结束：预告线转命中残影，开始移动。
+func _dash_start() -> void:
+	_dash_wind_left = 0.0
+	_dash_run_left = config.boss_dash_duration
+	if _dash_fx != null and is_instance_valid(_dash_fx) and _dash_fx.has_method("strike"):
+		_dash_fx.strike()
+	_dash_fx = null
+	SfxPlayer.play("boom")
+
+## 冲刺速度：基础 dash_speed 乘阶段倍率（P2 1.2× / P3 1.4×，和步行同一套）。
+func _dash_speed_now() -> float:
+	var mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
+	return config.boss_dash_speed * mult
+
+## 冲刺中的命中结算。位置判定，一次冲刺至多打一次（_dash_hit_done）。
+func _dash_hit_check() -> void:
+	if _dash_hit_done:
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+	if global_position.distance_to(_player.global_position) > config.boss_dash_hit_radius:
+		return
+	_dash_hit_done = true
+	if _player.has_method("take_damage"):
+		# 正常受伤通道：离散重击，护盾和无敌帧按设计抵挡。无敌帧在身时
+		# 打空也正常 —— 和爪击同一套规则。
+		_player.take_damage(config.boss_dash_damage)
 
 ## 朝玩家方向抛 n 团毒液。落点扇形铺开而不是全砸一点：目的是逼玩家移动，
 ## 一坨叠在一起只会变成"绕开这一个圆"。

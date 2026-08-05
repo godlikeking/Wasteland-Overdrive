@@ -85,3 +85,21 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var boss_poison_pool_life: float = 6.0
 @export var boss_poison_dps: float = 14.0
 @export var boss_poison_tick: float = 0.5
+
+## BOSS 直线冲刺。填爪击（≤190）和步行（>480）之间的中距离空档：起手锁死
+## 朝向、windup 秒蓄力（期间巨兽定住脚，DashTelegraph 画出冲刺线），然后
+## 以 dash_speed 沿直线冲 dash_duration 秒（≈dash_speed×duration 像素），
+## 途中玩家进入 dash_hit_radius 就结算一次 take_damage(dash_damage)，冲完
+## 硬直 recover 秒。朝向锁死是反制点 —— 横向让开就是完整躲避；如果每帧
+## 重新对准，这条线就变成了必中。
+## 冲刺期间跳过接触伤害（单一伤害来源 = dash_damage），P2 冷却 ×0.8、
+## P3 冷却 ×0.65 + 速度 ×1.2（与毒物同一套阶段缩放）。
+@export var boss_dash_damage: float = 45.0
+@export var boss_dash_windup: float = 0.5           # 蓄力时长，期间定住脚
+@export var boss_dash_speed: float = 950.0          # 冲刺速度（步行 70 的 ~13 倍）
+@export var boss_dash_duration: float = 0.32        # 冲刺时长 → 约 304px
+@export var boss_dash_recover: float = 0.35         # 冲完的硬直（惩罚窗口）
+@export var boss_dash_cooldown: float = 5.0
+@export var boss_dash_min_range: float = 220.0      # > 爪击 reach 190，两个技能不重叠
+@export var boss_dash_max_range: float = 480.0      # 更远就正常步行逼近
+@export var boss_dash_hit_radius: float = 135.0     # 112 身体 + 玩家半径 + 余量
