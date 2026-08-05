@@ -26,5 +26,19 @@ Desktop.ini
 *.orig
 *~
 
+# Editor scratch files (Godot writes these next to a scene while saving and
+# does not always clean them up).
+*.tscn*.tmp
+*.tres*.tmp
+
 # ZCode / editor local state
 .zcode/
+
+# Local dev tooling, not part of the game. The MCP bridge addon is installed
+# per-machine; its wiring in project.godot (autoload + enabled plugin + port)
+# is hidden with skip-worktree instead, since that file is tracked:
+#     git update-index --skip-worktree project.godot
+# To make project.godot editable/committable again (e.g. to add a real
+# autoload), undo it first:
+#     git update-index --no-skip-worktree project.godot
+addons/
