@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/ui/boss_marker.gd" id="2_marker"]
 
 [sub_resource type="Gradient" id="Gradient_bar_bg"]
 colors = PackedColorArray(0.15, 0.15, 0.15, 0.7, 0.15, 0.15, 0.15, 0.7)
@@ -92,6 +93,30 @@ horizontal_alignment = 2
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(0.8, 0.8, 0.85, 1)
 
+[node name="BossBar" type="VBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+visible = false
+theme_override_constants/separation = 2
+
+[node name="BossNameLabel" type="Label" parent="MarginContainer/VBoxContainer/BossBar"]
+layout_mode = 2
+text = "废土巨兽"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+
+[node name="BossHealthBar" type="TextureProgressBar" parent="MarginContainer/VBoxContainer/BossBar"]
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+value = 1.0
+step = 0.0
+texture_under = SubResource("GradientTexture1D_bar_bg")
+texture_progress = SubResource("GradientTexture1D_bar_bg")
+tint_under = Color(0.12, 0.03, 0.03, 0.9)
+tint_progress = Color(1, 0.3, 0.25, 1)
+
 [node name="MidSpacer" type="Control" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -117,3 +142,25 @@ texture_under = SubResource("GradientTexture1D_bar_bg")
 texture_progress = SubResource("GradientTexture1D_bar_bg")
 tint_under = Color(0.05, 0.1, 0.2, 0.85)
 tint_progress = Color(0.3, 0.85, 1.0, 1)
+
+[node name="BossBanner" type="Label" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -60.0
+mouse_filter = 2
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 64
+theme_override_colors/font_color = Color(1, 0.25, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+modulate = Color(1, 1, 1, 0)
+
+[node name="BossMarker" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("2_marker")

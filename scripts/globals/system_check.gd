@@ -41,6 +41,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/shake_camera.gd",
 	"res://scripts/weapon_director.gd",
 	"res://scripts/weapon_mounts.gd",
+	"res://scripts/ui/boss_marker.gd",
 	"res://scripts/globals/meta_progress.gd",
 	"res://scripts/weapons/weapon.gd",
 	"res://scripts/weapons/weapon_config.gd",
@@ -129,7 +130,18 @@ const REQUIRED_GAME_STATE_MEMBERS := [
 	"pickup_radius_mult", "xp_gain_mult", "extra_projectiles", "hp_regen_per_sec",
 	"crit_rate", "crit_damage_mult",
 	"weapon_range_mult", "pierce_count", "pierce_damage_falloff",
-	"shield_charges", "time_stop_left",
+	"shield_charges", "shield_left", "time_stop_left",
+]
+
+## GameState signals other nodes connect to at startup. A missing signal is a
+## hard error at `connect()` time rather than a silent no-op, and the HUD, the
+## shield ring and the off-screen boss arrow all wire themselves up in `_ready` —
+## so a rename here would break the whole UI on the first frame of a run.
+const REQUIRED_GAME_STATE_SIGNALS := [
+	"player_health_changed", "xp_changed", "level_changed", "time_changed",
+	"combo_changed", "leveled_up",
+	"shield_changed", "shield_time_changed", "time_stop_changed",
+	"boss_spawned", "boss_state_changed", "boss_defeated", "boss_incoming",
 ]
 
 var _failures: Array[String] = []
@@ -172,6 +184,9 @@ func _check_autoloads() -> void:
 		for prop in REQUIRED_GAME_STATE_MEMBERS:
 			if not (prop in gs):
 				_fail("GameState is missing property '%s'" % prop)
+		for sig in REQUIRED_GAME_STATE_SIGNALS:
+			if not gs.has_signal(sig):
+				_fail("GameState is missing signal '%s'" % sig)
 
 func _check_scripts() -> void:
 	for path in REQUIRED_SCRIPTS:

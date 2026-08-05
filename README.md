@@ -65,12 +65,12 @@
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
 - [x] **击杀爆裂粒子**：增强版 burst_particles（28 粒、彩尘，精英偏紫红）
 - [x] **2 张新增被动升级**：暴击瞄准镜（+5%）、穿甲弹头（+0.5× 倍率）
-- [x] **5 分钟 Boss 战**：废土巨兽（1000 HP、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）
+- [x] **5 分钟 Boss 战**：废土巨兽（1000 HP、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「5 分钟 BOSS」一节）
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
 - [x] **装备融合（Fusion）**：3 基础武器各持有一把 Lv3 副本时可触发融合面板（可选开启）；2 件组 → 雷暴弹雨 / 刀刃弹幕 / 闪电刀阵；3 件组 → 启示录（弹雨+链+刀 + 每 4s 整屏 nuke）
 - [x] **精英营地**：地图程序化生成 6 处专属地砖营地，走近刷精英、杀死进 45s 冷却重刷
-- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 / 磁石 六种掉落，武器从怪物掉落获得（含杂兵）
+- [x] **道具系统**：补血 / 护盾 / 炸弹 / 时间暂停 / 武器 / 磁石 六种掉落，武器从怪物掉落获得（含杂兵）；**护盾有 15s 时限**（层数与时间谁先到谁先结束）
 - [x] **武器稀有度**：武器掉落按权重 20:12:7:4 分档，稀有武器**掉落即高等级**作为补偿（详见「武器稀有度」一节）
 - [x] **12 武器槽位**：`MAX_WEAPONS = 12`，满槽拦截，挂件走左右两列布局
 - [x] **5 把新基础武器**：散弹枪 / 磁轨激光 / 地雷布设器 / 火焰喷射器 / 追踪飞镖（合计 8 基础 + 4 融合 = 12 个 id）
@@ -308,7 +308,7 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 | 道具 | 权重 | 效果 | 落点 |
 |---|---|---|---|
 | 补血 `HEAL` | 24 | 回 **30%** 生命上限 | `player.heal()`，clamp 到 max_hp |
-| 护盾 `SHIELD` | 22 | 抵消接下来 **2** 次伤害 | `GameState.shield_charges`，`player.take_damage` 开头扣层 |
+| 护盾 `SHIELD` | 22 | **15s 内**抵消 **2** 次伤害 | `GameState.shield_charges` + `shield_left`，`player.take_damage` 开头扣层 |
 | 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
 | 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
 | 武器 `WEAPON` | 36 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
@@ -327,6 +327,14 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 
 **护盾**按「次数」而不是「伤害量」抵消：一层挡一下，不管这一下打多少。抵消时照常给无敌帧 + 蓝闪，但不掉血。玩家身上挂 `ShieldRing`（`_draw` 画圆环，层数越多越亮）。
 
+**护盾有时限（`SHIELD_SECONDS = 15`）**：层数和倒计时是**同一个效果的两个上限**，谁先到谁先结束——
+
+- 时间到，**没用完的层数直接清零**（不是「留着以后用」）。否则一路捡护盾就等于永久无敌，`shield_charges` 只增不减。
+- **期间再捡一个护盾，取「更长的那个窗口」而不是相加**：`shield_left = maxf(shield_left, SHIELD_SECONDS)`。相加会让连捡两个变成 30s，护盾就成了可囤积资源；取 max 让它始终是「刷新」语义。层数照常叠加。
+- **最后一层被打掉时立刻清倒计时**，不留一个 0 层却还在跑的计时器——否则下一次捡护盾会继承上一段的残余时间。
+- 倒计时在 `GameState._process` 里递减，和时停一样放在 `is_running` 判断**之前**，但 autoload 是 pausable 的，所以升级面板暂停时护盾不会偷偷过期。
+- HUD 显示 `护盾 ×2 (3.0s)`；`ShieldRing` 在**最后 3 秒（`WARN_LEAD`）闪烁**预警，闪烁曲线抽成纯函数 `expiry_alpha_mult(remaining)` 以便自检直接断言，不用靠看画面。
+
 **时间暂停只冻结敌人**：`GameState.is_time_stopped()` 为真时 `enemy.gd` / `enemy_projectile.gd` 的 `_physics_process` 开头直接 return，冻结期间染蓝灰；玩家照常移动开火。**没有碰 `Engine.time_scale`**——那会把玩家、tween、粒子一起冻住。倒计时在 `GameState._process` 里放在 `is_running` 判断**之前**递减，但 autoload 默认 pausable，所以升级面板暂停时时停不会偷跑。
 
 **满槽时武器道具优先凑合并**：`grant_random_weapon()` 在 12 槽全满时，只接受「能立刻凑成 3 连合并」的武器（那一手净腾出 2 个槽）；凑不上就拒绝，不会静默丢掉。
@@ -340,7 +348,7 @@ python tools/gen_pickups.py          # 重新生成到 assets/sprites/pickups/ �
 python tools/gen_pickups.py --check  # 只校验现有文件
 ```
 
-自检（6 种效果 / 护盾抵消 2 次后失效 / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并 / 磁石吸全图 / 磁石不吸自己）：
+自检（6 种效果 / 护盾抵消 2 次后失效 / **护盾 15s 过期清层** / **重复捡取取更长窗口** / **最后一层用完清倒计时** / **临过期闪烁曲线** / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并 / 磁石吸全图 / 磁石不吸自己）：
 
 ```bash
 godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
@@ -449,6 +457,46 @@ godot --headless res://scenes/dev/weapon_merge_selftest.tscn   # 含 drop_level 
 
 默认 64×64 格地图、seed=1337，障碍合计 10%，毒沼 5%，出生点 11×11 安全区，6 处半径 3 格的精英营地。
 
+## 5 分钟 BOSS：难度天花板与 BOSS UI
+
+`boss_spawn_time = 300` 一直是对的，**但在此之前没人活着见过它**。原因在难度曲线本身：
+
+```
+interval = lerp(base_interval 1.2 → min_interval, t / difficulty_ramp_time)
+burst    = 1 + int(t * burst_growth 0.02)     # 无上限
+```
+
+`interval` 会撞到下限停住，`burst` 却**一直线性长**。代入 t=300：旧参数下是每 0.18s 刷 7 只 ≈ **39 只/秒**，而且这个数字往后只会更大。玩家不是被 BOSS 打死的，是被通往 BOSS 的路上那道墙推死的。
+
+修法是加**两道天花板**，而不是把曲线整体调平（调平会让前 2 分钟变得无聊）：
+
+| 参数 | 值 | 作用 |
+|---|---|---|
+| `min_interval` | 0.25（原 0.18） | 刷怪间隔下限 |
+| `max_burst` | 4 | 每次刷怪数上限 → 最坏 **16 只/秒**（原 39） |
+| `max_live_enemies` | 110 | **同时存活**上限，刷怪前先查 `live_enemies()` |
+
+- `max_burst` 只是把曲线削平；**`max_live_enemies` 才是真正的保证**——不管以后谁怎么调另外几个旋钮，同屏数量和帧开销都被这一条兜住。
+- `burst_for(t)` 抽成**纯函数**，这样自检可以直接断言 t=600 的 burst 而不用真的跑 10 分钟。
+- `live_enemies()` 会过滤 `is_queued_for_deletion()` 的敌人：刚死的敌人还会在 `enemies` 组里待一帧，不滤掉的话一次大清场会让天花板在尸体早就无所谓之后仍然堵着不刷。
+
+### BOSS UI（三件套，都挂在 `GameState` 的信号上）
+
+| 信号 | 发出方 | 消费方 |
+|---|---|---|
+| `boss_incoming(left)` | `spawn_director._tick_boss_warning()`，**每秒一次**（不是每帧） | HUD 大横幅 |
+| `boss_spawned(node)` | `_spawn_boss()`，**在 `add_child` 之后** | HUD 顶部血条 + 屏幕外箭头 |
+| `boss_state_changed(ratio, phase)` | `enemy.take_damage()` 里 BOSS 分支 | 血条填充 + 阶段文字 |
+| `boss_defeated()` | `enemy._die()` | 收起血条和箭头 |
+
+- **提醒增大**：横幅字号 **64**，降临前 `boss_warn_lead = 6` 秒开始播报，文字带整秒倒计时（`BOSS 即将降临  5`）。BOSS 落点在玩家 **+360px** 方向随机，配上提前量，它不会直接压在脸上出现。
+- **血条**：屏幕顶部横贯条，`boss_spawned` 时出现，之后**只由 `boss_state_changed` 驱动**——伤害是唯一能让血条动的事件，而它本来就是逐次命中的事件，没必要每帧轮询。
+- **屏幕外红色箭头**（`scripts/ui/boss_marker.gd`）：BOSS 出画时在屏幕边缘画红色三角指向它。世界坐标 → 屏幕坐标走 `get_viewport().get_canvas_transform() * boss.global_position`（HUD 是 CanvasLayer，它的局部坐标就是屏幕坐标）。
+  - 边缘定位抽成纯静态函数 `marker_for(screen_pos, rect, margin) -> Dictionary`，用**射线 vs 盒**（把方向向量缩放到先撞上的那条半轴）而不是逐轴 clamp——逐轴 clamp 在斜角方向会把箭头贴错边。自检直接断言几何结果，不看画面。
+  - `margin` 会被 clamp 到窗口半宽/半高，避免窗口比 `2*margin` 还小时缩出一个负尺寸矩形（箭头会镜像）。
+
+验收时实测：`step_until _boss_spawned` 在 `time_alive = 300.0025` 命中；BOSS 掉到 550/1000 时血条 `fill = 0.55`、标题 `废土巨兽  阶段 1`；把 BOSS 挪到玩家 +(1400,-900) 后箭头落在 `(1133, 46)`（y 正好等于 `EDGE_MARGIN 46`，即贴在上边缘）、角度 −0.567 rad 指向右上，并在该位置采到实际渲染像素 `(0.99, 0.40, 0.22)`——确认是真的画出来了，而不只是算对了。
+
 ## 全部自检
 
 每个自测都是 headless 场景，全绿 exit 0、有失败则 exit 1，可以直接串进 CI：
@@ -461,12 +509,13 @@ godot --headless res://scenes/dev/weapon_mount_selftest.tscn  # 挂件布局（�
 godot --headless res://scenes/dev/range_pierce_selftest.tscn  # 射程、穿透、追踪目标中途死亡
 godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配方 + 备用副本
 godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
+godot --headless res://scenes/dev/boss_selftest.tscn           # 5 分钟 BOSS 到点刷出 + 难度天花板 + 屏幕外箭头
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 6 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图
 ```
 
-`SystemCheck` 也会在每次运行时把新增的脚本 / 场景 / 资源 / `GameState` 字段一并核对（包括 12 把武器的 `.tres` 与 `.tscn`、`pickup_item` / `explosion` / `shield_ring` / `elite_camp_director`、`shield_charges` / `time_stop_left`），缺一个就在 Output 面板报 FAIL。
+`SystemCheck` 也会在每次运行时把新增的脚本 / 场景 / 资源 / `GameState` 字段一并核对（包括 12 把武器的 `.tres` 与 `.tscn`、`pickup_item` / `explosion` / `shield_ring` / `elite_camp_director` / `boss_marker`、`shield_charges` / `shield_left` / `time_stop_left`，以及 `boss_incoming` / `boss_spawned` / `boss_state_changed` 等信号是否真的存在），缺一个就在 Output 面板报 FAIL。
 
 ## 项目结构
 
@@ -503,9 +552,11 @@ SecondGame/
 │   ├── xp_gem.gd
 │   ├── pickup_item.gd         # 6 种道具的掉落权重与效果（含磁石吸全图）
 │   ├── explosion.gd           # 炸弹道具与地雷共用的范围伤害
-│   ├── shield_ring.gd         # 玩家身上的护盾圆环
+│   ├── shield_ring.gd         # 玩家身上的护盾圆环（含临过期闪烁）
 │   ├── game.gd
-│   ├── hud.gd
+│   ├── hud.gd                 # 含护盾倒计时 / BOSS 顶部血条 / BOSS 大横幅
+│   ├── ui/
+│   │   └── boss_marker.gd     # BOSS 出画时的屏幕边缘红色箭头（marker_for 纯函数）
 │   ├── level_up.gd
 │   ├── upgrade_card.gd
 │   ├── game_over.gd
@@ -597,6 +648,9 @@ SecondGame/
 - 融合门槛很高：每种材料要 9 把才到 Lv3，3 件组共需 27 把特定掉落，即使按最高权重 20 也是**长线目标**，一局大概率摸不到 3 件组
 - 磁石只吸掉落物，不吸敌人掉落之外的东西；也没有「吸取半径永久变大」这类被动可以叠
 - 时间暂停只 early-return 敌人与敌弹的 `_physics_process`，敌人身上正在跑的 tween（击退、闪白）不受影响
+- 护盾时限是写死的 `SHIELD_SECONDS = 15`，没有「护盾持续时间 +X%」这类被动可以叠；HUD 只显示一位小数的倒计时，没有环形进度条
+- BOSS 只有一个（`boss.tres`），`boss_spawn_time` 过后不会再刷第二只，也没有 5/10/15 分钟的多阶段 BOSS 序列
+- `max_live_enemies = 110` 是全局上限而不是按屏幕/按类型的，所以后期远处的杂兵也会占用配额；`max_burst` 与 `min_interval` 的组合上限（16 只/秒）是手算的，没有自动的 DPS 平衡校验
 
 ## 扩展路线（不属于 MVP）
 

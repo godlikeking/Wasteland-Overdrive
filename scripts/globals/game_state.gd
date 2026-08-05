@@ -23,7 +23,20 @@ signal levelup_anim_done                              # 升级动画结束（预
 
 # --- Pickup-item state (Iter8) ---
 signal shield_changed(charges: int)
+signal shield_time_changed(remaining: float)
 signal time_stop_changed(remaining: float)
+
+# --- Boss ---
+## The boss just entered the world. Carries the node because the HUD bar and the
+## off-screen marker both need to follow that specific enemy, and there is no
+## other way to tell it apart from the elites sharing its scene and script.
+signal boss_spawned(boss: Node2D)
+## Boss hp fraction (0..1) and phase (1..3). Emitted on damage and on phase
+## change, i.e. exactly when a health bar should move.
+signal boss_state_changed(hp_frac: float, phase: int)
+signal boss_defeated
+## Seconds before the boss arrives. 0 means "it is here / not coming".
+signal boss_incoming(seconds: float)
 
 # --- Run state ---
 var time_alive: float = 0.0
@@ -66,6 +79,10 @@ var _combo_accum: float = 0.0        # 自上次击杀以来经过的秒数
 # --- Pickup items (Iter8) ---
 ## Remaining hits the shield will absorb. Each hit consumes one charge.
 var shield_charges: int = 0
+## Seconds before the remaining charges expire. The shield is a window to fight
+## in, not a bank: charges left when this hits 0 are lost. Ticked next to
+## `time_stop_left` below so both timed pickups expire on the same rules.
+var shield_left: float = 0.0
 ## Seconds of "enemies frozen" left. Enemies and enemy projectiles check
 ## `is_time_stopped()` and bail out of their physics step; the player is
 ## untouched, which is why this never goes near `Engine.time_scale`
@@ -79,6 +96,15 @@ func _process(delta: float) -> void:
 	if time_stop_left > 0.0:
 		time_stop_left = maxf(0.0, time_stop_left - delta)
 		time_stop_changed.emit(time_stop_left)
+	# Same reasoning for the shield. Expiry drops the unspent charges, so the
+	# count signal has to fire too or the HUD and the ring would keep showing a
+	# shield that no longer absorbs anything.
+	if shield_left > 0.0:
+		shield_left = maxf(0.0, shield_left - delta)
+		shield_time_changed.emit(shield_left)
+		if shield_left <= 0.0 and shield_charges > 0:
+			shield_charges = 0
+			shield_changed.emit(0)
 	if is_running:
 		time_alive += delta
 		time_changed.emit(time_alive)
@@ -100,12 +126,20 @@ func start_time_stop(seconds: float) -> void:
 	time_stop_left = maxf(time_stop_left, seconds)
 	time_stop_changed.emit(time_stop_left)
 
-## Add shield charges. Each one absorbs a full hit, no matter its damage.
-func add_shield(charges: int) -> void:
+## Add shield charges lasting `seconds`. Each charge absorbs a full hit, no
+## matter its damage, and any charge still unspent when the timer runs out is
+## lost. `seconds` is required rather than defaulted: a caller that forgets it
+## would silently mint a permanent shield, which is the bug this replaced.
+func add_shield(charges: int, seconds: float) -> void:
 	if charges <= 0:
 		return
 	shield_charges += charges
+	# Refresh to the longer of the two, matching `start_time_stop`: a second
+	# pickup can never shorten an active shield, and stacking charges can never
+	# stretch the window into an effectively permanent one.
+	shield_left = maxf(shield_left, maxf(0.0, seconds))
 	shield_changed.emit(shield_charges)
+	shield_time_changed.emit(shield_left)
 
 ## Spend one shield charge. Returns true if a hit was absorbed, which is the
 ## caller's cue to skip the health loss.
@@ -113,6 +147,11 @@ func consume_shield() -> bool:
 	if shield_charges <= 0:
 		return false
 	shield_charges -= 1
+	# Spending the last charge ends the effect, so drop the timer with it —
+	# otherwise the HUD would count down a shield that is already gone.
+	if shield_charges == 0:
+		shield_left = 0.0
+		shield_time_changed.emit(0.0)
 	shield_changed.emit(shield_charges)
 	return true
 
@@ -140,9 +179,11 @@ func reset() -> void:
 	crit_rate = 0.05
 	crit_damage_mult = 2.0
 	shield_charges = 0
+	shield_left = 0.0
 	time_stop_left = 0.0
 	taken_upgrades.clear()
 	shield_changed.emit(0)
+	shield_time_changed.emit(0.0)
 	time_stop_changed.emit(0.0)
 	_reset_combo()
 

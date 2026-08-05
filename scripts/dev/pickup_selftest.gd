@@ -4,12 +4,15 @@ extends Node2D
 ## Exits 0 when green, 1 when any check fails.
 ##
 ## Covers all six item kinds, plus the behaviours that are easy to get wrong:
-## the shield running out of charges, time-stop freezing enemies without
-## freezing the player, and the magnet vacuuming the map without vacuuming
-## itself.
+## the shield running out of charges AND out of time, time-stop freezing enemies
+## without freezing the player, and the magnet vacuuming the map without
+## vacuuming itself.
 
 const PICKUP_SCENE: PackedScene = preload("res://scenes/pickup_item.tscn")
 const GEM_SCENE: PackedScene = preload("res://scenes/xp_gem.tscn")
+## Preloaded for its static `expiry_alpha_mult` — the flash is asserted as a pure
+## function because `_draw` output cannot be read back headlessly.
+const SHIELD_RING: GDScript = preload("res://scripts/shield_ring.gd")
 
 var _failures: int = 0
 
@@ -23,6 +26,8 @@ func _ready() -> void:
 	await _test_collect_by_touch()
 	await _test_heal()
 	await _test_shield()
+	await _test_shield_expiry()
+	await _test_shield_ring_flash()
 	await _test_time_stop()
 	await _test_bomb()
 	await _test_weapon()
@@ -103,6 +108,112 @@ func _test_shield() -> void:
 		_fail("shield", "hit past the last charge did no damage")
 	else:
 		_ok("shield", "damage resumes once the charges run out")
+
+func _test_shield_expiry() -> void:
+	# The shield is a window to fight in, not a bank. Four separate rules, each
+	# of which has its own way of silently reverting to "permanent shield".
+	_clear_shield()
+
+	# 1. The pickup must hand over the constant, not some default. A missing
+	#    `seconds` argument used to mint an unlimited shield.
+	_apply(PickupItem.Kind.SHIELD)
+	if absf(GameState.shield_left - PickupItem.SHIELD_SECONDS) > 0.2:
+		_fail("shield_time", "pickup granted %.1fs, expected %.1fs" % [
+			GameState.shield_left, PickupItem.SHIELD_SECONDS])
+	else:
+		_ok("shield_time", "pickup grants a %.0fs window" % PickupItem.SHIELD_SECONDS)
+
+	# 2. Unspent charges are lost when the window closes, and the hit after that
+	#    has to actually land. Both signals must fire, because the HUD and the
+	#    ring would otherwise keep advertising a shield that absorbs nothing.
+	_clear_shield()
+	var charge_sig: Array[int] = []
+	var time_sig: Array[float] = []
+	var on_charges: Callable = func(c: int) -> void: charge_sig.append(c)
+	var on_time: Callable = func(t: float) -> void: time_sig.append(t)
+	GameState.shield_changed.connect(on_charges)
+	GameState.shield_time_changed.connect(on_time)
+	GameState.add_shield(2, 0.3)
+	await _advance(0.6)
+	GameState.shield_changed.disconnect(on_charges)
+	GameState.shield_time_changed.disconnect(on_time)
+	if GameState.shield_charges != 0 or GameState.shield_left > 0.0:
+		_fail("shield_time", "after expiry: charges=%d left=%.2f (wanted 0 / 0)" % [
+			GameState.shield_charges, GameState.shield_left])
+	elif not charge_sig.has(0):
+		_fail("shield_time", "expiry never emitted shield_changed(0): %s" % str(charge_sig))
+	elif not time_sig.has(0.0):
+		_fail("shield_time", "expiry never emitted shield_time_changed(0)")
+	else:
+		_ok("shield_time", "unspent charges are dropped when the window closes, both signals fire")
+	var hp_before: float = player.hp
+	_hit(10.0)
+	if player.hp >= hp_before:
+		_fail("shield_time", "a hit after expiry was still absorbed")
+	else:
+		_ok("shield_time", "damage resumes once the window closes")
+
+	# 3. A second pickup refreshes to the LONGER window and never shortens an
+	#    active one — but stacking charges must not stretch it either.
+	_clear_shield()
+	GameState.add_shield(1, 5.0)
+	GameState.add_shield(1, 0.5)
+	if GameState.shield_charges != 2:
+		_fail("shield_time", "stacking gave %d charges, expected 2" % GameState.shield_charges)
+	elif GameState.shield_left < 4.5:
+		_fail("shield_time", "a shorter pickup cut the window to %.2fs" % GameState.shield_left)
+	else:
+		_ok("shield_time", "charges stack and the window keeps the longer of the two (%.1fs)" % GameState.shield_left)
+	GameState.add_shield(1, 20.0)
+	if GameState.shield_left < 19.5:
+		_fail("shield_time", "a longer pickup did not extend the window (%.2fs)" % GameState.shield_left)
+	else:
+		_ok("shield_time", "a longer pickup extends the window")
+
+	# 4. Spending the last charge ends the effect, so the countdown has to stop
+	#    with it — otherwise the HUD ticks down a shield that is already gone.
+	_clear_shield()
+	GameState.add_shield(2, 10.0)
+	GameState.consume_shield()
+	if GameState.shield_left <= 0.0:
+		_fail("shield_time", "the timer was cleared while a charge remained")
+		return
+	GameState.consume_shield()
+	if GameState.shield_left > 0.0:
+		_fail("shield_time", "the timer kept running after the last charge (%.2fs)" % GameState.shield_left)
+	else:
+		_ok("shield_time", "spending the last charge clears the countdown")
+	_clear_shield()
+
+## The ring's expiry flash. Asserted through the pure function rather than the
+## drawn output: what matters is that it stays lit outside the warning window,
+## dips inside it, and never blinks when no timer is known.
+func _test_shield_ring_flash() -> void:
+	var lead: float = float(SHIELD_RING.get("WARN_LEAD"))
+	if absf(SHIELD_RING.expiry_alpha_mult(lead + 2.0) - 1.0) > 0.001:
+		_fail("shield_ring", "ring dimmed while %.1fs remained (outside the %.1fs window)" % [lead + 2.0, lead])
+	else:
+		_ok("shield_ring", "ring is fully lit outside the %.0fs warning window" % lead)
+	# No timer known (the ring also runs before the first time signal arrives):
+	# it must stay solid instead of blinking for the whole run.
+	if absf(SHIELD_RING.expiry_alpha_mult(0.0) - 1.0) > 0.001:
+		_fail("shield_ring", "ring blinked with no timer known")
+	else:
+		_ok("shield_ring", "no timer known means no blink")
+	# Inside the window it has to actually swing, and stay a legal alpha scale.
+	var lo: float = 2.0
+	var hi: float = 0.0
+	for i in range(200):
+		var t: float = lead * float(i) / 199.0
+		var a: float = SHIELD_RING.expiry_alpha_mult(t)
+		lo = minf(lo, a)
+		hi = maxf(hi, a)
+	if lo < 0.0 or hi > 1.0:
+		_fail("shield_ring", "alpha multiplier left 0..1 (%.2f..%.2f)" % [lo, hi])
+	elif hi - lo < 0.3:
+		_fail("shield_ring", "flash barely moves (%.2f..%.2f) — the warning is invisible" % [lo, hi])
+	else:
+		_ok("shield_ring", "flash swings %.2f..%.2f inside the warning window" % [lo, hi])
 
 func _test_time_stop() -> void:
 	GameState.time_stop_left = 0.0
@@ -379,6 +490,13 @@ func _apply(kind: int) -> void:
 func _hit(amount: float) -> void:
 	player.invulnerable = false
 	player.take_damage(amount)
+
+## Wipe both halves of the shield state. Zeroing only the charges would leave a
+## countdown running into the next test and expire it mid-assertion.
+func _clear_shield() -> void:
+	GameState.shield_charges = 0
+	GameState.shield_left = 0.0
+	player.hp = player.max_hp
 
 func _distance_moved_by(node: Node2D, seconds: float) -> float:
 	var from: Vector2 = node.global_position

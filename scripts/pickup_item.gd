@@ -34,6 +34,10 @@ const BOMB_RADIUS: float = 420.0
 const BOMB_DAMAGE: float = 120.0
 const TIME_STOP_SECONDS: float = 4.0
 const SHIELD_CHARGES: int = 2
+## The shield expires whether or not its charges were spent. Long enough to
+## cover a wave you walked into, short enough that you can't save it for the
+## boss — a shield you can bank forever is just extra permanent health.
+const SHIELD_SECONDS: float = 15.0
 
 const SPRITE_DIR: String = "res://assets/sprites/pickups/"
 const SPRITE_SCALE: float = 2.0
@@ -140,8 +144,8 @@ func _apply_effect(player: Node2D) -> void:
 			GameState.start_time_stop(TIME_STOP_SECONDS)
 			_label("时间暂停 %.0fs" % TIME_STOP_SECONDS, Color(0.6, 0.9, 1.0))
 		Kind.SHIELD:
-			GameState.add_shield(SHIELD_CHARGES)
-			_label("护盾 +%d" % SHIELD_CHARGES, Color(0.5, 1.0, 1.0))
+			GameState.add_shield(SHIELD_CHARGES, SHIELD_SECONDS)
+			_label("护盾 +%d (%ds)" % [SHIELD_CHARGES, int(SHIELD_SECONDS)], Color(0.5, 1.0, 1.0))
 		Kind.MAGNET:
 			_effect_magnet(player)
 

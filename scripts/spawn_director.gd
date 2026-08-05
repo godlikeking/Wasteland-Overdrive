@@ -10,7 +10,11 @@ extends Node2D
 ##   5:00 -> every 30s, an elite spawns in addition to the normal cadenced
 ##
 ## Difficulty: spawn interval shrinks from `base_interval` to `min_interval`
-## over `difficulty_ramp_time`, mirroring the original EnemySpawner.
+## over `difficulty_ramp_time`, mirroring the original EnemySpawner. Two ceilings
+## keep the late game finishable rather than merely survivable: `max_burst` on
+## the per-tick count and `max_live_enemies` on the population. Both were added
+## because the uncapped curve reached ~39 spawns/second by t=300, so nobody ever
+## lived to see the 5-minute boss the code was already spawning correctly.
 
 @export var enemy_scene: PackedScene
 @export var xp_gem_scene: PackedScene
@@ -21,13 +25,24 @@ extends Node2D
 @export var player_path: NodePath
 @export var configs_path: NodePath  # Node that has enemy configs as children
 @export var base_interval: float = 1.2
-@export var min_interval: float = 0.18
+@export var min_interval: float = 0.25
 @export var difficulty_ramp_time: float = 240.0
 @export var spawn_padding: float = 80.0
 @export var burst_growth: float = 0.02
+## Hard ceiling on the per-tick burst. Without it `1 + int(t * burst_growth)`
+## keeps growing forever against a `min_interval` that has already bottomed out:
+## at t=300 that was 7 spawns every 0.18s, ~39 enemies/second, which is why the
+## 5-minute boss was unreachable in practice. See `burst_for`.
+@export var max_burst: int = 4
+## Hard ceiling on enemies alive at once. The burst cap smooths the curve; this
+## is the actual guarantee — it bounds both the difficulty and the frame cost no
+## matter how the other knobs are tuned later.
+@export var max_live_enemies: int = 110
 @export var start_wave_shake: float = 5.0
 @export var elite_interval: float = 30.0
 @export var boss_spawn_time: float = 300.0   # 5 分钟触发 Boss
+## Seconds of warning before the boss lands, so it doesn't appear on top of you.
+@export var boss_warn_lead: float = 6.0
 
 var _spawn_accum: float = 0.0
 var _elite_accum: float = 0.0
@@ -35,6 +50,9 @@ var _player: Node2D
 var _configs_root: Node
 var _configs: Array = []  # Array[EnemyConfig]
 var _boss_spawned: bool = false
+## Whole seconds of boss countdown last broadcast, so `boss_incoming` fires once
+## per second instead of once per frame.
+var _boss_warn_shown: int = -1
 
 func _ready() -> void:
 	if player_path != NodePath():
@@ -98,9 +116,9 @@ func _process(delta: float) -> void:
 	_spawn_accum += delta
 	if _spawn_accum >= interval:
 		_spawn_accum = 0.0
-		var burst: int = 1 + int(t * burst_growth)
-		for i in range(burst):
-			_spawn_one(_pick_archetype(false))
+		if live_enemies() < max_live_enemies:
+			for i in range(burst_for(t)):
+				_spawn_one(_pick_archetype(false))
 
 	# --- Elite cadence ---
 	_elite_accum += delta
@@ -114,11 +132,41 @@ func _process(delta: float) -> void:
 		_spawn_label(player_pos, "ELITE WAVE", Color(1, 0.4, 0.4), 30, 1.4)
 
 	# --- Boss check (5 min, once per run) ---
-	if not _boss_spawned and t >= boss_spawn_time:
-		_boss_spawned = true
-		var boss_cfg: EnemyConfig = _find_config("boss")
-		if boss_cfg:
-			_spawn_boss(boss_cfg)
+	if not _boss_spawned:
+		if t >= boss_spawn_time:
+			_boss_spawned = true
+			GameState.boss_incoming.emit(0.0)
+			var boss_cfg: EnemyConfig = _find_config("boss")
+			if boss_cfg:
+				_spawn_boss(boss_cfg)
+		else:
+			_tick_boss_warning(boss_spawn_time - t)
+
+## Per-tick spawn count at `t` seconds alive, capped by `max_burst`. Pure so the
+## cap can be asserted at times the game would take five minutes to reach.
+func burst_for(t: float) -> int:
+	return clampi(1 + int(t * burst_growth), 1, maxi(1, max_burst))
+
+## Enemies currently alive. Queued-for-deletion ones still answer the group
+## query for a frame, so they are filtered out — otherwise a big clear would
+## keep the ceiling closed long after the corpses stopped mattering.
+func live_enemies() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e != null and not e.is_queued_for_deletion():
+			n += 1
+	return n
+
+## Announce the boss once per remaining second inside the warning window. The
+## HUD banner owns the presentation; this only decides when to speak.
+func _tick_boss_warning(left: float) -> void:
+	if left > boss_warn_lead:
+		return
+	var whole: int = int(ceilf(left))
+	if whole == _boss_warn_shown:
+		return
+	_boss_warn_shown = whole
+	GameState.boss_incoming.emit(left)
 
 func _pick_archetype(force_elite: bool) -> EnemyConfig:
 	if force_elite:
@@ -180,8 +228,10 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	if enemy.has_method("setup_config"):
 		enemy.setup_config(cfg)
 	get_tree().current_scene.add_child(enemy)
-	# Warning + SFX
-	_spawn_label(pos, "⚠ BOSS ⚠", Color(1.0, 0.2, 0.2), 48, 1.6)
+	# Warning + SFX. The HUD banner and the off-screen marker both hang off this
+	# signal, so it has to fire after the node is in the tree.
+	if enemy is Node2D:
+		GameState.boss_spawned.emit(enemy as Node2D)
 	_spawn_label(_player.global_position, "废土巨兽降临！", Color(1.0, 0.4, 0.2), 28, 1.4)
 	GameState.request_camera_shake.emit(10.0, 0.6)
 	GameState.request_hit_stop.emit(0.12)

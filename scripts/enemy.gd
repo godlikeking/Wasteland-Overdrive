@@ -221,6 +221,7 @@ func _behavior_boss(delta: float) -> void:
 		GameState.request_camera_shake.emit(4.0, 0.25)
 		GameState.request_hit_stop.emit(0.05)
 		_announce_phase(prev_phase, _boss_phase)
+		GameState.boss_state_changed.emit(hp_frac, _boss_phase)
 
 	# 速度：P1 1.0×  P2 1.2×  P3 1.4×
 	var speed_mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
@@ -324,6 +325,11 @@ func take_damage(amount: float, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	_flash()
 	# 维护连击（任何玩家命中都算）
 	GameState.register_hit()
+	# The boss health bar is driven off this rather than polled: damage is the
+	# only thing that moves the bar, and it is already a per-hit event.
+	if config != null and config.behavior == EnemyConfig.Behavior.BOSS:
+		GameState.boss_state_changed.emit(
+			clampf(hp / maxf(1.0, config.max_hp), 0.0, 1.0), _boss_phase)
 	if hp <= 0.0:
 		_die()
 
@@ -355,6 +361,9 @@ func _die() -> void:
 		GameState.request_hit_stop.emit(0.18)
 		# 额外震屏
 		GameState.request_camera_shake.emit(6.0, 0.5)
+		# Tears down the HUD bar and the off-screen marker. Emitted before
+		# queue_free so nothing is left holding a freed node.
+		GameState.boss_defeated.emit()
 		if has_node("/root/MetaProgress"):
 			MetaProgress.record_boss_kill()
 	elif was_elite:
