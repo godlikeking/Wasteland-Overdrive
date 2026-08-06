@@ -47,8 +47,15 @@ func _physics_process(delta: float) -> void:
 func _land() -> void:
 	var pool := PoisonPool.new()
 	pool.setup(pool_radius, pool_dps, pool_tick, pool_life)
-	# 挂到当前场景而不是自己名下 —— 自己下一帧就 queue_free 了。
-	get_tree().current_scene.add_child(pool)
+	# 挂到 World 底下而不是场景根：World 先画 TileMap，毒池作为它的子节点
+	# 在 z=0 同层紧随其后，正好压在图上、又压在玩家/敌人（World 的后继兄弟）
+	# 之下。挂场景根会追加到渲染顺序末尾，毒池会盖住角色。找不到 World
+	# （自检之类的裸场景）就退回场景根。
+	var worlds: Array = get_tree().get_nodes_in_group("world")
+	if worlds.is_empty():
+		get_tree().current_scene.add_child(pool)
+	else:
+		worlds[0].add_child(pool)
 	pool.global_position = target
 	SfxPlayer.play("hit")
 	queue_free()

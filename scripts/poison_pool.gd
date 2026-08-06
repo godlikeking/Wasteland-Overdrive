@@ -33,8 +33,10 @@ func setup(p_radius: float, p_dps: float, p_tick: float, p_life: float) -> void:
 
 func _ready() -> void:
 	add_to_group("poison_pools")
-	# 画在地面上、玩家和敌人脚下：毒池是地形不是特效，压在角色上面会挡视线。
-	z_index = -5
+	# 画在 TileMap 之上、玩家和敌人之下：毒池是地面地形，不能挡住角色。
+	# z_index = 0 与 TileMap 同层，靠"World 先画 TileMap 再画毒池"的子节点
+	# 顺序压在图上；以前用 -5，被整片地图盖掉（毒雾落地就看不见）。
+	z_index = 0
 	_wobble = randf() * TAU
 
 func _physics_process(delta: float) -> void:

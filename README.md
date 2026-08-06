@@ -553,7 +553,7 @@ var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
 | `max_hp` | **25000**（原 1000 → 2500 → 5000） | HUD 血条走比例，不用改 UI |
 | `sprite_size` / `sprite.scale` | **448px** / **28.0×**（原 224px / 14.0×） | 源图是 16×16 |
 | `collision_radius` | **224**（原 112） | 跟着体型走，否则打不到的地方看起来能打 |
-| `contact_damage` | 25 | 接触伤害 |
+| `contact_damage` | 40 | 接触伤害（高于精英 22） |
 
 **体型加大带来的副作用必须一起处理**：直径 448px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
 
