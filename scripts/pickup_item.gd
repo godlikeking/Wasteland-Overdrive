@@ -191,13 +191,18 @@ const MAGNET_GROUPS: Array[String] = ["xp_gems", "pickup_items"]
 ## Vacuum every drop on the map toward the player. Gems and items both come in
 ## along their own normal seek path, so each still applies its own effect on
 ## arrival — a magnet lying next to three bombs really is a combo, on purpose.
+##
+## 磁吸道具**不可叠加**：一枚磁石不吸另一枚磁石。磁石效果是瞬时瞬发的，
+## 一旦吸到另一枚磁石，那枚到达时会再跑一遍全场横扫——一枚磁石等于吸两轮，
+## 这就是"叠加"。所以这里跳过整个 MAGNET 种类（不只是跳过自己），杜绝连锁。
 func _effect_magnet(player: Node2D) -> void:
 	var n: int = 0
 	for group in MAGNET_GROUPS:
 		for node in get_tree().get_nodes_in_group(group):
-			# Skip ourselves: we are mid-collect and about to free. Without this
-			# the magnet would count itself and re-enter its own effect.
+			# 两类都跳过：a) 自己（正在收集、即将 free）；b) 任何磁石（不可叠加）。
 			if node == self or node.is_queued_for_deletion():
+				continue
+			if node is PickupItem and (node as PickupItem).kind == Kind.MAGNET:
 				continue
 			if node.has_method("attract_to"):
 				node.attract_to(player)

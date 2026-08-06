@@ -478,7 +478,7 @@ func _test_dash_machine() -> void:
 	# 1) Wind-up: mid range + cooldown ready -> telegraph spawns, direction
 	#    locks, and the boss does NOT move (rooting IS the tell).
 	_ready_player_for_hit()
-	player.global_position = Vector2(300.0, 0.0)
+	player.global_position = Vector2(400.0, 0.0)
 	await _physics_frames(2)
 	boss._dash_accum = cfg.boss_dash_cooldown
 	boss._boss_dash(0.0)
@@ -504,7 +504,7 @@ func _test_dash_machine() -> void:
 	#    the far side MID-dash — if the charge re-aimed per frame it would end
 	#    somewhere else entirely and this assertion would fail.
 	_ready_player_for_hit()
-	player.global_position = Vector2(0.0, 220.0)
+	player.global_position = Vector2(0.0, 400.0)
 	await _physics_frames(2)
 	var before: float = player.hp
 	boss._boss_dash(cfg.boss_dash_windup)        # wind-up elapses -> dash starts
@@ -519,7 +519,7 @@ func _test_dash_machine() -> void:
 		boss._boss_dash(d)
 		t -= d
 		if absf(t - cfg.boss_dash_duration * 0.5) < step * 0.5:
-			player.global_position = Vector2(0.0, -400.0)   # dart across mid-dash
+			player.global_position = Vector2(0.0, -500.0)   # dart across mid-dash
 	var disp: Vector2 = boss.global_position - start
 	var expect: Vector2 = Vector2.RIGHT * (cfg.boss_dash_speed * cfg.boss_dash_duration)
 	if disp.distance_to(expect) > 1.0:
@@ -538,7 +538,7 @@ func _test_dash_machine() -> void:
 	#    in range, then the player steps INTO the line before it elapses.
 	_ready_player_for_hit()
 	boss.global_position = Vector2.ZERO   # #2 left the boss at the end of its dash
-	player.global_position = Vector2(300.0, 0.0)
+	player.global_position = Vector2(400.0, 0.0)
 	await _physics_frames(2)
 	boss._dash_accum = cfg.boss_dash_cooldown
 	boss._dash_wind_left = 0.0
@@ -592,13 +592,13 @@ func _test_dash_machine() -> void:
 	if boss._dash_wind_left > 0.0:
 		_fail("dash", "wound up at %dpx, inside the claw's range" % int(cfg.boss_dash_min_range))
 		return
-	player.global_position = Vector2(600.0, 0.0)
+	player.global_position = Vector2(700.0, 0.0)
 	boss._dash_accum = cfg.boss_dash_cooldown
 	boss._boss_dash(0.0)
 	if boss._dash_wind_left > 0.0:
 		_fail("dash", "wound up at 600px, beyond the max range")
 		return
-	player.global_position = Vector2(300.0, 0.0)
+	player.global_position = Vector2(400.0, 0.0)
 	boss._dash_accum = cfg.boss_dash_cooldown
 	boss._boss_dash(0.0)
 	if boss._dash_wind_left <= 0.0:

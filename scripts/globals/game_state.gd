@@ -37,6 +37,9 @@ signal boss_state_changed(hp_frac: float, phase: int)
 signal boss_defeated
 ## Seconds before the boss arrives. 0 means "it is here / not coming".
 signal boss_incoming(seconds: float)
+## 一局结束（无论胜负）。victory = true 表示杀掉 BOSS 通关，false 表示玩家死亡。
+## Game 收到后走结算界面。
+signal game_over(victory: bool)
 
 # --- Map boundary ---
 ## 玩家在地图外多深（像素）以及此刻的每秒伤害。depth = 0 表示回到图内，

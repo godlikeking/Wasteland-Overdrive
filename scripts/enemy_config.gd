@@ -65,8 +65,10 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 ## 为这种攻击设计的），不走 DoT 通道。
 ## reach/arc 决定楔形判定，windup 是预警时长 —— 朝向在预警开始时就锁死，
 ## 所以横向拉开才是反制手段；把 windup 调到 0 等于取消这个攻击的可躲性。
+## reach 是**中心到中心**的距离：224px 身体（半径 112）+ 玩家半径 14 ≈ 238，
+## 所以 reach 必须明显大于 238，否则爪子永远够不到玩家。
 @export var boss_claw_damage: float = 34.0
-@export var boss_claw_reach: float = 190.0
+@export var boss_claw_reach: float = 320.0
 @export var boss_claw_arc: float = 1.9            # 弧宽（弧度），≈109°
 @export var boss_claw_windup: float = 0.45        # 预警时长，期间巨兽定住脚
 @export var boss_claw_cooldown: float = 2.6
@@ -100,6 +102,6 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var boss_dash_duration: float = 0.32        # 冲刺时长 → 约 304px
 @export var boss_dash_recover: float = 0.35         # 冲完的硬直（惩罚窗口）
 @export var boss_dash_cooldown: float = 5.0
-@export var boss_dash_min_range: float = 220.0      # > 爪击 reach 190，两个技能不重叠
-@export var boss_dash_max_range: float = 480.0      # 更远就正常步行逼近
-@export var boss_dash_hit_radius: float = 135.0     # 112 身体 + 玩家半径 + 余量
+@export var boss_dash_min_range: float = 340.0      # > 爪击 reach 320，两个技能不重叠
+@export var boss_dash_max_range: float = 560.0      # 更远就正常步行逼近
+@export var boss_dash_hit_radius: float = 248.0     # 224 身体 + 玩家半径 + 余量

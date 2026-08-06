@@ -66,7 +66,8 @@
 - [x] **暴击系统**：基础 5% 暴击 + 连击加成（封顶 +30%），2× 伤害，暴击时飘 "暴击！"
 - [x] **击杀爆裂粒子**：增强版 burst_particles（28 粒、彩尘，精英偏紫红）
 - [x] **2 张新增被动升级**：暴击瞄准镜（+5%）、穿甲弹头（+0.5× 倍率）
-- [x] **5 分钟 Boss 战**：废土巨兽（**5000 HP、224px 体型**、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「BOSS 降临与难度天花板」一节）
+- [x] **5 分钟 Boss 战**：废土巨兽（**25000 HP、448px 体型**、3 阶段、召唤小怪 + 弹幕，击杀 +50 废金属 + 紫红大爆裂）；**难度加了两道天花板让它真的能被活着见到**，配顶部血条 + 字号 64 倒计时横幅 + 出画时的屏幕边缘红箭头（见「BOSS 降临与难度天花板」一节）
+- [x] **杀死 BOSS 即通关**：胜利也走结算界面（金色「任务胜利」），结束界面新增**从头开始**按钮（清空废金属/已购模块存档后重开，见「游戏结束与从头开始」一节）
 - [x] **BOSS 远程毒物 + 近战爪击 + 直线冲刺**：抛毒团落地成毒池（持续 DoT），近身则先定住脚画预警扇形、0.45s 后挥爪（朝向在预警开始时就锁死，可以横向闪避）；中距离会蓄力后沿锁定方向直线冲刺（见「BOSS：毒物与爪击」与「BOSS 冲刺」两节）
 - [x] **元进度（MetaProgress）**：永久货币、累计击杀 / Boss / 最佳时间，落盘 `user://meta_progress.json`
 - [x] **5 项开局模块（模块商店）**：磁力 / 钛合金 / 瞄准镜 / 伺服 / 过载，每局开始自动应用
@@ -273,6 +274,25 @@ godot --headless res://scenes/dev/pause_selftest.tscn   # exit 0 = 全绿
 
 自测里的 Esc 用例走的是 `push_input()` 真事件，**不是**直接调 handler——直接调用在出 bug 的旧接线下也会通过，因为那个 bug 的本质是事件根本没送到。（已实测：把面板的 process mode 改回 PAUSABLE，`esc_resumes` 立刻红，`esc_opens` 仍绿，正好对应「能暂停、不能恢复」的现象。）
 
+## 游戏结束与从头开始
+
+一局结束有**两个入口**，都走同一个结算界面（`game_over.gd`）：
+
+| 触发 | 标题 | 结算奖励 |
+|---|---|---|
+| 玩家死亡（`player_died`） | 「任务失败」（红） | `finish_run`：1 秒存活 1 废金属 + 每 10 杀 1 |
+| **杀死 BOSS**（`boss_defeated`） | 「任务胜利」（金） | 同上 + BOSS 击杀 +50 |
+
+结算界面三个按钮：
+
+- **模块商店**：去商店花废金属买永久模块（不结束本局结算，买完回来）
+- **再来一次**：重开一局，**保留**元进度存档（废金属、已购模块、累计统计）
+- **从头开始**：`MetaProgress.wipe()` **清空整个元进度存档**（废金属归零、已购模块全退、累计统计清零、落盘）然后重开一局——真·开新档，不可撤销
+
+> 实现要点：`game_over(victory)` 信号是 `GameState` 上的纯事件，`game.gd._end_run(victory)` 是唯一消费方；BOSS 在 `enemy.gd:_die()` 里同步 emit `boss_defeated`，所以"杀掉 BOSS 立刻结算"不需要轮询。实机验证过：杀 BOSS → 结算界面显示金色「任务胜利」+ 树暂停；点「从头开始」→ 存档文件从 6854 废金属/5 模块被清成全零。
+> 
+> `wipe()` 会真删 `user://meta_progress.json`，所以它**没有**进 headless 自检（自检会毁真实存档），只在实机验证过一次；`game_over` 信号本身在 SystemCheck 注册表里。
+
 ## 精英营地（地图特定区域）
 
 地图生成时会在 `TilemapBuilder` 里额外挖出 `elite_camp_count`（默认 **12**）个营地：半径 3 格的圆盘，铺第 6 种瓦片 `T_CAMP`（暗混凝土 + 锈红警戒条纹）。地图从 64 格加大到 128 格后面积变成 4 倍，营地数量同步从 6 提到 12，否则跑半张图见不到一个。
@@ -317,7 +337,7 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 | 炸弹 `BOMB` | 20 | 半径 **420** 内 **120** 伤害 | `scenes/fx/explosion.tscn`，遍历 `enemies` 组做距离判定 |
 | 时间暂停 `TIME_STOP` | 16 | 敌人冻结 **4s** | `GameState.start_time_stop()` |
 | 武器 `WEAPON` | 36 | 给一把随机武器（可重复） | `WeaponDirector.grant_random_weapon()` |
-| 磁石 `MAGNET` | 14 | **吸取全图掉落物**：经验宝石 + 所有道具 | 遍历 `MAGNET_GROUPS` 逐个调 `attract_to()` |
+| 磁石 `MAGNET` | 14 | **吸取全图掉落物**：经验宝石 + 所有道具（**不可叠加**） | 遍历 `MAGNET_GROUPS` 逐个调 `attract_to()` |
 | **合计** | **132** | | |
 
 权重意图：**武器仍是单项最高的权重**，因为武器只能靠掉落获得，而升一级要凑 3 把同款——掉落量不够，合并系统就等于不存在。但它要是「常态」，捡枪就不再是事件了，所以掉率压到：杂兵 12% × 武器 36/132 ≈ **每杀 31 只掉 1 把武器**，一局下来够凑出几次合并、不至于满槽刷屏。补血仍是单项最高的非武器权重——它是让一局活下去的那个效果。
@@ -326,7 +346,7 @@ godot --headless res://scenes/dev/elite_camp_selftest.tscn   # exit 0 = 全绿
 
 **磁石吸的是「全图」而不是「屏幕内」**：`_effect_magnet()` 遍历 `MAGNET_GROUPS = ["xp_gems", "pickup_items"]`，对每个成员调它自己的 `attract_to(player)`，也就是**走各自原本的归巢路径**（宝石和道具的 `pickup_scene_speed 320` / `seek_accel 900` 完全一致）。所以不是瞬间到手，而是一圈掉落物同时向内收拢；道具到达时照常触发**自己的效果**——磁石旁边躺着三个炸弹是个真连招，这是有意的。
 
-- **必须排除自己**：磁石本身就在 `pickup_items` 组里，`node == self` 要跳过（否则自吸→重复施放）。跳过的是 SELF 而不是 MAGNET 这个种类——一枚磁石吸到另一枚磁石是安全的，那枚到达时再吸一次，不递归。两条都有自检锁着。
+- **磁吸道具不可叠加**：磁石本身就在 `pickup_items` 组里，`node == self` 要跳过（否则自吸→重复施放）。跳过的是**整个 MAGNET 种类**而不是单个自己——一枚磁石**不吸另一枚磁石**。因为磁石效果是"一次全场横扫"：一旦吸到另一枚磁石，那枚到达时会再横扫一次全场，等于一个磁石吸两轮，这就是"叠加"。锁着这条的是自检 `magnet_no_stack`。
 - **顺手修的隐身 bug**：寿命最后 5 秒 `sprite.visible` 会按 `fmod` 闪烁，而开始 seek 后没人把它设回 `true`——闪烁期间被捡走的道具会**隐身飞过来**。以前很难注意到，磁石一次性吸走全图（必然包含将要过期的）之后会很明显，所以 `attract_to()` 里补了 `sprite.visible = true`。
 - **经验宝石没有寿命**（`xp_gem.gd` 无 `_age`），后期地上可能积几十上百颗，一次吸完会在几帧内连续 `add_xp`。实测吸 24 颗直接把等级顶上去并弹出升级面板——`game.gd` 的 `_pending_level_ups` 排队机制正确吃下连续升级，不丢 XP。**磁石很容易连锁升级**，这是它的实际价值所在。
 
@@ -353,7 +373,7 @@ python tools/gen_pickups.py          # 重新生成到 assets/sprites/pickups/ �
 python tools/gen_pickups.py --check  # 只校验现有文件
 ```
 
-自检（6 种效果 / 护盾抵消 2 次后失效 / **护盾 15s 过期清层** / **重复捡取取更长窗口** / **最后一层用完清倒计时** / **临过期闪烁曲线** / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并 / 磁石吸全图 / 磁石不吸自己）：
+自检（6 种效果 / 护盾抵消 2 次后失效 / **护盾 15s 过期清层** / **重复捡取取更长窗口** / **最后一层用完清倒计时** / **临过期闪烁曲线** / 时停期间敌人不动且结束恢复 / 炸弹半径内外 / 满槽拒绝 / 满槽凑合并 / 磁石吸全图 / **磁石不可叠加**）：
 
 ```bash
 godot --headless res://scenes/dev/pickup_selftest.tscn   # exit 0 = 全绿
@@ -516,7 +536,7 @@ var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
 | `boss_state_changed(ratio, phase)` | `enemy.take_damage()` 里 BOSS 分支 | 血条填充 + 阶段文字 |
 | `boss_defeated()` | `enemy._die()` | 收起血条和箭头 |
 
-- **提醒增大**：横幅字号 **64**，降临前 `boss_warn_lead = 6` 秒开始播报，文字带整秒倒计时（`BOSS 即将降临  5`）。BOSS 落点在玩家 **+360px** 方向随机，配上提前量，它不会直接压在脸上出现。
+- **提醒增大**：横幅字号 **64**，降临前 `boss_warn_lead = 6` 秒开始播报，文字带整秒倒计时（`BOSS 即将降临  5`）。BOSS 落点在玩家 **+600px** 方向随机（448px 身体不能落在冲刺触发带里或玩家脸上），配上提前量，它不会直接压在脸上出现。
 - **血条**：屏幕顶部横贯条，`boss_spawned` 时出现，之后**只由 `boss_state_changed` 驱动**——伤害是唯一能让血条动的事件，而它本来就是逐次命中的事件，没必要每帧轮询。`boss_state_changed` 传的是**比例**而不是绝对血量，所以血量从 1000 提到 2500 时 HUD 一行都不用改。
 - **屏幕外红色箭头**（`scripts/ui/boss_marker.gd`）：BOSS 出画时在屏幕边缘画红色三角指向它。世界坐标 → 屏幕坐标走 `get_viewport().get_canvas_transform() * boss.global_position`（HUD 是 CanvasLayer，它的局部坐标就是屏幕坐标）。
   - 边缘定位抽成纯静态函数 `marker_for(screen_pos, rect, margin) -> Dictionary`，用**射线 vs 盒**（把方向向量缩放到先撞上的那条半轴）而不是逐轴 clamp——逐轴 clamp 在斜角方向会把箭头贴错边。自检直接断言几何结果，不看画面。
@@ -530,12 +550,14 @@ var st: SceneState = (load("res://scenes/game.tscn") as PackedScene).get_state()
 
 | 项 | 值 | 说明 |
 |---|---|---|
-| `max_hp` | **5000**（原 1000 → 2500） | HUD 血条走比例，不用改 UI |
-| `sprite_size` / `sprite.scale` | **224px** / **14.0×**（原 112px / 7.0×） | 源图是 16×16 |
-| `collision_radius` | **112**（原 56） | 跟着体型走，否则打不到的地方看起来能打 |
+| `max_hp` | **25000**（原 1000 → 2500 → 5000） | HUD 血条走比例，不用改 UI |
+| `sprite_size` / `sprite.scale` | **448px** / **28.0×**（原 224px / 14.0×） | 源图是 16×16 |
+| `collision_radius` | **224**（原 112） | 跟着体型走，否则打不到的地方看起来能打 |
 | `contact_damage` | 25 | 接触伤害 |
 
-**体型加大带来的副作用必须一起处理**：直径 224px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
+**体型加大带来的副作用必须一起处理**：直径 448px 的身体要在 64px 的障碍格之间穿行，会卡死在废墟后面。所以 BOSS 分支里 `set_collision_mask_value(1, false)`——巨兽踏碎废墟，只保留对玩家层的碰撞。巨兽卡在地形里是硬 bug，而"巨兽不被墙挡"恰好也是它该有的样子。`NavigationAgent2D` 保持不动：它绕的是自己已经能踩过去的障碍，路径次优但不会错，比重写寻路安全。
+
+**体型翻倍后攻击范围必须跟着重标**：玩家最小中心距 = 224(身体) + 14(玩家) ≈ 238，任何小于它的攻击永远打不中。所以爪击 reach 190→**320**、冲刺触发带 220-480→**340-560**、冲刺命中半径 135→**248**——这三处是"巨兽变大"的连带成本，不是可以省的旋钮。
 
 ### 远程毒物
 
@@ -555,7 +577,7 @@ boss_poison_pool_radius 95 boss_poison_pool_life 6  boss_poison_dps 14  boss_poi
 ### 近战爪击
 
 ```
-boss_claw_damage 34  boss_claw_reach 190  boss_claw_arc 1.9 (≈109°)
+boss_claw_damage 34  boss_claw_reach 320  boss_claw_arc 1.9 (≈109°)
 boss_claw_windup 0.45  boss_claw_cooldown 2.6
 ```
 
@@ -582,16 +604,16 @@ static func in_arc(from: Vector2, facing: Vector2, target: Vector2,
 ```
 boss_dash_damage 45  boss_dash_windup 0.5  boss_dash_speed 950
 boss_dash_duration 0.32（≈304px）  boss_dash_recover 0.35  boss_dash_cooldown 5.0
-boss_dash_min_range 220  boss_dash_max_range 480  boss_dash_hit_radius 135
+boss_dash_min_range 340  boss_dash_max_range 560  boss_dash_hit_radius 248
 ```
 
 | 阶段 | 发生的事 |
 |---|---|
 | 距离 ∈ [220, 480] 且冷却好了 | **锁定方向** `_dash_facing`、生成 `DashTelegraph` 预告线、定住脚（步行 70 的 ~13 倍速度，这预告必须看得见） |
-| 蓄力 0.5s 结束 | 沿锁定方向以 950px/s 直线冲 0.32s；玩家进入 `hit_radius`（135 = 112 身体 + 玩家 + 余量）→ 恰好结算一次 `take_damage(45)` |
+| 蓄力 0.5s 结束 | 沿锁定方向以 950px/s 直线冲 0.32s；玩家进入 `hit_radius`（248 = 224 身体 + 玩家 + 余量）→ 恰好结算一次 `take_damage(45)` |
 | 冲完 | 硬直 0.35s（定在原地，这是反打窗口），然后回到普通寻路 |
 
-**这个技能补的是爪击和步行之间的空档**：220 以下归爪击（reach 190），480 以上就正常追，中距离靠冲刺快速拉近——三套攻击各管一段距离，不会互相重叠触发。
+**这个技能补的是爪击和步行之间的空档**：340 以下归爪击（reach 320），560 以上就正常追，中距离靠冲刺快速拉近——三套攻击各管一段距离，不会互相重叠触发。
 
 **方向和爪击一样在起手时锁死**，理由也完全一样：如果冲刺每帧重新对准玩家，这条线就永远追得上人，横向让开就不再是躲避。自检 `dash_machine` 专门在冲刺中途把玩家瞬移到另一侧——如果实现偷偷跟了人，位移断言（必须是锁定的 304px 直线）立刻变红。反证过：把 `_dash_facing` 换成每帧当前方向，它报 `dashed (0.0, -19.0), expected the locked line (304.0, 0.0)`。
 

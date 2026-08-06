@@ -34,10 +34,12 @@ func _ready() -> void:
 
 	GameState.leveled_up.connect(_on_leveled_up)
 	GameState.player_died.connect(_on_player_died)
+	GameState.boss_defeated.connect(_on_boss_defeated)
 	level_up_ui.choice_applied.connect(_on_choice_applied)
 	level_up_ui.fusion_chosen.connect(_on_fusion_chosen)
 	level_up_ui.fusion_skipped.connect(_on_choice_applied)
 	game_over_ui.restart_requested.connect(_on_restart_requested)
+	game_over_ui.fresh_start_requested.connect(_on_fresh_start_requested)
 	game_over_ui.open_shop_requested.connect(_on_open_shop)
 	if shop_ui and shop_ui.has_signal("closed"):
 		shop_ui.closed.connect(_on_shop_closed)
@@ -125,14 +127,31 @@ func _apply_fusion_fx(new_weapon_id: String) -> void:
 	print("[Game] fusion FX applied: %s" % new_weapon_id)
 
 func _on_player_died() -> void:
+	_end_run(false)
+
+## 杀掉 BOSS 也算通关：结算界面走胜利分支（任务胜利）。
+func _on_boss_defeated() -> void:
+	_end_run(true)
+
+## 一局结束的唯一入口，胜负都走这里。终点是结算界面（game_over_ui）。
+func _end_run(victory: bool) -> void:
 	GameState.is_running = false
+	GameState.game_over.emit(victory)
 	# Award meta currency for the run.
 	if MetaProgress:
 		var reward: int = MetaProgress.finish_run(GameState.time_alive)
-		print("[Game] run finished: %d currency awarded" % reward)
-	game_over_ui.show_result()
+		print("[Game] run finished (%s): %d currency awarded" %
+			["victory" if victory else "defeat", reward])
+	game_over_ui.show_result(victory)
 
 func _on_restart_requested() -> void:
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+## 从头开始：清空元进度存档（废金属/累计统计/已购模块），再重开一局。
+func _on_fresh_start_requested() -> void:
+	if MetaProgress:
+		MetaProgress.wipe()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 

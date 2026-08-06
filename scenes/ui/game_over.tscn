@@ -95,3 +95,7 @@ text = "模块商店"
 [node name="RestartButton" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox"]
 layout_mode = 2
 text = "再来一次"
+
+[node name="FreshStartButton" type="Button" parent="CenterContainer/Panel/MarginContainer/VBox"]
+layout_mode = 2
+text = "从头开始"

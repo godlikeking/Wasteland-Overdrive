@@ -50,7 +50,7 @@ extends Node2D
 @export var max_live_enemies: int = 110
 @export var start_wave_shake: float = 5.0
 @export var elite_interval: float = 30.0
-@export var boss_spawn_time: float = 300.0   # 5 分钟触发 Boss
+@export var boss_spawn_time: float = 120.0   # 5 分钟触发 Boss
 ## Seconds of warning before the boss lands, so it doesn't appear on top of you.
 @export var boss_warn_lead: float = 6.0
 
@@ -233,11 +233,13 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	if cfg == null or cfg.scene == null:
 		return
 	var enemy: Node = cfg.scene.instantiate()
-	# Boss appears near player, but in line of sight.
+	# Boss appears near player, but in line of sight. 600px so the 448px body
+	# (radius 224) doesn't land within the dash band (340-560) or on the player's
+	# face — a boss that spawns mid-attack is not a fair entrance.
 	var dir: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
 	if dir.length_squared() < 0.01:
 		dir = Vector2.RIGHT
-	var pos: Vector2 = _player.global_position + dir * 360.0
+	var pos: Vector2 = _player.global_position + dir * 600.0
 	if enemy is Node2D:
 		(enemy as Node2D).global_position = pos
 	if enemy.has_method("setup_config"):

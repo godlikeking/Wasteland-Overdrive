@@ -147,7 +147,7 @@ const REQUIRED_GAME_STATE_SIGNALS := [
 	"combo_changed", "leveled_up",
 	"shield_changed", "shield_time_changed", "time_stop_changed",
 	"boss_spawned", "boss_state_changed", "boss_defeated", "boss_incoming",
-	"out_of_bounds_changed",
+	"out_of_bounds_changed", "game_over",
 ]
 
 var _failures: Array[String] = []

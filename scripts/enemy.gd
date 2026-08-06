@@ -92,9 +92,9 @@ func _apply_visuals() -> void:
 	var path: String = _sprite_path_for(config.id)
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-		# Boss is 14× (224px), elites stay 3× (48px) with a red tint.
+		# Boss is 28× (448px), elites stay 3× (48px) with a red tint.
 		if config.behavior == EnemyConfig.Behavior.BOSS:
-			sprite.scale = Vector2(14.0, 14.0)
+			sprite.scale = Vector2(28.0, 28.0)
 			sprite.modulate = Color(1.2, 0.6, 0.6)
 		elif config.behavior == EnemyConfig.Behavior.ELITE:
 			sprite.scale = Vector2(3.0, 3.0)

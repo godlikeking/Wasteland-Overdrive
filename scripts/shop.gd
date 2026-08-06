@@ -57,7 +57,8 @@ func _build_cards() -> void:
 		card_row.add_child(btn)
 		_cards.append(btn)
 
-func _refresh() -> void:
+## 挂在 MetaProgress.currency_changed（带 1 个参数）上，自己用不到那个参数。
+func _refresh(_amount: int = 0) -> void:
 	if not is_inside_tree():
 		return
 	currency_label.text = "废金属: %d" % MetaProgress.currency

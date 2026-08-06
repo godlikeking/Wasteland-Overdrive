@@ -138,6 +138,23 @@ func finish_run(time_alive: float) -> int:
 	_save()
 	return reward
 
+## 从头开始：清空整个元进度存档（废金属、累计统计、已购模块），然后立即落盘。
+## 这是玩家主动的"开新档"，不可撤销 —— 只在结算界面的"从头开始"按钮触发。
+func wipe() -> void:
+	currency = 0
+	total_kills = 0
+	total_boss_kills = 0
+	best_time = 0.0
+	run_kills = 0
+	run_boss_kills = 0
+	purchased.clear()
+	for s in _shop:
+		purchased_changed.emit(s.id, false)
+	currency_changed.emit(currency)
+	stats_changed.emit()
+	_save()
+	print("[MetaProgress] save wiped — fresh start")
+
 # --- Persistence ---
 
 func _save() -> void:

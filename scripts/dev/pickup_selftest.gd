@@ -32,7 +32,7 @@ func _ready() -> void:
 	await _test_bomb()
 	await _test_weapon()
 	await _test_magnet()
-	await _test_magnet_ignores_itself()
+	await _test_magnet_no_stack()
 	print("=== pickup selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -414,7 +414,7 @@ func _test_magnet() -> void:
 	else:
 		_ok("magnet", "vacuumed items still apply their own effect on arrival")
 
-func _test_magnet_ignores_itself() -> void:
+func _test_magnet_no_stack() -> void:
 	# A magnet is itself in `pickup_items`, so the sweep walks over its own node.
 	# Without the self-skip it would call attract_to on itself while mid-collect
 	# and fly off toward the player as a live pickup. `_seeking` on the magnet is
@@ -424,21 +424,22 @@ func _test_magnet_ignores_itself() -> void:
 	await _advance(0.2)
 	lone._effect_magnet(player)
 	if lone._seeking:
-		_fail("magnet_self", "the magnet attracted itself")
+		_fail("magnet_stack", "the magnet attracted itself")
 	else:
-		_ok("magnet_self", "a lone magnet does not attract itself")
+		_ok("magnet_stack", "a lone magnet does not attract itself")
 
-	# Skipping SELF must not have become skipping the whole MAGNET kind: a second
-	# magnet lying on the ground is a legitimate target.
+	# 磁吸道具不可叠加：跳过的不只是 SELF，而是整个 MAGNET 种类 —— 否则一枚
+	# 磁石吸来另一枚，那枚到达时再横扫一次全场，一个磁石等于吸两轮。第二枚
+	# 磁石必须**不被**吸走。
 	var other: PickupItem = _drop(PickupItem.Kind.MAGNET, player.global_position + Vector2(-900, 0))
 	await _advance(0.2)
 	lone._effect_magnet(player)
-	if not other._seeking:
-		_fail("magnet_self", "a second magnet on the ground was not vacuumed")
+	if other._seeking:
+		_fail("magnet_stack", "a second magnet was vacuumed — magnets chain and stack")
 	elif lone._seeking:
-		_fail("magnet_self", "the magnet attracted itself once another magnet existed")
+		_fail("magnet_stack", "the magnet attracted itself once another magnet existed")
 	else:
-		_ok("magnet_self", "a different magnet is still vacuumed normally")
+		_ok("magnet_stack", "a second magnet is left on the ground (no stacking)")
 	await _clear_drops()
 
 # --- Helpers ---
