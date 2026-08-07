@@ -26,5 +26,6 @@ blade_dash_speed = 520.0
 blade_dash_lifetime = 0.6
 chain_targets = 3
 chain_range = 140.0
+chain_attack_range = 350.0
 chain_cooldown = 1.6
 chain_damage_falloff = 0.8

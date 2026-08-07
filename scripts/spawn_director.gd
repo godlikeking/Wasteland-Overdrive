@@ -50,7 +50,7 @@ extends Node2D
 @export var max_live_enemies: int = 110
 @export var start_wave_shake: float = 5.0
 @export var elite_interval: float = 30.0
-@export var boss_spawn_time: float = 60.0   # 1 分钟触发 Boss
+@export var boss_spawn_time: float = 180.0   # 1 分钟触发 Boss
 ## Seconds of warning before the boss lands, so it doesn't appear on top of you.
 @export var boss_warn_lead: float = 6.0
 

@@ -40,7 +40,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# Time-stop item: bullets already in flight hang in the air. Their lifetime
 	# is frozen too, so the freeze can't be used to make them expire harmlessly.
-	if GameState.is_time_stopped():
+	if GameState.is_time_stopped() or get_tree().paused:
 		return
 	global_position += velocity * delta
 	_age += delta

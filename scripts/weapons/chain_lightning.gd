@@ -1,8 +1,12 @@
 extends BaseWeapon
 class_name ChainLightningWeapon
-## Every `chain_cooldown`, deal damage to the K nearest enemies, then
-## hop to their nearest neighbor up to K-1 times. Each hop uses a
+## Every `chain_cooldown`, deal damage to up to N enemies within
+## `chain_attack_range` (scales with level), then hop to their nearest
+## neighbor within `chain_range` (also scales with level). Each hop uses a
 ## falloff multiplier.
+##
+## 升级提升：伤害（全武器通用曲线 +100%/级）、射速（+50%/级）、
+## 攻击距离（+30/级）、弹射距离（+20/级）。
 
 @onready var timer: Timer = $Timer
 
@@ -32,23 +36,44 @@ func _interval() -> float:
 		return 1.0
 	return scale_cooldown(config.chain_cooldown, 0.1)
 
+## 攻击距离（锁定第一个目标）：随等级 +30/级。
+func _effective_attack_range() -> float:
+	if config == null:
+		return 350.0
+	return config.chain_attack_range + 30.0 * float(level - 1)
+
+## 弹射距离（每跳之间）：随等级 +20/级。
+func _effective_chain_range() -> float:
+	if config == null:
+		return 140.0
+	return config.chain_range + 20.0 * float(level - 1)
+
 func _on_tick() -> void:
 	_fire()
 
 func _fire() -> void:
 	if config == null:
 		return
-	var targets: Array = _find_n_nearest_enemies(config.chain_targets)
-	if targets.is_empty():
+	var atk_range: float = _effective_attack_range()
+	var hop_range: float = _effective_chain_range()
+	var owner_pos: Vector2 = _owner.global_position if is_instance_valid(_owner) else Vector2.ZERO
+
+	# 1) 从攻击范围内取最近的 chain_targets 个敌人。
+	var candidates: Array = _find_n_nearest_enemies(999, atk_range)
+	if candidates.is_empty():
 		return
+	var targets: Array = candidates.slice(0, min(config.chain_targets, candidates.size()))
+
 	var damage: float = get_damage()
-	var last_pos: Vector2 = _owner.global_position if is_instance_valid(_owner) else Vector2.ZERO
-	# Collect world-space path of the chain for the visual line.
+	var last_pos: Vector2 = owner_pos
 	var chain_pts: PackedVector2Array = PackedVector2Array()
 	chain_pts.append(last_pos)
 	for i in range(targets.size()):
-		var t: Node2D = targets[i]
+		var t: Node2D = targets[i] as Node2D
 		if not is_instance_valid(t):
+			continue
+		# 2) 每跳受弹射距离约束：首跳从武器到目标，后续从上一目标到当前目标。
+		if i > 0 and last_pos.distance_to(t.global_position) > hop_range:
 			continue
 		if t.has_method("take_damage"):
 			var mult: float = GameState.roll_crit()
@@ -58,6 +83,8 @@ func _fire() -> void:
 		last_pos = t.global_position
 		chain_pts.append(last_pos)
 		damage *= config.chain_damage_falloff
+	if chain_pts.size() < 2:
+		return
 	SfxPlayer.play("fire")
 	_spawn_chain_line(chain_pts)
 

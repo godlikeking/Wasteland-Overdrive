@@ -108,19 +108,19 @@ const WEAPON_CATALOG := {
 		"config": "res://data/weapons/flamethrower.tres",
 		"scene": "res://scenes/weapons/flamethrower.tscn",
 	},
-	"laser_lance": {
-		"name": "磁轨激光",
-		"weight": 7,
-		"config": "res://data/weapons/laser_lance.tres",
-		"scene": "res://scenes/weapons/laser_lance.tscn",
-	},
-	"mine_layer": {
-		"name": "地雷布设器",
-		"weight": 4,
-		"config": "res://data/weapons/mine_layer.tres",
-		"scene": "res://scenes/weapons/mine_layer.tscn",
-		"mine": "res://scenes/weapons/mine.tscn",
-	},
+"laser_lance": {
+			"name": "磁轨激光",
+			"weight": 4,
+			"config": "res://data/weapons/laser_lance.tres",
+			"scene": "res://scenes/weapons/laser_lance.tscn",
+		},
+		"mine_layer": {
+			"name": "地雷布设器",
+			"weight": 7,
+			"config": "res://data/weapons/mine_layer.tres",
+			"scene": "res://scenes/weapons/mine_layer.tscn",
+			"mine": "res://scenes/weapons/mine.tscn",
+		},
 }
 
 # --- Fusion (Iter7) ---

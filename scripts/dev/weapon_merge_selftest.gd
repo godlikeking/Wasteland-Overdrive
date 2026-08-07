@@ -241,7 +241,7 @@ func _test_drop_levels() -> void:
 	# if someone clears drop_level out of a .tres, the compensation for rarity is
 	# silently gone and the weapon becomes a dead slot.
 	var t: String = "drop_levels"
-	var want: Dictionary = {"shotgun": 1, "laser_lance": 2, "mine_layer": 3}
+	var want: Dictionary = {"shotgun": 1, "laser_lance": 3, "mine_layer": 2}
 	for id in want.keys():
 		await _clear()
 		WeaponDirector.add_weapon_by_id(String(id))
@@ -250,7 +250,7 @@ func _test_drop_levels() -> void:
 		if got != int(want[id]):
 			_fail(t, "%s dropped at Lv%d, want Lv%d" % [id, got, int(want[id])])
 			return
-	_ok(t, "shotgun Lv1 / laser Lv2 / mine Lv3 on drop")
+	_ok(t, "shotgun Lv1 / mine Lv2 / laser Lv3 on drop")
 
 func _test_rare_weapon_still_merges() -> void:
 	# A pre-levelled weapon must still merge normally, or rarity would mean
@@ -322,21 +322,22 @@ func _test_drop_weights() -> void:
 		hits[id] = int(hits.get(id, 0)) + 1
 	var common: int = int(hits.get("bullet_volley", 0))
 	var mid: int = int(hits.get("homing_dart", 0))
-	var rare: int = int(hits.get("mine_layer", 0))
+	# laser_lance is now the rarest (weight 4/110), mine_layer is 7/110.
+	var rare: int = int(hits.get("laser_lance", 0))
 	if not (common > mid and mid > rare):
-		_fail(t, "ordering broken: bullet_volley %d, homing_dart %d, mine_layer %d" % [common, mid, rare])
+		_fail(t, "ordering broken: bullet_volley %d, homing_dart %d, laser_lance %d" % [common, mid, rare])
 		return
-	# mine_layer is 4 of 110 total weight = 3.64%.
+	# laser_lance is 4 of 110 total weight = 3.64%.
 	var pct: float = 100.0 * float(rare) / float(n)
 	if pct < 2.0 or pct > 5.5:
-		_fail(t, "mine_layer drew %.2f%%, want ~3.6%% (2.0-5.5%%)" % pct)
+		_fail(t, "laser_lance drew %.2f%%, want ~3.6%% (2.0-5.5%%)" % pct)
 		return
 	# Every catalog id must be reachable, or a weapon is unobtainable.
 	for id in pool:
 		if int(hits.get(id, 0)) == 0:
 			_fail(t, "%s never drawn in %d samples" % [id, n])
 			return
-	_ok(t, "weights ordered, mine_layer %.2f%% of %d draws, all 8 reachable" % [pct, n])
+	_ok(t, "weights ordered, laser_lance %.2f%% of %d draws, all 8 reachable" % [pct, n])
 
 ## Equip a fusion weapon without running fuse(), so the full-slot setups can
 ## reach 12 distinct ids. Recipes carry a config path but no scene path — the

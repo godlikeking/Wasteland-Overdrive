@@ -105,15 +105,22 @@ func get_aim_direction() -> Vector2:
 		return Vector2.ZERO
 	return (t.global_position - _owner.global_position).normalized()
 
-func _find_n_nearest_enemies(n: int) -> Array:
+## Nearest N enemies, optionally capped to `max_range` px. max_range <= 0
+## means unlimited (existing callers with the old signature are unchanged).
+func _find_n_nearest_enemies(n: int, max_range: float = 0.0) -> Array:
 	if not is_instance_valid(_owner):
 		_owner = get_tree().get_first_node_in_group("player")
 	if _owner == null:
 		return []
+	var limit_sq: float = INF
+	if max_range > 0.0:
+		limit_sq = max_range * max_range
 	var enemies: Array = get_tree().get_nodes_in_group("enemies")
 	var arr: Array = []
 	for e in enemies:
 		if e is Node2D:
+			if limit_sq < INF and (e.global_position - _owner.global_position).length_squared() > limit_sq:
+				continue
 			arr.append(e)
 	arr.sort_custom(func(a, b):
 		var da: float = (a.global_position - _owner.global_position).length_squared()

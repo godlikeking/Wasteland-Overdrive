@@ -1,8 +1,6 @@
-[gd_resource type="Resource" script_class="EnemyConfig" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyConfig" format=3 uid="uid://bxos507r5gjs4"]
 
-[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_ec"]
-
-[ext_resource type="Texture2D" path="res://assets/sprites/enemies/boss.png" id="2_tex"]
+[ext_resource type="Script" uid="uid://c73paqnk6pih7" path="res://scripts/enemy_config.gd" id="1_ec"]
 
 [resource]
 script = ExtResource("1_ec")
@@ -12,11 +10,10 @@ behavior = 4
 sprite_color = Color(0.85, 0.15, 0.15, 1)
 sprite_size = Vector2(448, 448)
 collision_radius = 224.0
-max_hp = 25000.0
+max_hp = 50000.0
 speed = 70.0
 contact_damage = 40.0
 contact_cooldown = 1.0
-xp_value = 1.0
 dash_interval = 0.0
 dash_speed_multiplier = 0.0
 dash_duration = 0.0
@@ -26,37 +23,4 @@ projectile_speed = 0.0
 projectile_damage = 0.0
 elite_shake = 0.0
 elite_xp_multiplier = 0.0
-boss_summon_interval = 4.0
-boss_summon_count = 2
-boss_minion_id = "chaser"
-boss_bullet_count = 3
-boss_bullet_interval = 1.2
-boss_bullet_speed = 200.0
-boss_phase2_hp_frac = 0.6
-boss_phase3_hp_frac = 0.3
-boss_xp_multiplier = 20.0
-boss_shake_on_death = 14.0
-boss_claw_damage = 34.0
-boss_claw_reach = 320.0
-boss_claw_arc = 1.9
-boss_claw_windup = 0.45
-boss_claw_cooldown = 2.6
-boss_poison_interval = 3.0
-boss_poison_count = 3
-boss_poison_flight = 0.55
-boss_poison_pool_radius = 95.0
-boss_poison_pool_life = 6.0
-boss_poison_dps = 14.0
-boss_poison_tick = 0.5
-boss_dash_damage = 45.0
-boss_dash_windup = 0.5
-boss_dash_speed = 950.0
-boss_dash_duration = 0.32
-boss_dash_recover = 0.35
-boss_dash_cooldown = 5.0
-boss_dash_min_range = 340.0
-boss_dash_max_range = 560.0
-boss_dash_hit_radius = 248.0
 item_drop_count = 3
-item_drop_chance = 1.0
-item_drop_scene = null

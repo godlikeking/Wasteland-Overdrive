@@ -43,7 +43,8 @@ class_name WeaponConfig
 @export var blade_dash_lifetime: float = 0.6
 
 @export var chain_targets: int = 3               # chain lightning
-@export var chain_range: float = 140.0
+@export var chain_range: float = 140.0            # 弹射距离（每跳之间）
+@export var chain_attack_range: float = 350.0     # 首次锁定距离（升级可增长）
 @export var chain_cooldown: float = 1.6
 @export var chain_damage_falloff: float = 0.8    # each jump
 
