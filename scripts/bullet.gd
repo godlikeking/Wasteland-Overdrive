@@ -123,6 +123,12 @@ func _on_area_entered(area: Area2D) -> void:
 	_try_hit(area)
 
 func _try_hit(node: Node) -> void:
+	# 撞墙：子弹消失，**不消耗穿透**。第二关房间墙必须挡子弹，否则隔着
+	# 墙打人；第一关的瓦砾/废铁/地坑同样挡。TileMap 作为 body 进来时
+	# 会先于敌人组检查被拦下。
+	if node is TileMap:
+		queue_free()
+		return
 	# Enemy projectiles share the Enemy collision layer, so area_entered fires
 	# for them too. Everything below — the pierce spend included — has to stay
 	# behind this group check, or flying through enemy fire would eat pierces.

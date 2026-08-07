@@ -646,9 +646,9 @@ boss_dash_min_range 340  boss_dash_max_range 560  boss_dash_hit_radius 248
 ```
 depth = 0  → 清警告、_out_time 归零
 depth > 0  → _out_time += delta
-             dps = base 20 * clampf(1 + _out_time / ramp 3.0, 1, ramp_max 4.0)
-             每 tick 0.25s → player.take_dot_damage(dps * tick, 深红)
-             GameState.out_of_bounds_changed.emit(depth, dps)
+			 dps = base 20 * clampf(1 + _out_time / ramp 3.0, 1, ramp_max 4.0)
+			 每 tick 0.25s → player.take_dot_damage(dps * tick, 深红)
+			 GameState.out_of_bounds_changed.emit(depth, dps)
 ```
 
 20/秒起跳、每 3 秒爬一档、封顶 **80/秒**。100 血从跨界到死 **3.5 秒**（`bounds_selftest` 里按离散跳数实测的数字，不是连续积分的估算）——是道真墙，但擦过一个角还来得及跑回来。
@@ -682,6 +682,25 @@ depth > 0  → _out_time += delta
 
 实测（`bounds_selftest`）：玩家贴一条边时 **200/200** 落在图内、**0/200** 落在屏幕内；站在角上时 **90%** 落在图内，剩下的走 fallback。角落做不到 100% 是已知且刻意的——那里两条边完全不可用、另两条只有一部分可用。
 
+## 第二关：机器人工厂
+
+杀掉第一关的废土巨兽后**自动进入第二关**（`game_factory.tscn`）：武器 / 等级 / 被动全保留，只有地图和刷怪节奏重置（`GameState.current_level`，`reset()` 会拨回 1）。
+
+**房间地图**（`map_style = 1`，`factory_world.tres`）：`_paint_rooms()` 把 128×128 地图切成 8×8 网格，每格内缩出一个房间，相邻房间用 2 格宽 L 形走廊连通；墙壁 `T_METAL_WALL`（阻挡 + 不可走），地板 `T_FACTORY_FLOOR`（可走 + 有导航多边形）。出生点周围 5 格强制清空。导航多边形从"障碍格"挪到了"地板格"——之前整个项目的地图导航是反的（导航网格只覆盖了障碍物，敌人实际全走直线追击），第二关的走廊寻路必须要这条修复。
+
+**墙壁挡子弹**：玩家弹和敌弹的 `collision_mask` 都加上了 World 层，撞到 TileMap 直接消失（不消耗穿透）。武器索敌在第二关加 **LOS 射线检测**（`_has_line_of_sight`）：隔着墙的敌人不能被锁定，第一关噪声地形不启用。
+
+**新敌人**（贴图由 `tools/gen_enemies.py` 生成，16×16）：
+
+| id | 行为 | 说明 |
+|---|---|---|
+| `machine_dog` 机器狗 | DASHER（冲刺+跳跃） | 移速 80，跳跃更频繁 |
+| `robot` 机器人 | SHOOTER（远程射击） | 射程 280，伤害 10 |
+| `decay_knight` 腐朽骑士 | ELITE（坚韧追击） | 120 血、接触 28、掉率 50% |
+| `giant_robot` 巨型机器人 | **GOBOT（全新）** | 30000 血：激光（4s 冷却 1s 蓄力 120px 宽光束）、导弹（3s 冷却 5 发齐射）、震地（6s 冷却 AoE 150px），P2 冷却 ×0.8 / P3 ×0.65；**保留 World 碰撞**（走门不穿墙，和废土巨兽相反） |
+
+第二关的生成池是 `machine_dog / robot / decay_knight` 三选一（无杂兵），BOSS 换成巨型机器人。杀巨型机器人 → 结算界面金色「任务胜利」。
+
 ## 全部自检
 
 每个自测都是 headless 场景，全绿 exit 0、有失败则 exit 1，可以直接串进 CI：
@@ -696,6 +715,7 @@ godot --headless res://scenes/dev/fusion_selftest.tscn        # 4 个融合配�
 godot --headless res://scenes/dev/pause_selftest.tscn          # ESC 暂停/恢复 + 暂停面板内容
 godot --headless res://scenes/dev/boss_selftest.tscn           # BOSS 到点刷出 + 难度天花板 + 出厂场景值 + 爪击/毒池/冲刺/DoT 通道
 godot --headless res://scenes/dev/bounds_selftest.tscn         # 地图尺寸 + 拆墙 + 出界爬坡扣血 + 绕过护盾/无敌帧 + 营地/生成点不落虚空
+python tools/gen_enemies.py --check                            # 4 张敌人贴图（机器狗/机器人/骑士/巨型机器人）
 python tools/gen_weapon_mounts.py --check                     # 12 张挂件贴图
 python tools/gen_pickups.py --check                           # 6 张道具贴图
 python tools/gen_bullets.py --check                           # 2 张子弹贴图

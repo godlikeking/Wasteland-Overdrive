@@ -22,6 +22,9 @@ func _ready() -> void:
 
 	GameState.reset()
 	GameState.is_running = true
+	# 第二关由 _advance_to_level 置 queued_level 后换场景而来：新场景的
+	# reset() 会把 current_level 拨回 1，这里从传送带恢复。
+	GameState.current_level = GameState.queued_level
 
 	# Apply permanent meta upgrades (currency-bought) before weapons/player
 	# are wired so they take effect on first stats read.
@@ -129,9 +132,32 @@ func _apply_fusion_fx(new_weapon_id: String) -> void:
 func _on_player_died() -> void:
 	_end_run(false)
 
-## 杀掉 BOSS 也算通关：结算界面走胜利分支（任务胜利）。
+## 杀掉 BOSS：第一关的废土巨兽 → 进入第二关（机器人工厂），第二关的
+## 巨型机器人 → 通关结算。
 func _on_boss_defeated() -> void:
+	if GameState.current_level == 1:
+		_advance_to_level(2)
+		return
 	_end_run(true)
+
+## 关间切换：武器 / 等级 / 被动全保留（都挂在 autoload 或 GameState 上），
+## 只有地图和刷怪节奏重置。
+func _advance_to_level(level: int) -> void:
+	GameState.current_level = level
+	# 传送带：新场景 _ready 里 reset() 会把 current_level 拨回 1，
+	# 必须靠 queued_level 记住目标关卡（见 game.gd 头部）。
+	GameState.queued_level = level
+	GameState.time_alive = 0.0
+	# 清掉上一关的敌人和掉落，避免它们跟着场景切换悬空。
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e):
+			e.queue_free()
+	for g in ["xp_gems", "pickup_items", "poison_pools", "poison_globs"]:
+		for n in get_tree().get_nodes_in_group(g):
+			if is_instance_valid(n):
+				n.queue_free()
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/game_factory.tscn")
 
 ## 一局结束的唯一入口，胜负都走这里。终点是结算界面（game_over_ui）。
 func _end_run(victory: bool) -> void:
@@ -145,6 +171,7 @@ func _end_run(victory: bool) -> void:
 	game_over_ui.show_result(victory)
 
 func _on_restart_requested() -> void:
+	GameState.queued_level = 1
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -152,6 +179,7 @@ func _on_restart_requested() -> void:
 func _on_fresh_start_requested() -> void:
 	if MetaProgress:
 		MetaProgress.wipe()
+	GameState.queued_level = 1
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 

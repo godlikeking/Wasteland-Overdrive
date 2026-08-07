@@ -132,18 +132,25 @@ func _on_time_stop_changed(remaining: float) -> void:
 
 # --- Boss ---------------------------------------------------------------
 
-func _on_boss_spawned(_boss: Node2D) -> void:
+func _on_boss_spawned(boss: Node2D) -> void:
 	boss_bar.visible = true
 	boss_health_bar.value = 1.0
-	boss_name_label.text = "废土巨兽  阶段 1"
-	_flash_banner("废土巨兽降临！", Color(1, 0.25, 0.2), 2.0)
+	var boss_name: String = "废土巨兽"
+	if boss != null and boss.has_method("get_boss_display_name"):
+		boss_name = boss.get_boss_display_name()
+	boss_name_label.text = "%s  阶段 1" % boss_name
+	_flash_banner("%s降临！" % boss_name, Color(1, 0.25, 0.2), 2.0)
 
 func _on_boss_state_changed(hp_frac: float, phase: int) -> void:
 	# Damage arrives before the spawn signal in no scenario, but a boss surviving
 	# a scene reload would leave the bar hidden — cheap to make it self-healing.
 	boss_bar.visible = true
 	boss_health_bar.value = clampf(hp_frac, 0.0, 1.0)
-	boss_name_label.text = "废土巨兽  阶段 %d" % phase
+	# 名字从上次 _on_boss_spawned 留下的标签里取，避免每次掉血都重查节点。
+	if not boss_name_label.text.begins_with("废土巨兽"):
+		boss_name_label.text = "%s  阶段 %d" % [boss_name_label.text.get_slice("  ", 0), phase]
+	else:
+		boss_name_label.text = "废土巨兽  阶段 %d" % phase
 
 func _on_boss_defeated() -> void:
 	boss_bar.visible = false

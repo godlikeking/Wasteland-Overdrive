@@ -50,6 +50,12 @@ signal out_of_bounds_changed(depth: float, dps: float)
 # --- Run state ---
 var time_alive: float = 0.0
 var is_running: bool = false
+## 当前关卡：1 = 废土，2 = 机器人工厂。杀 BOSS 进入下一关，reset() 回到 1。
+var current_level: int = 1
+## 关间切换的传送带：reset() 不清它，因为新场景的 _ready 会先 reset() 再
+## 读 current_level —— 不清的话关卡切换会被新场景的开局重置抹掉。
+## 只有"从头开始/再来一次"显式把它拨回 1。
+var queued_level: int = 1
 
 # --- Progression ---
 var level: int = 1
@@ -172,6 +178,7 @@ func _reset_combo() -> void:
 func reset() -> void:
 	time_alive = 0.0
 	is_running = false
+	current_level = 1
 	level = 1
 	current_xp = 0.0
 	damage_mult = 1.0

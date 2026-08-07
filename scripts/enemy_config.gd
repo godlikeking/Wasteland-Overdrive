@@ -3,7 +3,7 @@ class_name EnemyConfig
 ## Data resource describing one enemy archetype. Create instances under
 ## res://data/enemies/ and pass them to SpawnDirector.
 
-enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
+enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS, GOBOT }
 
 @export var id: String = "chaser"
 @export var display_name: String = "拾荒者"
@@ -118,3 +118,21 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var boss_dash_min_range: float = 340.0      # > 爪击 reach 320，两个技能不重叠
 @export var boss_dash_max_range: float = 560.0      # 更远就正常步行逼近
 @export var boss_dash_hit_radius: float = 248.0     # 224 身体 + 玩家半径 + 余量
+
+## 巨型机器人（GOBOT）：激光、导弹、震地，全部走正常 take_damage。
+## 所有冷却都是基础值，P2 ×0.8、P3 ×0.65（与毒物同一套阶段缩放）。
+@export var gobot_laser_damage: float = 40.0          # 激光单发伤害
+@export var gobot_laser_windup: float = 1.0           # 蓄力时长（定脚+瞄准线）
+@export var gobot_laser_cooldown: float = 4.0         # 激光冷却
+@export var gobot_laser_width: float = 120.0          # 光束宽度
+@export var gobot_laser_length: float = 800.0         # 光束长度
+@export var gobot_missile_damage: float = 18.0        # 单发导弹伤害
+@export var gobot_missile_count: int = 5              # 每次齐射导弹数
+@export var gobot_missile_speed: float = 320.0        # 导弹飞行速度
+@export var gobot_missile_cooldown: float = 3.0       # 导弹发射冷却
+@export var gobot_stomp_damage: float = 60.0          # 震地落地伤害
+@export var gobot_stomp_windup: float = 0.8           # 震地蓄力时长
+@export var gobot_stomp_duration: float = 0.35        # 空中时长
+@export var gobot_stomp_recover: float = 0.5          # 落地硬直
+@export var gobot_stomp_cooldown: float = 6.0         # 震地冷却
+@export var gobot_stomp_radius: float = 150.0         # 震地范围

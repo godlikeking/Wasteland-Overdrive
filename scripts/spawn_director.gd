@@ -39,6 +39,8 @@ extends Node2D
 @export var difficulty_ramp_time: float = 240.0
 @export var spawn_padding: float = 80.0
 @export var burst_growth: float = 0.02
+## 第二关（机器人工厂）模式：敌人池换成机器狗/机器人/腐朽骑士，BOSS 换成巨型机器人。
+@export var factory_mode: bool = false
 ## Hard ceiling on the per-tick burst. Without it `1 + int(t * burst_growth)`
 ## keeps growing forever against a `min_interval` that has already bottomed out:
 ## at t=300 that was 7 spawns every 0.18s, ~39 enemies/second, which is why the
@@ -82,12 +84,16 @@ func _cache_configs() -> void:
 	# Always load from resource paths — keeps the type system happy and
 	# avoids a Node-vs-Resource mismatch on the children of configs_root.
 	for path in [
-		"res://data/enemies/chaser.tres",
-		"res://data/enemies/dasher.tres",
-		"res://data/enemies/shooter.tres",
-		"res://data/enemies/elite_brute.tres",
-		"res://data/enemies/boss.tres",
-	]:
+			"res://data/enemies/chaser.tres",
+			"res://data/enemies/dasher.tres",
+			"res://data/enemies/shooter.tres",
+			"res://data/enemies/elite_brute.tres",
+			"res://data/enemies/boss.tres",
+			"res://data/enemies/machine_dog.tres",
+			"res://data/enemies/robot.tres",
+			"res://data/enemies/decay_knight.tres",
+			"res://data/enemies/giant_robot.tres",
+		]:
 		var res: Resource = ResourceLoader.load(path)
 		if res is EnemyConfig:
 			_configs.append(res as EnemyConfig)
@@ -102,12 +108,13 @@ func _inject_runtime_refs(list: Array) -> void:
 			ec.scene = enemy_scene
 		if ec.xp_gem_scene == null:
 			ec.xp_gem_scene = xp_gem_scene
-		# SHOOTER 和 BOSS 都开枪。BOSS 一度漏在这个条件外面，于是 P2/P3 的
-		# _boss_volley 每次都在 _fire_projectile 的 `projectile_scene == null`
-		# 早退里静默失败 —— 弹幕从来没打出来过，而且没有任何报错。
+		# SHOOTER、BOSS 和 GOBOT 都开枪。BOSS 一度漏在这个条件外面，于是
+		# P2/P3 的 _boss_volley 每次都在 _fire_projectile 的 `projectile_scene
+		# == null` 早退里静默失败 —— 弹幕从来没打出来过，而且没有任何报错。
 		if ec.projectile_scene == null and (
 				ec.behavior == EnemyConfig.Behavior.SHOOTER
-				or ec.behavior == EnemyConfig.Behavior.BOSS):
+				or ec.behavior == EnemyConfig.Behavior.BOSS
+				or ec.behavior == EnemyConfig.Behavior.GOBOT):
 			ec.projectile_scene = enemy_projectile_scene
 		# Only archetypes that actually drop items need the scene, so a missing
 		# export can't silently break trash mobs.
@@ -151,7 +158,7 @@ func _process(delta: float) -> void:
 		if t >= boss_spawn_time:
 			_boss_spawned = true
 			GameState.boss_incoming.emit(0.0)
-			var boss_cfg: EnemyConfig = _find_config("boss")
+			var boss_cfg: EnemyConfig = _find_config("giant_robot" if factory_mode else "boss")
 			if boss_cfg:
 				_spawn_boss(boss_cfg)
 		else:
@@ -184,6 +191,26 @@ func _tick_boss_warning(left: float) -> void:
 	GameState.boss_incoming.emit(left)
 
 func _pick_archetype(force_elite: bool) -> EnemyConfig:
+	# 第二关（机器人工厂）：机器狗 / 机器人 / 腐朽骑士，无杂兵。
+	if factory_mode:
+		if force_elite:
+			return _find_config("decay_knight")
+		var t: float = GameState.time_alive
+		var roll: float = randf()
+		if t < 60.0:
+			return _find_config("machine_dog")
+		if t < 120.0:
+			# 机器狗 60% / 机器人 40%
+			return _find_config("robot") if roll < 0.4 else _find_config("machine_dog")
+		if t < 210.0:
+			# 机器狗 40% / 机器人 40% / 骑士 20%
+			if roll < 0.4: return _find_config("machine_dog")
+			if roll < 0.8: return _find_config("robot")
+			return _find_config("decay_knight")
+		# t >= 210：机器狗 35% / 机器人 35% / 骑士 30%
+		if roll < 0.35: return _find_config("machine_dog")
+		if roll < 0.7: return _find_config("robot")
+		return _find_config("decay_knight")
 	if force_elite:
 		return _find_config("elite_brute")
 	var t: float = GameState.time_alive
@@ -240,6 +267,17 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	if dir.length_squared() < 0.01:
 		dir = Vector2.RIGHT
 	var pos: Vector2 = _player.global_position + dir * 600.0
+	# 工厂有房间墙：BOSS 落进墙里会卡死。试几个方向找一个非阻挡落点；
+	# 都失败就退回玩家附近（房间地图里玩家脚下必然是地板）。
+	var world: Node = _map_world()
+	if world != null:
+		for i in range(8):
+			if not _world_solid(world, pos):
+				break
+			dir = dir.rotated(TAU / 8.0)
+			pos = _player.global_position + dir * 600.0
+		if _world_solid(world, pos):
+			pos = _player.global_position + Vector2(0.0, 240.0)
 	if enemy is Node2D:
 		(enemy as Node2D).global_position = pos
 	if enemy.has_method("setup_config"):
@@ -249,7 +287,8 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	# signal, so it has to fire after the node is in the tree.
 	if enemy is Node2D:
 		GameState.boss_spawned.emit(enemy as Node2D)
-	_spawn_label(_player.global_position, "废土巨兽降临！", Color(1.0, 0.4, 0.2), 28, 1.4)
+	_spawn_label(_player.global_position, "%s降临！" % cfg.display_name,
+		Color(1.0, 0.4, 0.2), 28, 1.4)
 	GameState.request_camera_shake.emit(10.0, 0.6)
 	GameState.request_hit_stop.emit(0.12)
 	SfxPlayer.play("levelup")   # 警报感用琶音
@@ -312,10 +351,17 @@ func _random_offscreen_point() -> Vector2:
 	var world: Node = _map_world()
 	if world != null:
 		for s in sides:
-			var p: Vector2 = _side_point(cam_pos, half, s)
-			if world.out_of_bounds_depth(p) <= 0.0:
-				return p
+			# 每条边多试几次：工厂房间墙密集，一次采样可能正好落在墙上。
+			for attempt in range(6):
+				var p: Vector2 = _side_point(cam_pos, half, s)
+				if world.out_of_bounds_depth(p) <= 0.0 and not _world_solid(world, p):
+					return p
 	return _side_point(cam_pos, half, side)
+
+## 世界坐标下该点是否被墙挡住（工厂房间地图用）。没有 World 或没有
+## is_solid 接口（第一关噪声地图也有这个接口，但墙少）都算"不阻挡"。
+func _world_solid(world: Node, p: Vector2) -> bool:
+	return world.has_method("is_solid") and world.is_solid(p)
 
 ## 地图边界的持有者，没有就返回 null。自检里构造的 SpawnDirector 没有 World，
 ## 必须干净地退化成"不做边界过滤"而不是报错。

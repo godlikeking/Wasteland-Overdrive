@@ -48,6 +48,11 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node) -> void:
+	# 撞墙消失：第二关房间墙挡敌弹（和玩家弹同一套规则），否则敌人隔着
+	# 墙打人。TileMap 的 physics body 会在这里先于玩家检查被拦下。
+	if body is TileMap:
+		queue_free()
+		return
 	if body.is_in_group("player") and body.has_method("take_damage"):
 		body.take_damage(damage)
 		queue_free()

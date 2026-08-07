@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="WastelandConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/wasteland_config.gd" id="1_wcfg"]
+
+[resource]
+script = ExtResource("1_wcfg")
+map_size_tiles = 128
+tile_size = 64
+seed_value = 42
+map_style = 1
+room_grid = 8
+room_min_size = 6
+corridor_width = 2
+rubble_density = 0.0
+scrap_density = 0.0
+pit_density = 0.0
+swamp_density = 0.0
+spawn_clear_radius = 5
+spawn_no_swamp_radius = 8
+swamp_slow_factor = 0.5
+swamp_damage_per_tick = 1.0
+swamp_tick_interval = 0.5
+swamp_cluster_scale = 0.18
+obstacle_cluster_scale = 0.22
+elite_camp_count = 0
+elite_camp_radius_tiles = 3
+elite_camp_min_dist_tiles = 14
+elite_camp_min_gap_tiles = 14

@@ -74,6 +74,7 @@ const REQUIRED_SCRIPTS := [
 const REQUIRED_SCENES := [
 	"res://scenes/main.tscn",
 	"res://scenes/game.tscn",
+	"res://scenes/game_factory.tscn",
 	"res://scenes/player.tscn",
 	"res://scenes/enemy.tscn",
 	"res://scenes/enemy_projectile.tscn",
@@ -112,6 +113,10 @@ const REQUIRED_RESOURCES := [
 	"res://data/enemies/shooter.tres",
 	"res://data/enemies/elite_brute.tres",
 	"res://data/enemies/boss.tres",
+	"res://data/enemies/machine_dog.tres",
+	"res://data/enemies/robot.tres",
+	"res://data/enemies/decay_knight.tres",
+	"res://data/enemies/giant_robot.tres",
 	"res://data/weapons/bullet_volley.tres",
 	"res://data/weapons/orbiting_blades.tres",
 	"res://data/weapons/chain_lightning.tres",

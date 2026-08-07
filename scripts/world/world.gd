@@ -58,3 +58,10 @@ func out_of_bounds_depth(world_pos: Vector2) -> float:
 	if builder == null:
 		return 0.0
 	return builder.out_of_bounds_depth(world_pos)
+
+## True when the tile under `world_pos` blocks movement (has a collision polygon).
+## Used by the spawn director so enemies never spawn inside a factory wall.
+func is_solid(world_pos: Vector2) -> bool:
+	if builder == null:
+		return false
+	return builder.is_solid(world_pos)

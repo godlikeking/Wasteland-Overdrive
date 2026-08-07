@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = "robot"
+display_name = "机器人"
+behavior = 1
+scene = null
+sprite_color = Color(0.7, 0.8, 1, 1)
+sprite_size = Vector2(16, 16)
+collision_radius = 11.0
+max_hp = 22.0
+speed = 55.0
+contact_damage = 10.0
+contact_cooldown = 0.6
+xp_value = 3.0
+shoot_range = 280.0
+shoot_cooldown = 1.4
+projectile_scene = null
+projectile_speed = 240.0
+projectile_damage = 10.0
+item_drop_count = 1
+item_drop_chance = 0.12
+item_drop_scene = null

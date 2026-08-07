@@ -28,9 +28,11 @@ const T_SCRAP := 2
 const T_PIT := 3
 const T_SWAMP := 4
 const T_CAMP := 5
+const T_METAL_WALL := 6
+const T_FACTORY_FLOOR := 7
 
-# Atlased tileset: 6 columns x 1 row, each 64x64.
-const ATLAS_COLS := 6
+# Atlased tileset: 8 columns x 1 row, each 64x64.
+const ATLAS_COLS := 8
 const ATLAS_W := TS * ATLAS_COLS
 const ATLAS_H := TS
 
@@ -53,7 +55,10 @@ func build(p_tilemap: TileMap, p_config: WastelandConfig) -> void:
 		push_error("[TilemapBuilder] missing tilemap or config")
 		return
 	_build_tileset()
-	_paint_map()
+	if config.map_style == 1:
+		_paint_rooms()
+	else:
+		_paint_map()
 	# Camps come last so they can carve obstacles/swamp out of their arena. There
 	# is no border pass any more (see the class docs), so nothing overwrites them.
 	_place_elite_camps()
@@ -138,13 +143,20 @@ func _build_tileset() -> void:
 	for tid in ATLAS_COLS:
 		var at: Vector2i = Vector2i(tid, 0)
 		atlas.create_tile(at)
-		# Per-tile physics + navigation only for blockers.
-		if tid == T_RUBBLE or tid == T_SCRAP or tid == T_PIT:
-			var td: TileData = atlas.get_tile_data(at, 0)
-			if td:
-				td.set_collision_polygons_count(0, 1)
-				td.set_collision_polygon_points(0, 0, _square_polygon())
-				td.set_navigation_polygon(0, _square_navigation_polygon())
+		var td: TileData = atlas.get_tile_data(at, 0)
+		if td == null:
+			continue
+		# Per-tile physics: blockers (rubble, scrap, pit, metal wall).
+		if tid == T_RUBBLE or tid == T_SCRAP or tid == T_PIT or tid == T_METAL_WALL:
+			td.set_collision_polygons_count(0, 1)
+			td.set_collision_polygon_points(0, 0, _square_polygon())
+		# Per-tile navigation: **walkable** tiles get nav polygons — the
+		# navigation mesh is the FLOOR, not the walls. Godot 4 tile nav
+		# polygons mark where agents may walk; putting them on blockers made
+		# the navmesh cover only obstacle cells (inverted). Walkable tiles:
+		# sand / swamp / camp / factory floor.
+		if tid == T_SAND or tid == T_SWAMP or tid == T_CAMP or tid == T_FACTORY_FLOOR:
+			td.set_navigation_polygon(0, _square_navigation_polygon())
 	tilemap.tile_set = ts
 
 func _make_atlas_image() -> Image:
@@ -162,6 +174,10 @@ func _make_atlas_image() -> Image:
 	_paint_into(img, 4, _gen_swamp)
 	# Column 5: elite camp floor
 	_paint_into(img, 5, _gen_camp)
+	# Column 6: factory metal wall
+	_paint_into(img, 6, _gen_metal_wall)
+	# Column 7: factory floor plate
+	_paint_into(img, 7, _gen_factory_floor)
 	return img
 
 func _paint_into(img: Image, col: int, fn: Callable) -> void:
@@ -286,6 +302,41 @@ func _gen_camp() -> Image:
 		img.set_pixel(TS - 1, i, edge)
 	return img
 
+## 工厂金属墙：深灰钢板 + 铆钉 + 顶边高光。视觉上必须是"墙"。
+func _gen_metal_wall() -> Image:
+	var img: Image = Image.create(TS, TS, false, Image.FORMAT_RGBA8)
+	for y in TS:
+		for x in TS:
+			var n: float = _hash2(x, y, 23)
+			var c: Color = Color(0.24, 0.26, 0.30) * (0.9 + 0.25 * n)
+			c.a = 1.0
+			img.set_pixel(x, y, c)
+	# 顶边高光：让墙读起来是立体的。
+	for i in TS:
+		img.set_pixel(i, 0, Color(0.45, 0.48, 0.52))
+		img.set_pixel(i, 1, Color(0.36, 0.38, 0.42))
+	# 四个铆钉点。
+	for px in [6, TS - 7]:
+		for py in [6, TS - 7]:
+			_draw_blob(img, px, py, 1, Color(0.5, 0.53, 0.58), 0.9)
+	return img
+
+## 工厂地板：亮灰地砖 + 网格缝。视觉上必须是"能走的地"。
+func _gen_factory_floor() -> Image:
+	var img: Image = Image.create(TS, TS, false, Image.FORMAT_RGBA8)
+	for y in TS:
+		for x in TS:
+			var n: float = _hash2(x, y, 29)
+			var c: Color = Color(0.42, 0.45, 0.5) * (0.85 + 0.25 * n)
+			c.a = 1.0
+			img.set_pixel(x, y, c)
+	# 网格缝：每 16px 一条暗缝，读作"地砖"。
+	for i in range(0, TS, 16):
+		for j in TS:
+			img.set_pixel(i, j, Color(0.2, 0.22, 0.26))
+			img.set_pixel(j, i, Color(0.2, 0.22, 0.26))
+	return img
+
 func _draw_blob(img: Image, cx: int, cy: int, r: int, c: Color, alpha: float) -> void:	for y in range(cy - r, cy + r + 1):
 		for x in range(cx - r, cx + r + 1):
 			if x < 0 or y < 0 or x >= TS or y >= TS:
@@ -336,6 +387,109 @@ func _paint_map() -> void:
 			else:
 				# Explicitly paint SAND so it has visual + a tile presence.
 				tilemap.set_cell(0, cell, 0, _atlas(T_SAND))
+
+## 第二关：机器人工厂 —— BSP 房间分割。
+##
+## 把地图切成 room_grid × room_grid 的网格，每个格子递归二分出小房间，
+## 房间之间用走廊相连，走廊宽 corridor_width 格（保证敌人能走）。
+## 墙壁用 T_METAL_WALL（物理阻挡、不可走），地板用 T_FACTORY_FLOOR
+## （可走、有导航多边形）。
+##
+## 关键约束：
+## - 玩家出生点 (0,0) 周围 spawn_clear_radius 格必须清空（不能生在水箱里）
+## - 走廊宽度 >= 2 格：NavigationAgent 的 agent 半径约 12px = 0.19 格，
+##   1 格走廊太窄，拐角会卡住。
+func _paint_rooms() -> void:
+	var size: int = config.map_size_tiles
+	tilemap.position = Vector2.ZERO
+	var half: int = size / 2
+
+	# 先全图铺墙，再挖房间和走廊 —— 墙就是"没被挖掉的地"。
+	for y in range(-half, half):
+		for x in range(-half, half):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_METAL_WALL))
+
+	# 网格分房间：每格内随机内缩出一个房间矩形。
+	var grid: int = maxi(2, config.room_grid)
+	var cell_w: int = size / grid
+	var rooms: Array[Rect2i] = []
+	for gy in range(grid):
+		for gx in range(grid):
+			var x0: int = gx * cell_w - half
+			var y0: int = gy * cell_w - half
+			var inset: int = maxi(1, cell_w / 4)
+			var rx0: int = x0 + inset
+			var ry0: int = y0 + inset
+			var rx1: int = x0 + cell_w - 1 - inset
+			var ry1: int = y0 + cell_w - 1 - inset
+			if rx1 - rx0 < config.room_min_size:
+				rx1 = rx0 + config.room_min_size - 1
+			if ry1 - ry0 < config.room_min_size:
+				ry1 = ry0 + config.room_min_size - 1
+			rooms.append(Rect2i(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1))
+
+	# 房间内挖空成地板。
+	for r in rooms:
+		_paint_rect(r, T_FACTORY_FLOOR)
+
+	# 走廊：每对相邻房间中心连一条 L 形走廊（先横后竖），宽 corridor_width。
+	var cw: int = maxi(1, config.corridor_width)
+	for gy in range(grid):
+		for gx in range(grid):
+			var idx: int = gy * grid + gx
+			var room: Rect2i = rooms[idx]
+			var cx: int = room.get_center().x
+			var cy: int = room.get_center().y
+			# 连右侧邻居
+			if gx + 1 < grid:
+				var other: Rect2i = rooms[gy * grid + gx + 1]
+				var ox: int = other.get_center().x
+				var oy: int = other.get_center().y
+				_carve_corridor(cx, cy, ox, oy, cw)
+			# 连下方邻居
+			if gy + 1 < grid:
+				var other: Rect2i = rooms[(gy + 1) * grid + gx]
+				var ox: int = other.get_center().x
+				var oy: int = other.get_center().y
+				_carve_corridor(cx, cy, ox, oy, cw)
+
+	# 出生点安全区：清掉周围 spawn_clear_radius 格的墙。
+	var clear: int = config.spawn_clear_radius
+	for y in range(-clear, clear + 1):
+		for x in range(-clear, clear + 1):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
+
+## 房间内铺满某一种瓦片（不覆盖已存在的非地板格）。
+func _paint_rect(r: Rect2i, tid: int) -> void:
+	for y in range(r.position.y, r.position.y + r.size.y):
+		for x in range(r.position.x, r.position.x + r.size.x):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(tid))
+
+## L 形走廊：先沿 X 走到底再沿 Y 走，宽 cw 格。
+func _carve_corridor(x0: int, y0: int, x1: int, y1: int, cw: int) -> void:
+	var w: int = cw / 2
+	for y in range(y0 - w, y0 + w + 1):
+		for x in range(mini(x0, x1), maxi(x0, x1) + 1):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
+	for x in range(x1 - w, x1 + w + 1):
+		for y in range(mini(y0, y1), maxi(y0, y1) + 1):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
+
+## 世界坐标下该格是否阻挡（供生成点/子弹/寻路查询）。
+func is_solid(world_pos: Vector2) -> bool:
+	if tilemap == null:
+		return false
+	var cell: Vector2i = tilemap.local_to_map(tilemap.to_local(world_pos))
+	var coords: Vector2i = tilemap.get_cell_atlas_coords(0, cell)
+	if coords.x < 0:
+		return false
+	var src: TileSetAtlasSource = tilemap.tile_set.get_source(0) as TileSetAtlasSource
+	if src == null:
+		return false
+	var td: TileData = src.get_tile_data(coords, 0)
+	if td == null:
+		return false
+	return td.get_collision_polygons_count(0) > 0
 
 func _is_swamp_cell(cell: Vector2i, noise_val: float) -> bool:
 	# Spawn safety: never put a swamp underfoot.

@@ -64,6 +64,17 @@ var _dash_facing: Vector2 = Vector2.ZERO
 var _dash_hit_done: bool = false
 var _dash_fx: Node2D = null
 
+# 巨型机器人（GOBOT）状态
+var _gobot_laser_accum: float = 0.0
+var _gobot_laser_wind_left: float = 0.0
+var _gobot_laser_facing: Vector2 = Vector2.ZERO
+var _gobot_missile_accum: float = 0.0
+var _gobot_stomp_accum: float = 0.0
+var _gobot_stomp_wind_left: float = 0.0
+var _gobot_stomp_air_left: float = 0.0
+var _gobot_stomp_recover_left: float = 0.0
+var _gobot_stomp_hit_done: bool = false
+
 func setup_config(p_config: EnemyConfig) -> void:
 	config = p_config
 	if is_node_ready():
@@ -93,7 +104,8 @@ func _apply_visuals() -> void:
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
 		# Boss is 28× (448px), elites stay 3× (48px) with a red tint.
-		if config.behavior == EnemyConfig.Behavior.BOSS:
+		if config.behavior == EnemyConfig.Behavior.BOSS \
+				or config.behavior == EnemyConfig.Behavior.GOBOT:
 			sprite.scale = Vector2(28.0, 28.0)
 			sprite.modulate = Color(1.2, 0.6, 0.6)
 		elif config.behavior == EnemyConfig.Behavior.ELITE:
@@ -130,6 +142,12 @@ func _apply_visuals() -> void:
 		# 路径次优但不会错，比重写一套 BOSS 专用寻路安全。
 		set_collision_mask_value(1, false)
 
+## HUD 的 BOSS 血条用：第一关是废土巨兽，第二关是巨型机器人。
+func get_boss_display_name() -> String:
+	if config != null:
+		return config.display_name
+	return "废土巨兽"
+
 func _sprite_path_for(id: String) -> String:
 	match id:
 		"chaser": return "res://assets/sprites/enemies/chaser.png"
@@ -137,6 +155,10 @@ func _sprite_path_for(id: String) -> String:
 		"shooter": return "res://assets/sprites/enemies/shooter.png"
 		"elite_brute": return "res://assets/sprites/enemies/elite.png"
 		"boss": return "res://assets/sprites/enemies/boss.png"
+		"machine_dog": return "res://assets/sprites/enemies/machine_dog.png"
+		"robot": return "res://assets/sprites/enemies/robot.png"
+		"decay_knight": return "res://assets/sprites/enemies/decay_knight.png"
+		"giant_robot": return "res://assets/sprites/enemies/giant_robot.png"
 	return ""
 
 func _physics_process(delta: float) -> void:
@@ -177,6 +199,8 @@ func _physics_process(delta: float) -> void:
 			_behavior_chaser(delta)  # elites just chase but are tanky
 		EnemyConfig.Behavior.BOSS:
 			_behavior_boss(delta)
+		EnemyConfig.Behavior.GOBOT:
+			_behavior_gobot(delta)
 
 func _behavior_chaser(delta: float) -> void:
 	_maybe_repath(delta)
@@ -395,13 +419,141 @@ func _behavior_boss(delta: float) -> void:
 
 	# 弹幕（P2 / P3）
 	if _boss_phase >= 2:
-		_boss_bullet_accum += delta
-		var bullet_int: float = config.boss_bullet_interval
-		if _boss_phase == 3:
-			bullet_int *= 0.65
-		if _boss_bullet_accum >= bullet_int:
-			_boss_bullet_accum = 0.0
-			_boss_volley()
+			_boss_bullet_accum += delta
+			var bullet_int: float = config.boss_bullet_interval
+			if _boss_phase == 3:
+				bullet_int *= 0.65
+			if _boss_bullet_accum >= bullet_int:
+				_boss_bullet_accum = 0.0
+				_boss_volley()
+
+## 巨型机器人（GOBOT）行为。三套攻击：激光（4s 冷却，1s 蓄力，宽光束）、
+## 导弹（3s 冷却，5 发齐射）、震地（6s 冷却，跃起落地 AoE）。
+## 阶段缩放同废土巨兽：P2 冷却 ×0.8、P3 ×0.65。
+func _behavior_gobot(delta: float) -> void:
+	_maybe_repath(delta)
+	# 阶段
+	var hp_frac: float = clampf(hp / max(1.0, config.max_hp), 0.0, 1.0)
+	var prev_phase: int = _boss_phase
+	if hp_frac <= config.boss_phase3_hp_frac:
+		_boss_phase = 3
+	elif hp_frac <= config.boss_phase2_hp_frac:
+		_boss_phase = 2
+	else:
+		_boss_phase = 1
+	if _boss_phase != prev_phase:
+		GameState.request_camera_shake.emit(4.0, 0.25)
+		GameState.request_hit_stop.emit(0.05)
+		GameState.boss_state_changed.emit(hp_frac, _boss_phase)
+
+	var speed_mult: float = [1.0, 1.0, 1.2, 1.4][_boss_phase]
+	var phase_cd: float = [1.0, 1.0, 0.8, 0.65][_boss_phase]
+
+	# 激光蓄力中：定脚，逼近玩家时锁定方向。
+	if _gobot_laser_wind_left > 0.0:
+		_gobot_laser_wind_left -= delta
+		velocity = Vector2.ZERO
+		if _gobot_laser_wind_left <= 0.0:
+			_gobot_laser_strike()
+	elif _gobot_stomp_wind_left > 0.0:
+		_gobot_stomp_wind_left -= delta
+		velocity = Vector2.ZERO
+		if _gobot_stomp_wind_left <= 0.0:
+			_gobot_stomp_start()
+	elif _gobot_stomp_air_left > 0.0:
+		_gobot_stomp_air_left -= delta
+		velocity = _gobot_laser_facing * maxf(100.0, config.speed * 3.0)
+		move_and_collide(velocity * delta)
+		if _gobot_stomp_air_left <= 0.0:
+			_gobot_stomp_air_left = 0.0
+			_gobot_stomp_land()
+			_gobot_stomp_recover_left = config.gobot_stomp_recover
+			GameState.request_camera_shake.emit(6.0, 0.25)
+	elif _gobot_stomp_recover_left > 0.0:
+		_gobot_stomp_recover_left -= delta
+		velocity = Vector2.ZERO
+	else:
+		var dir: Vector2 = _steer_dir()
+		velocity = dir * _effective_speed() * speed_mult
+		if _player != null and is_instance_valid(_player):
+			var to_player: Vector2 = _player.global_position - global_position
+			# 激光
+			_gobot_laser_accum += delta
+			if _gobot_laser_accum >= config.gobot_laser_cooldown * phase_cd:
+				_gobot_laser_accum = 0.0
+				_gobot_laser_wind_left = config.gobot_laser_windup
+				_gobot_laser_facing = to_player.normalized()
+				GameState.request_camera_shake.emit(1.5, 0.1)
+			# 导弹
+			_gobot_missile_accum += delta
+			if _gobot_missile_accum >= config.gobot_missile_cooldown * phase_cd:
+				_gobot_missile_accum = 0.0
+				_gobot_fire_missiles(to_player.normalized())
+			# 震地（只在不用别的技能时）
+			_gobot_stomp_accum += delta
+			if _gobot_stomp_accum >= config.gobot_stomp_cooldown * phase_cd \
+					and _gobot_stomp_wind_left <= 0.0 and _gobot_stomp_air_left <= 0.0 \
+					and _gobot_stomp_recover_left <= 0.0:
+				_gobot_stomp_accum = 0.0
+				_gobot_stomp_wind_left = config.gobot_stomp_windup
+				_gobot_laser_facing = to_player.normalized()
+				GameState.request_camera_shake.emit(2.0, 0.12)
+	move_and_slide()
+	_apply_contact_damage()
+
+## 激光命中帧。宽光束沿锁定方向，对矩形内的玩家造成伤害。
+func _gobot_laser_strike() -> void:
+	_gobot_laser_wind_left = 0.0
+	if _player == null or not is_instance_valid(_player):
+		return
+	var to_player: Vector2 = _player.global_position - global_position
+	var proj: float = to_player.dot(_gobot_laser_facing)
+	if proj < 0.0 or proj > config.gobot_laser_length:
+		return
+	var perp: float = absf(_gobot_laser_facing.rotated(PI * 0.5).dot(to_player))
+	if perp > config.gobot_laser_width * 0.5:
+		return
+	if _player.has_method("take_damage"):
+		_player.take_damage(config.gobot_laser_damage)
+	GameState.request_camera_shake.emit(5.0, 0.2)
+	SfxPlayer.play("boom")
+
+## 五发导弹齐射，扇形散开。
+func _gobot_fire_missiles(facing: Vector2) -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	var base: float = facing.angle()
+	var spread: float = 0.25
+	for i in range(config.gobot_missile_count):
+		var ang: float = base + lerpf(-spread, spread, float(i) / maxf(1, config.gobot_missile_count - 1))
+		var dir: Vector2 = Vector2(cos(ang), sin(ang))
+		_fire_projectile(dir, config.gobot_missile_speed, config.gobot_missile_damage)
+	SfxPlayer.play("fire")
+
+## 震地跃起。
+func _gobot_stomp_start() -> void:
+	_gobot_stomp_wind_left = 0.0
+	_gobot_stomp_air_left = config.gobot_stomp_duration
+	_gobot_stomp_hit_done = false
+
+## 震地落地 —— 范围 AoE 伤害。
+func _gobot_stomp_land() -> void:
+	_gobot_stomp_air_left = 0.0
+	if _gobot_stomp_hit_done:
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+	if global_position.distance_to(_player.global_position) > config.gobot_stomp_radius:
+		return
+	_gobot_stomp_hit_done = true
+	if _player.has_method("take_damage"):
+		_player.take_damage(config.gobot_stomp_damage)
+	# 落地粒子
+	var fx_scene: PackedScene = load("res://scenes/fx/explosion.tscn") as PackedScene
+	var fx: Node = fx_scene.instantiate()
+	fx.setup(config.gobot_stomp_radius, 0.0, Color(1.0, 0.55, 0.2, 0.7))
+	get_tree().current_scene.add_child(fx)
+	fx.global_position = global_position
 
 ## 爪击状态机。两条分支：举爪中（推进预警、到点结算）和冷却中（够近就起手）。
 func _boss_claw(delta: float) -> void:
@@ -636,7 +788,8 @@ func take_damage(amount: float, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	GameState.register_hit()
 	# The boss health bar is driven off this rather than polled: damage is the
 	# only thing that moves the bar, and it is already a per-hit event.
-	if config != null and config.behavior == EnemyConfig.Behavior.BOSS:
+	if config != null and (config.behavior == EnemyConfig.Behavior.BOSS
+			or config.behavior == EnemyConfig.Behavior.GOBOT):
 		GameState.boss_state_changed.emit(
 			clampf(hp / maxf(1.0, config.max_hp), 0.0, 1.0), _boss_phase)
 	if hp <= 0.0:
@@ -661,7 +814,8 @@ func _flash() -> void:
 
 func _die() -> void:
 	var was_elite: bool = config != null and config.behavior == EnemyConfig.Behavior.ELITE
-	var was_boss: bool = config != null and config.behavior == EnemyConfig.Behavior.BOSS
+	var was_boss: bool = config != null and (config.behavior == EnemyConfig.Behavior.BOSS
+		or config.behavior == EnemyConfig.Behavior.GOBOT)
 	GameState.enemy_died.emit(global_position, _last_hit_dir, was_elite or was_boss)
 	if has_node("/root/MetaProgress"):
 		MetaProgress.record_kill()
@@ -686,7 +840,8 @@ func _die() -> void:
 		var gem_xp: float = config.xp_value
 		if config.behavior == EnemyConfig.Behavior.ELITE:
 			gem_xp *= config.elite_xp_multiplier
-		elif config.behavior == EnemyConfig.Behavior.BOSS:
+		elif config.behavior == EnemyConfig.Behavior.BOSS \
+				or config.behavior == EnemyConfig.Behavior.GOBOT:
 			gem_xp *= config.boss_xp_multiplier
 		if gem.has_method("set_value"):
 			gem.set_value(gem_xp)

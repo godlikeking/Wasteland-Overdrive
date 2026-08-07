@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = "decay_knight"
+display_name = "腐朽骑士"
+behavior = 3
+scene = null
+sprite_color = Color(0.6, 0.3, 0.65, 1)
+sprite_size = Vector2(16, 16)
+collision_radius = 12.0
+max_hp = 120.0
+speed = 45.0
+contact_damage = 28.0
+contact_cooldown = 1.0
+xp_value = 8.0
+elite_shake = 7.0
+elite_xp_multiplier = 4.0
+item_drop_count = 1
+item_drop_chance = 0.5
+item_drop_scene = null

@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="EnemyConfig" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_cfg"]
+[ext_resource type="Texture2D" path="res://assets/sprites/enemies/giant_robot.png" id="2_tex"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = "giant_robot"
+display_name = "巨型机器人"
+behavior = 5
+scene = null
+sprite_color = Color(0.85, 0.15, 0.15, 1)
+sprite_size = Vector2(448, 448)
+collision_radius = 224.0
+max_hp = 30000.0
+speed = 50.0
+contact_damage = 30.0
+contact_cooldown = 1.0
+xp_value = 1.0
+boss_phase2_hp_frac = 0.6
+boss_phase3_hp_frac = 0.3
+boss_xp_multiplier = 25.0
+boss_shake_on_death = 14.0
+gobot_laser_damage = 40.0
+gobot_laser_windup = 1.0
+gobot_laser_cooldown = 4.0
+gobot_laser_width = 120.0
+gobot_laser_length = 800.0
+gobot_missile_damage = 18.0
+gobot_missile_count = 5
+gobot_missile_speed = 320.0
+gobot_missile_cooldown = 3.0
+gobot_stomp_damage = 60.0
+gobot_stomp_windup = 0.8
+gobot_stomp_duration = 0.35
+gobot_stomp_recover = 0.5
+gobot_stomp_cooldown = 6.0
+gobot_stomp_radius = 150.0
+item_drop_count = 3
+item_drop_chance = 1.0
+item_drop_scene = null

@@ -20,7 +20,20 @@ enum TileId {
 	PIT = 3,
 	SWAMP = 4,
 	CAMP = 5,
+	METAL_WALL = 6,
+	FACTORY_FLOOR = 7,
 }
+
+## 地图风格：0 = 废土（噪声地形），1 = 机器人工厂（BSP 房间）。
+@export var map_style: int = 0
+
+# 房间风格参数（map_style = 1 时使用）
+## 房间网格行列数。128 格 / 8 = 每格 16 格。
+@export var room_grid: int = 8
+## 房间最小边长（格）。
+@export var room_min_size: int = 6
+## 走廊宽度（格）。
+@export var corridor_width: int = 2
 
 # Distribution probabilities for a non-sand tile.
 # Sum of these three should be <= 1.0; remaining share defaults to SAND.

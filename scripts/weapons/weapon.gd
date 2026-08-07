@@ -91,10 +91,29 @@ func _find_nearest_enemy(max_range: float = 0.0) -> Node2D:
 		var d: float = (e.global_position - _owner.global_position).length_squared()
 		if d > limit_sq:
 			continue
+		if not _has_line_of_sight(e as Node2D):
+			continue
 		if d < best_d:
 			best_d = d
 			best = e
 	return best
+
+## 武器能否在墙外看见敌人：第二关（工厂房间）里隔着墙的敌人不能被锁定，
+## 否则所有武器都会隔墙射击，房间战就失去了意义。第一关噪声地形不启用
+## （那里本来就该全图自由开火）。
+## 射线走 World 层（1），只挡一次墙。没有世界物理空间（自检场景）时
+## 退化为"看得见"。
+func _has_line_of_sight(target: Node2D) -> bool:
+	if not is_instance_valid(_owner) or GameState.current_level != 2:
+		return true
+	var space: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	if space == null:
+		return true
+	var q := PhysicsRayQueryParameters2D.create(
+		_owner.global_position, target.global_position)
+	q.collision_mask = 1  # World only
+	q.hit_from_inside = false
+	return space.intersect_ray(q).is_empty()
 
 ## Direction this weapon currently aims, used by WeaponMounts to rotate the
 ## icon it draws on the player. Vector2.ZERO means "no target" — the icon then
@@ -120,6 +139,8 @@ func _find_n_nearest_enemies(n: int, max_range: float = 0.0) -> Array:
 	for e in enemies:
 		if e is Node2D:
 			if limit_sq < INF and (e.global_position - _owner.global_position).length_squared() > limit_sq:
+				continue
+			if not _has_line_of_sight(e as Node2D):
 				continue
 			arr.append(e)
 	arr.sort_custom(func(a, b):
