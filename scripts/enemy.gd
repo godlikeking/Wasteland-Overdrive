@@ -319,7 +319,7 @@ func _jump_land() -> void:
 	var fx_scene: PackedScene = load("res://scenes/fx/explosion.tscn") as PackedScene
 	var fx: Node = fx_scene.instantiate()
 	fx.setup(config.jump_impact_radius, 0.0, Color(1.0, 0.55, 0.2, 0.7))
-	get_tree().current_scene.add_child(fx)
+	_add_to_scene(fx)
 	fx.global_position = global_position
 
 func _behavior_shooter(delta: float) -> void:
@@ -552,7 +552,7 @@ func _gobot_stomp_land() -> void:
 	var fx_scene: PackedScene = load("res://scenes/fx/explosion.tscn") as PackedScene
 	var fx: Node = fx_scene.instantiate()
 	fx.setup(config.gobot_stomp_radius, 0.0, Color(1.0, 0.55, 0.2, 0.7))
-	get_tree().current_scene.add_child(fx)
+	_add_to_scene(fx)
 	fx.global_position = global_position
 
 ## 爪击状态机。两条分支：举爪中（推进预警、到点结算）和冷却中（够近就起手）。
@@ -710,7 +710,7 @@ func _boss_spit_poison(n: int) -> void:
 		glob.setup(global_position, target, config.boss_poison_flight,
 			config.boss_poison_pool_radius, config.boss_poison_dps,
 			config.boss_poison_tick, config.boss_poison_pool_life)
-		get_tree().current_scene.add_child(glob)
+		_add_to_scene(glob)
 
 func _announce_phase(prev: int, cur: int) -> void:
 	var list: Array = get_tree().get_nodes_in_group("fx_manager")
@@ -757,7 +757,7 @@ func _fire_projectile(dir: Vector2, speed: float = -1.0, damage: float = -1.0) -
 	if config.projectile_scene == null:
 		return
 	var p: Node = config.projectile_scene.instantiate()
-	get_tree().current_scene.add_child(p)
+	_add_to_scene(p)
 	if p is Node2D:
 		(p as Node2D).global_position = global_position
 	var sp: float = speed if speed > 0.0 else config.projectile_speed
@@ -817,7 +817,7 @@ func _die() -> void:
 	var was_boss: bool = config != null and (config.behavior == EnemyConfig.Behavior.BOSS
 		or config.behavior == EnemyConfig.Behavior.GOBOT)
 	GameState.enemy_died.emit(global_position, _last_hit_dir, was_elite or was_boss)
-	if has_node("/root/MetaProgress"):
+	if is_inside_tree() and has_node("/root/MetaProgress"):
 		MetaProgress.record_kill()
 	if was_boss:
 		GameState.request_camera_shake.emit(config.boss_shake_on_death, 0.8)
@@ -827,7 +827,7 @@ func _die() -> void:
 		# Tears down the HUD bar and the off-screen marker. Emitted before
 		# queue_free so nothing is left holding a freed node.
 		GameState.boss_defeated.emit()
-		if has_node("/root/MetaProgress"):
+		if is_inside_tree() and has_node("/root/MetaProgress"):
 			MetaProgress.record_boss_kill()
 	elif was_elite:
 		GameState.request_camera_shake.emit(config.elite_shake, 0.45)
@@ -845,7 +845,7 @@ func _die() -> void:
 			gem_xp *= config.boss_xp_multiplier
 		if gem.has_method("set_value"):
 			gem.set_value(gem_xp)
-		get_tree().current_scene.add_child(gem)
+		_add_to_scene(gem)
 	_drop_items()
 	queue_free()
 
@@ -869,7 +869,22 @@ func _drop_items() -> void:
 			(item as Node2D).global_position = global_position + Vector2(cos(ang), sin(ang)) * dist
 		if item.has_method("setup"):
 			item.setup(PickupItem.roll_kind())
-		get_tree().current_scene.add_child(item)
+		_add_to_scene(item)
+
+## 把节点挂到当前场景。**必须在关卡切换的瞬间也能安全调用**：杀 BOSS 触发
+## _advance_to_level → change_scene 时，_die() 还在往下走（掉宝石、掉道具、
+## 爆炸粒子），此刻敌人已被移出场景树 —— 对树外节点调 get_tree() 本身就会
+## 报 "Parameter data.tree is null"，所以先查 is_inside_tree() 再碰树。
+## 挂不上去就把节点删掉：关卡正在切，掉的东西本来就活不到下一关。
+func _add_to_scene(node: Node) -> void:
+	if not is_inside_tree():
+		node.queue_free()
+		return
+	var tree: SceneTree = get_tree()
+	if tree == null or tree.current_scene == null:
+		node.queue_free()
+		return
+	tree.current_scene.add_child(node)
 
 # --- Navigation ---
 
