@@ -28,6 +28,19 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS }
 @export var dash_speed_multiplier: float = 3.0
 @export var dash_duration: float = 0.35
 
+## DASHER 跳跃攻击：进入 jump_max_range 后蓄力，然后沿锁定方向直线跃起
+## （像 BOSS 冲刺一样，朝向锁死、落地范围伤害）。走正常 take_damage，
+## 无敌帧和护盾都是为这种攻击设计的。
+@export var jump_damage: float = 20.0          # 落地范围伤害
+@export var jump_windup: float = 0.35           # 蓄力时长（定住脚）
+@export var jump_speed: float = 480.0           # 跃起速度（步行 70 的 ~7 倍）
+@export var jump_duration: float = 0.28         # 空中时长
+@export var jump_recover: float = 0.3           # 落地硬直（惩罚窗口）
+@export var jump_cooldown: float = 3.0
+@export var jump_min_range: float = 60.0        # 太近跳不起来
+@export var jump_max_range: float = 260.0       # 太远直接走/冲
+@export var jump_impact_radius: float = 60.0    # 落地伤害半径
+
 ## SHOOTER: preferred distance to keep from player
 @export var shoot_range: float = 220.0
 @export var shoot_cooldown: float = 1.6

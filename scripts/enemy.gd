@@ -185,7 +185,21 @@ func _behavior_chaser(delta: float) -> void:
 	move_and_slide()
 	_apply_contact_damage()
 
+# 突袭者跳跃状态（和 BOSS 的 _dash_* 字段互不冲突，避开共用）。
+var _jump_accum: float = 0.0
+var _jump_wind_left: float = 0.0
+var _jump_air_left: float = 0.0
+var _jump_recover_left: float = 0.0
+var _jump_facing: Vector2 = Vector2.ZERO
+var _jump_hit_done: bool = false
+var _jump_fx: Node2D = null
+
 func _behavior_dasher(delta: float) -> void:
+	# 跳跃优先：蓄力期和落地硬直都定住脚，和 BOSS 爪击/冲刺同一套否决逻辑。
+	var jumping: bool = _dasher_jump(delta)
+	if jumping:
+		# 跳跃中自己 move_and_collide，跳过接触伤害（单一伤害来源 = jump_damage）。
+		return
 	_dash_timer -= delta
 	if _dashing:
 		_dash_time_left -= delta
@@ -205,8 +219,84 @@ func _behavior_dasher(delta: float) -> void:
 		_maybe_repath(delta)
 		var dir: Vector2 = _steer_dir()
 		velocity = dir * _effective_speed() * 0.35
+		# 静止/减速期也定住脚（蓄力 / 硬直）。
+		if _jump_wind_left > 0.0 or _jump_recover_left > 0.0:
+			velocity = Vector2.ZERO
 		move_and_slide()
 	_apply_contact_damage()
+
+## 突袭者跳跃状态机。和 BOSS 冲刺同一套骨架：蓄力（定脚 + 锁方向）→
+## 空中直线跃起 → 落地 AoE 伤害 → 硬直（惩罚窗口）→ 冷却。
+## 返回 true 表示本帧处于跳跃中（调用方跳过自己的 move_and_slide 和接触伤害）。
+func _dasher_jump(delta: float) -> bool:
+	if _jump_wind_left > 0.0:
+		_jump_wind_left -= delta
+		if _jump_wind_left <= 0.0:
+			_jump_start()
+		return false
+	if _jump_air_left > 0.0:
+		_jump_air_left -= delta
+		velocity = _jump_facing * config.jump_speed
+		move_and_collide(velocity * delta)
+		if _jump_air_left <= 0.0:
+			_jump_air_left = 0.0
+			_jump_land()
+			_jump_recover_left = config.jump_recover
+			GameState.request_camera_shake.emit(3.0, 0.15)
+		return true
+	if _jump_recover_left > 0.0:
+		_jump_recover_left -= delta
+		if _jump_recover_left <= 0.0:
+			_jump_recover_left = 0.0
+		return false
+	# 冷却：够近就起手。
+	_jump_accum += delta
+	if _jump_accum < config.jump_cooldown:
+		return false
+	if _player == null or not is_instance_valid(_player):
+		return false
+	var to_player: Vector2 = _player.global_position - global_position
+	var dist: float = to_player.length()
+	if dist < config.jump_min_range or dist > config.jump_max_range:
+		return false
+	# 起手：锁定方向、生成预告线。
+	_jump_accum = 0.0
+	_jump_wind_left = config.jump_windup
+	_jump_facing = to_player.normalized()
+	_jump_hit_done = false
+	var expect_len: float = config.jump_speed * config.jump_duration
+	_jump_fx = DashTelegraph.new()
+	(_jump_fx as DashTelegraph).setup(_jump_facing, expect_len, config.jump_windup)
+	add_child(_jump_fx)
+	GameState.request_camera_shake.emit(1.0, 0.08)
+	return false
+
+func _jump_start() -> void:
+	_jump_wind_left = 0.0
+	_jump_air_left = config.jump_duration
+	if _jump_fx != null and is_instance_valid(_jump_fx) and _jump_fx.has_method("strike"):
+		_jump_fx.strike()
+	_jump_fx = null
+	SfxPlayer.play("boom")
+
+func _jump_land() -> void:
+	# 落地范围伤害：对跳跃落点半径内的玩家结算一次。
+	if _jump_hit_done:
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+	if global_position.distance_to(_player.global_position) > config.jump_impact_radius:
+		return
+	_jump_hit_done = true
+	if _player.has_method("take_damage"):
+		_player.take_damage(config.jump_damage)
+	# 落地粒子：复用爆炸场景的 `_draw()` 视觉（explosion.tscn 只打敌人组，
+	# 伤害已在上面结算），纯画面。
+	var fx_scene: PackedScene = load("res://scenes/fx/explosion.tscn") as PackedScene
+	var fx: Node = fx_scene.instantiate()
+	fx.setup(config.jump_impact_radius, 0.0, Color(1.0, 0.55, 0.2, 0.7))
+	get_tree().current_scene.add_child(fx)
+	fx.global_position = global_position
 
 func _behavior_shooter(delta: float) -> void:
 	_maybe_repath(delta)

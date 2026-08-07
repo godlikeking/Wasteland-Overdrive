@@ -468,13 +468,18 @@ func _atlas(tid: int) -> Vector2i:
 	return Vector2i(tid, 0)
 
 func _square_polygon() -> PackedVector2Array:
-	# 4-vertex square covering the tile, in tile-local pixels.
-	return PackedVector2Array([Vector2(0, 0), Vector2(TS, 0), Vector2(TS, TS), Vector2(0, TS)])
+	# Godot 4 TileData 碰撞多边形坐标是 tile-local、以格子中心为原点，不是
+	# 左上角。所以 (-TS/2, -TS/2) … (TS/2, TS/2) 才正好盖住整格纹理；
+	# 以前 (0,0) … (TS,TS) 向右下偏移了半格 —— 碰撞体在纹理下面，踩上去才
+	# 被挡住，看起来就是"墙体阻挡效果在图片下面"。
+	var h: float = float(TS) * 0.5
+	return PackedVector2Array([Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)])
 
 func _square_navigation_polygon() -> NavigationPolygon:
+	var h: float = float(TS) * 0.5
 	var np := NavigationPolygon.new()
 	np.add_outline(PackedVector2Array([
-		Vector2(0, 0), Vector2(TS, 0), Vector2(TS, TS), Vector2(0, TS)
+		Vector2(-h, -h), Vector2(h, -h), Vector2(h, h), Vector2(-h, h)
 	]))
 	np.make_polygons_from_outlines()
 	return np
