@@ -241,9 +241,17 @@ func _combo_level() -> int:
 	if combo_count >= 3:  return 1
 	return 0
 
+## 升级所需经验，逐级上升的二次曲线：5, 12, 25, 44, 69, 100, 137, ...
+##
+## 二次项是 3 而不是 1：原曲线（5+3(l-1)+(l-1)^2 → 5,9,15,23,33）相对第二关的
+## 经验收入太平缓 —— 机器狗/机器人每只 3 点、腐朽骑士 32 点，一波下来能连升
+## 好几级，等级差距读不出来。加陡之后累计到 20 级约 7900 点（原来 2717），
+## 中后期升级重新变成一件事。
+##
+## 起点仍是 5：第一级要保持"开局几只小怪就能升"，那是教玩家升级存在的一课。
 func xp_needed_for_level(lvl: int) -> float:
-	# Simple quadratic curve: 5, 12, 21, 32, 45, ...
-	return 5.0 + 3.0 * (lvl - 1) + 1.0 * (lvl - 1) * (lvl - 1)
+	var n: float = float(maxi(1, lvl) - 1)
+	return 5.0 + 4.0 * n + 3.0 * n * n
 
 func add_xp(amount: float) -> void:
 	current_xp += amount * xp_gain_mult
