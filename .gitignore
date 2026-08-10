@@ -42,3 +42,6 @@ Desktop.ini
 # autoload), undo it first:
 #     git update-index --no-skip-worktree project.godot
 addons/
+
+# Windows export output (build artifacts)
+build/

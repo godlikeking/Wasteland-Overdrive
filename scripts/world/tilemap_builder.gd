@@ -302,39 +302,54 @@ func _gen_camp() -> Image:
 		img.set_pixel(TS - 1, i, edge)
 	return img
 
-## 工厂金属墙：深灰钢板 + 铆钉 + 顶边高光。视觉上必须是"墙"。
+## 未来科幻工厂墙：暗色船体钢板 + 面板接缝 + 顶边青色能量条 + 指示灯。
+## 视觉上必须是"墙"——比地板更黑、顶边一条冷光描边读作"高能舱壁"，
+## 和废土的暖锈墙拉开代差。物理阻挡由 _build_tileset 的碰撞多边形负责。
 func _gen_metal_wall() -> Image:
 	var img: Image = Image.create(TS, TS, false, Image.FORMAT_RGBA8)
+	var base := Color(0.09, 0.11, 0.15)
+	var seam := Color(0.17, 0.21, 0.27)
+	var panel := Color(0.13, 0.16, 0.21)
 	for y in TS:
 		for x in TS:
 			var n: float = _hash2(x, y, 23)
-			var c: Color = Color(0.24, 0.26, 0.30) * (0.9 + 0.25 * n)
+			var c: Color = base * (0.88 + 0.34 * n)
+			# 面板接缝：每 16px 一条略亮的横缝，读作装配钢板而非整块墙。
+			if y % 16 == 0:
+				c = c.lerp(seam, 0.55)
+			# 垂直方向每两块一个淡色面板微差，避免整墙平涂。
+			elif ((x / 16) + (y / 16)) % 2 == 0:
+				c = c.lerp(panel, 0.5)
 			c.a = 1.0
 			img.set_pixel(x, y, c)
-	# 顶边高光：让墙读起来是立体的。
+	# 顶边青色能量条：双层渐冷光，读作"通电的舱壁边缘"。
+	var glow := Color(0.18, 0.95, 1.0)
 	for i in TS:
-		img.set_pixel(i, 0, Color(0.45, 0.48, 0.52))
-		img.set_pixel(i, 1, Color(0.36, 0.38, 0.42))
-	# 四个铆钉点。
+		img.set_pixel(i, 0, glow)
+		img.set_pixel(i, 1, glow.lerp(base, 0.5))
+		img.set_pixel(i, 2, glow.lerp(base, 0.78))
+	# 四个角：淡青色指示灯（取代旧铆钉，科技感）。
 	for px in [6, TS - 7]:
 		for py in [6, TS - 7]:
-			_draw_blob(img, px, py, 1, Color(0.5, 0.53, 0.58), 0.9)
+			_draw_blob(img, px, py, 1, Color(0.35, 0.9, 1.0), 0.7)
 	return img
 
-## 工厂地板：亮灰地砖 + 网格缝。视觉上必须是"能走的地"。
+## 未来科幻工厂地板：暗色合金地板 + 青色科技网格 + 面板高光。
+## 视觉上必须是"能走的地"——比废土地板更暗更冷，暖色敌人（红/橙/紫）
+## 站上去对比更跳。导航多边形由 _build_tileset 提供。
 func _gen_factory_floor() -> Image:
 	var img: Image = Image.create(TS, TS, false, Image.FORMAT_RGBA8)
+	var base := Color(0.13, 0.15, 0.18)
+	var grid := Color(0.1, 0.55, 0.6)
 	for y in TS:
 		for x in TS:
 			var n: float = _hash2(x, y, 29)
-			var c: Color = Color(0.42, 0.45, 0.5) * (0.85 + 0.25 * n)
+			var c: Color = base * (0.88 + 0.28 * n)
+			# 青色科技网格：每 16px 一条暗青线，读作能量地砖。
+			if x % 16 == 0 or y % 16 == 0:
+				c = c.lerp(grid, 0.5)
 			c.a = 1.0
 			img.set_pixel(x, y, c)
-	# 网格缝：每 16px 一条暗缝，读作"地砖"。
-	for i in range(0, TS, 16):
-		for j in TS:
-			img.set_pixel(i, j, Color(0.2, 0.22, 0.26))
-			img.set_pixel(j, i, Color(0.2, 0.22, 0.26))
 	return img
 
 func _draw_blob(img: Image, cx: int, cy: int, r: int, c: Color, alpha: float) -> void:	for y in range(cy - r, cy + r + 1):

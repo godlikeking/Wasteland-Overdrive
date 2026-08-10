@@ -25,6 +25,12 @@ func _ready() -> void:
 	# 第二关由 _advance_to_level 置 queued_level 后换场景而来：新场景的
 	# reset() 会把 current_level 拨回 1，这里从传送带恢复。
 	GameState.current_level = GameState.queued_level
+	# 关间切换可能带走一个未结束的 hit-stop：_on_hit_stop 先把
+	# Engine.time_scale 压到 0.05，再 await 一个挂在 FxManager 上的计时器
+	# 恢复——FxManager 随换场景被 free 后那句恢复永不执行，time_scale 就卡在
+	# 0.05，整关慢动作（玩家爬行、敌人像没刷出来）。这里每关开局强制复位，
+	# 顺便也兜住重启/重开时残留的卡住。
+	Engine.time_scale = 1.0
 
 	# Apply permanent meta upgrades (currency-bought) before weapons/player
 	# are wired so they take effect on first stats read.
