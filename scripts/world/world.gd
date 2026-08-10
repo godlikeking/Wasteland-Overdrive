@@ -65,3 +65,27 @@ func is_solid(world_pos: Vector2) -> bool:
 	if builder == null:
 		return false
 	return builder.is_solid(world_pos)
+
+# --- BOSS 竞技场转发（第二关） ---
+
+func has_boss_arena() -> bool:
+	return builder != null and builder.has_boss_arena()
+
+func boss_arena_center() -> Vector2:
+	return builder.boss_arena_center()
+
+func boss_arena_world_rect() -> Rect2:
+	return builder.boss_arena_world_rect()
+
+func boss_arena_contains(pos: Vector2) -> bool:
+	if builder == null:
+		return false
+	return builder.boss_arena_contains_world(pos)
+
+func seal_boss_door() -> void:
+	if builder != null:
+		builder.seal_boss_door()
+
+func open_boss_door() -> void:
+	if builder != null:
+		builder.open_boss_door()

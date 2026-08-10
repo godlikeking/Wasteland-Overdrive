@@ -35,6 +35,12 @@ enum TileId {
 ## 走廊宽度（格）。
 @export var corridor_width: int = 2
 
+# --- BOSS 竞技场（第二关机器人工厂，map_style = 1 时使用）---
+## 竞技场边长（格）。0 = 不生成竞技场（默认关闭，废土地图不受影响）。
+## >0 时在地图右上角挖一座独立的封闭大房间，BOSS 在其中刷新；玩家进入后
+## 门洞封死，直到 BOSS 被打败。
+@export var boss_arena_tiles: int = 0
+
 # Distribution probabilities for a non-sand tile.
 # Sum of these three should be <= 1.0; remaining share defaults to SAND.
 @export_range(0.0, 0.5, 0.005) var rubble_density: float = 0.05

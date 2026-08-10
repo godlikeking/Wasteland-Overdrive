@@ -11,6 +11,7 @@ map_style = 1
 room_grid = 8
 room_min_size = 6
 corridor_width = 2
+boss_arena_tiles = 30
 rubble_density = 0.0
 scrap_density = 0.0
 pit_density = 0.0

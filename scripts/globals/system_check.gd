@@ -69,6 +69,7 @@ const REQUIRED_SCRIPTS := [
 	"res://scripts/world/toxic_swamp.gd",
 	"res://scripts/world/elite_camp_director.gd",
 	"res://scripts/world/out_of_bounds.gd",
+	"res://scripts/world/boss_arena.gd",
 ]
 
 const REQUIRED_SCENES := [

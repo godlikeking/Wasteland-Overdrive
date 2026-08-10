@@ -260,28 +260,40 @@ func _spawn_boss(cfg: EnemyConfig) -> void:
 	if cfg == null or cfg.scene == null:
 		return
 	var enemy: Node = cfg.scene.instantiate()
-	# Boss appears near player, but in line of sight. 600px so the 448px body
-	# (radius 224) doesn't land within the dash band (340-560) or on the player's
-	# face — a boss that spawns mid-attack is not a fair entrance.
-	var dir: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
-	if dir.length_squared() < 0.01:
-		dir = Vector2.RIGHT
-	var pos: Vector2 = _player.global_position + dir * 600.0
-	# 工厂有房间墙：BOSS 落进墙里会卡死。试几个方向找一个非阻挡落点；
-	# 都失败就退回玩家附近（房间地图里玩家脚下必然是地板）。
 	var world: Node = _map_world()
-	if world != null:
-		for i in range(8):
-			if not _world_solid(world, pos):
-				break
-			dir = dir.rotated(TAU / 8.0)
-			pos = _player.global_position + dir * 600.0
-		if _world_solid(world, pos):
-			pos = _player.global_position + Vector2(0.0, 240.0)
+	var arena_rect: Rect2 = Rect2()
+	var pos: Vector2 = _player.global_position
+	# 第二关（工厂）有 BOSS 竞技场：BOSS 刷在竞技场中央，并用 arena_rect 牵制
+	# 在房间内（玩家未进门前不会追出房间）。
+	if factory_mode and world != null and world.has_method("has_boss_arena") \
+			and world.has_boss_arena():
+		pos = world.boss_arena_center()
+		arena_rect = world.boss_arena_world_rect()
+	else:
+		# Boss appears near player, but in line of sight. 600px so the 448px body
+		# (radius 224) doesn't land within the dash band (340-560) or on the player's
+		# face — a boss that spawns mid-attack is not a fair entrance.
+		var dir: Vector2 = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+		if dir.length_squared() < 0.01:
+			dir = Vector2.RIGHT
+		pos = _player.global_position + dir * 600.0
+		# 工厂有房间墙：BOSS 落进墙里会卡死。试几个方向找一个非阻挡落点；
+		# 都失败就退回玩家附近（房间地图里玩家脚下必然是地板）。
+		if world != null:
+			for i in range(8):
+				if not _world_solid(world, pos):
+					break
+				dir = dir.rotated(TAU / 8.0)
+				pos = _player.global_position + dir * 600.0
+			if _world_solid(world, pos):
+				pos = _player.global_position + Vector2(0.0, 240.0)
 	if enemy is Node2D:
 		(enemy as Node2D).global_position = pos
 	if enemy.has_method("setup_config"):
 		enemy.setup_config(cfg)
+	# 竞技场牵制：告诉 BOSS 它的活动范围（仅当有竞技场时）。
+	if arena_rect.size != Vector2.ZERO:
+		enemy.set("arena_rect", arena_rect)
 	get_tree().current_scene.add_child(enemy)
 	# Warning + SFX. The HUD banner and the off-screen marker both hang off this
 	# signal, so it has to fire after the node is in the tree.

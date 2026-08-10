@@ -45,6 +45,9 @@ var config: WastelandConfig
 var tilemap: TileMap
 var swamp_cells: Dictionary = {}     # Vector2i -> true
 var elite_camps: Array[Vector2i] = []  # camp centre cells
+## BOSS 竞技场（第二关）：房间矩形（格）和门洞格子。封门/开门只动门洞。
+var boss_arena_rect: Rect2i = Rect2i()
+var boss_arena_door: Array[Vector2i] = []
 
 # --- Public API ---
 
@@ -478,6 +481,9 @@ func _paint_rooms() -> void:
 		for x in range(-clear, clear + 1):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
 
+	# BOSS 竞技场：独立大房间（右上角），封门/开门由 boss_arena.gd 控制。
+	_carve_boss_arena(half)
+
 ## 房间内铺满某一种瓦片（不覆盖已存在的非地板格）。
 func _paint_rect(r: Rect2i, tid: int) -> void:
 	for y in range(r.position.y, r.position.y + r.size.y):
@@ -494,6 +500,45 @@ func _carve_corridor(x0: int, y0: int, x1: int, y1: int, cw: int) -> void:
 		for y in range(mini(y0, y1), maxi(y0, y1) + 1):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
 
+## 第二关 BOSS 竞技场：右上角一座独立的大房间，四周墙、单门洞、门洞向下
+## 走廊接入房间网络。空间 `boss_arena_tiles` 见方（30 格 = 1920×1920px），
+## 足够 448px 巨型机器人在内周旋。记录 `boss_arena_rect`（格矩形）和
+## `boss_arena_door`（门洞格子），封门/开门只改门洞。
+func _carve_boss_arena(half: int) -> void:
+	boss_arena_rect = Rect2i()
+	boss_arena_door.clear()
+	var n: int = config.boss_arena_tiles
+	if n <= 0:
+		return
+	# 房间矩形：右上角（128 格图占 x 30..59、y -56..-27），与出生点 (0,0) 相隔远。
+	var ax0: int = half - n - 4
+	var ay0: int = -half + 8
+	var arena: Rect2i = Rect2i(ax0, ay0, n, n)
+	_paint_rect(arena, T_FACTORY_FLOOR)
+	# 四周 1 格厚墙，保证完全封闭（墙就是"没被挖掉的地"，这里显式铺墙兜底）。
+	var x0: int = ax0 - 1
+	var x1: int = ax0 + n
+	var y0: int = ay0 - 1
+	var y1: int = ay0 + n
+	for x in range(x0, x1 + 1):
+		tilemap.set_cell(0, Vector2i(x, y0), 0, _atlas(T_METAL_WALL))
+		tilemap.set_cell(0, Vector2i(x, y1), 0, _atlas(T_METAL_WALL))
+	for y in range(y0, y1 + 1):
+		tilemap.set_cell(0, Vector2i(x0, y), 0, _atlas(T_METAL_WALL))
+		tilemap.set_cell(0, Vector2i(x1, y), 0, _atlas(T_METAL_WALL))
+	# 底边开 4 格宽门洞（记录在 boss_arena_door，封门=把门洞设成墙）。
+	var door_x: int = ax0 + n / 2 - 1
+	for i in range(4):
+		var c: Vector2i = Vector2i(door_x + i, y1)
+		tilemap.set_cell(0, c, 0, _atlas(T_FACTORY_FLOOR))
+		boss_arena_door.append(c)
+	# 门洞向下挖连接走廊，接入房间网络：4 格宽、直下到 y=12，必穿过多个房间格，
+	# 保证玩家能到达竞技场。
+	for y in range(y1 + 1, 13):
+		for x in range(door_x, door_x + 4):
+			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
+	boss_arena_rect = arena
+
 ## 世界坐标下该格是否阻挡（供生成点/子弹/寻路查询）。
 func is_solid(world_pos: Vector2) -> bool:
 	if tilemap == null:
@@ -509,6 +554,34 @@ func is_solid(world_pos: Vector2) -> bool:
 	if td == null:
 		return false
 	return td.get_collision_polygons_count(0) > 0
+
+# --- BOSS 竞技场 API ---
+
+func has_boss_arena() -> bool:
+	return boss_arena_rect.size != Vector2i.ZERO
+
+## 竞技场中心（世界坐标），BOSS 落点。
+func boss_arena_center() -> Vector2:
+	return tilemap.to_global(tilemap.map_to_local(boss_arena_rect.get_center()))
+
+## 竞技场矩形（世界坐标像素），用于 BOSS 牵制。
+func boss_arena_world_rect() -> Rect2:
+	var tl: Vector2 = tilemap.to_global(tilemap.map_to_local(boss_arena_rect.position))
+	return Rect2(tl, Vector2(boss_arena_rect.size) * float(TS))
+
+## 世界坐标是否落在竞技场内（封门触发判定用）。
+func boss_arena_contains_world(pos: Vector2) -> bool:
+	return boss_arena_rect.has_point(tilemap.local_to_map(tilemap.to_local(pos)))
+
+## 封门：把门洞格子设成墙（玩家无法进出）。
+func seal_boss_door() -> void:
+	for c in boss_arena_door:
+		tilemap.set_cell(0, c, 0, _atlas(T_METAL_WALL))
+
+## 开门：把门洞格子设回地板。
+func open_boss_door() -> void:
+	for c in boss_arena_door:
+		tilemap.set_cell(0, c, 0, _atlas(T_FACTORY_FLOOR))
 
 func _is_swamp_cell(cell: Vector2i, noise_val: float) -> bool:
 	# Spawn safety: never put a swamp underfoot.

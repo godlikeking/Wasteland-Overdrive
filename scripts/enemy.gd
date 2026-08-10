@@ -74,6 +74,9 @@ var _gobot_stomp_wind_left: float = 0.0
 var _gobot_stomp_air_left: float = 0.0
 var _gobot_stomp_recover_left: float = 0.0
 var _gobot_stomp_hit_done: bool = false
+## BOSS 竞技场（第二关）活动范围，世界坐标。空矩形 = 不牵制。
+## 由 SpawnDirector 在竞技场刷 BOSS 时设置，防止玩家未进门前 BOSS 追出房间。
+var arena_rect: Rect2 = Rect2()
 
 func setup_config(p_config: EnemyConfig) -> void:
 	config = p_config
@@ -505,6 +508,13 @@ func _behavior_gobot(delta: float) -> void:
 				_gobot_stomp_wind_left = config.gobot_stomp_windup
 				_gobot_laser_facing = to_player.normalized()
 				GameState.request_camera_shake.emit(2.0, 0.12)
+	# 竞技场牵制：把 BOSS 位置钳回竞技场内（内缩其碰撞半径），避免玩家未进门前
+	# BOSS 追出房间。arena_rect 空矩形 = 不牵制（第一关废土 BOSS 不受影响）。
+	if arena_rect.size != Vector2.ZERO:
+		var m: float = maxf(200.0, config.collision_radius)
+		var r: Rect2 = arena_rect.grow(-m)
+		global_position.x = clampf(global_position.x, r.position.x, r.position.x + r.size.x)
+		global_position.y = clampf(global_position.y, r.position.y, r.position.y + r.size.y)
 	move_and_slide()
 	_apply_contact_damage()
 
