@@ -242,7 +242,14 @@ func _behavior_dasher(delta: float) -> void:
 	else:
 		_maybe_repath(delta)
 		var dir: Vector2 = _steer_dir()
-		velocity = dir * _effective_speed() * 0.35
+		# 靠近玩家时加速逼近：远距离慢速接近(35%)，进入逼近距离后随距离变近
+		# 线性加速到满速，让"贴近"读作追击而不是原地爬行。
+		var aggro: float = 0.35
+		if _player != null and is_instance_valid(_player):
+			var dist: float = global_position.distance_to(_player.global_position)
+			var ramp: float = clampf(1.0 - dist / maxf(1.0, config.jump_max_range), 0.0, 1.0)
+			aggro = lerpf(0.35, 1.0, ramp)
+		velocity = dir * _effective_speed() * aggro
 		# 静止/减速期也定住脚（蓄力 / 硬直）。
 		if _jump_wind_left > 0.0 or _jump_recover_left > 0.0:
 			velocity = Vector2.ZERO

@@ -10,12 +10,15 @@ var _age: float = 0.0
 var _enemy_bullet: bool = true
 
 const ENEMY_BULLET_SPRITE: String = "res://assets/sprites/bullets/enemy_bullet.png"
+const ENEMY_ORB_SPRITE: String = "res://assets/sprites/bullets/enemy_orb.png"
 const ENEMY_BULLET_SPRITE_SCALE: float = 2.0
 
 func _apply_sprite() -> void:
 	if sprite == null:
 		return
-	var tex: Texture2D = load(ENEMY_BULLET_SPRITE) as Texture2D
+	# 第二关（机器人工厂）：远程子弹换青色电球造型；第一关保持红紫等离子球。
+	var path: String = ENEMY_ORB_SPRITE if GameState.current_level == 2 else ENEMY_BULLET_SPRITE
+	var tex: Texture2D = load(path) as Texture2D
 	if tex:
 		sprite.texture = tex
 		sprite.scale = Vector2(ENEMY_BULLET_SPRITE_SCALE, ENEMY_BULLET_SPRITE_SCALE)

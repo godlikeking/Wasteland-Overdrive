@@ -334,22 +334,26 @@ func _gen_metal_wall() -> Image:
 			_draw_blob(img, px, py, 1, Color(0.35, 0.9, 1.0), 0.7)
 	return img
 
-## 未来科幻工厂地板：暗色合金地板 + 青色科技网格 + 面板高光。
-## 视觉上必须是"能走的地"——比废土地板更暗更冷，暖色敌人（红/橙/紫）
-## 站上去对比更跳。导航多边形由 _build_tileset 提供。
+## 未来科幻工厂地板：水泥金属地板 —— 灰水泥基底 + 预制板接缝 + 金属加强筋条。
+## 视觉上必须是"能走的地"：比墙更亮、偏中性灰，暖色敌人（红/橙/紫）站上去
+## 对比够。导航多边形由 _build_tileset 提供。
 func _gen_factory_floor() -> Image:
 	var img: Image = Image.create(TS, TS, false, Image.FORMAT_RGBA8)
-	var base := Color(0.13, 0.15, 0.18)
-	var grid := Color(0.1, 0.55, 0.6)
+	var base := Color(0.40, 0.42, 0.46)   # 水泥灰
+	var seam := Color(0.26, 0.27, 0.30)   # 面板接缝
 	for y in TS:
 		for x in TS:
 			var n: float = _hash2(x, y, 29)
-			var c: Color = base * (0.88 + 0.28 * n)
-			# 青色科技网格：每 16px 一条暗青线，读作能量地砖。
+			var c: Color = base * (0.9 + 0.22 * n)
+			# 16px 网格接缝，读作预制水泥板。
 			if x % 16 == 0 or y % 16 == 0:
-				c = c.lerp(grid, 0.5)
+				c = c.lerp(seam, 0.55)
 			c.a = 1.0
 			img.set_pixel(x, y, c)
+	# 横向金属加强筋：两条稍亮的钢条，读作预埋的金属增强带。
+	for row in [10, 42]:
+		for i in TS:
+			img.set_pixel(i, row, Color(0.52, 0.56, 0.60).lerp(base, 0.25))
 	return img
 
 func _draw_blob(img: Image, cx: int, cy: int, r: int, c: Color, alpha: float) -> void:	for y in range(cy - r, cy + r + 1):
