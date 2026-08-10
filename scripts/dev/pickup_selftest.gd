@@ -4,9 +4,10 @@ extends Node2D
 ## Exits 0 when green, 1 when any check fails.
 ##
 ## Covers all six item kinds, plus the behaviours that are easy to get wrong:
-## the shield running out of charges AND out of time, time-stop freezing enemies
-## without freezing the player, and the magnet vacuuming the map without
-## vacuuming itself.
+## the shield running out of charges AND out of time, the shield refusing to
+## stack, HEAL staying out of the normal roll pool (elite-only), time-stop
+## freezing enemies without freezing the player, and the magnet vacuuming the
+## map without vacuuming itself.
 
 const PICKUP_SCENE: PackedScene = preload("res://scenes/pickup_item.tscn")
 const GEM_SCENE: PackedScene = preload("res://scenes/xp_gem.tscn")
@@ -26,6 +27,7 @@ func _ready() -> void:
 	await _test_collect_by_touch()
 	await _test_heal()
 	await _test_shield()
+	await _test_shield_no_stack()
 	await _test_shield_expiry()
 	await _test_shield_ring_flash()
 	await _test_time_stop()
@@ -39,18 +41,24 @@ func _ready() -> void:
 # --- Kind roll ---
 
 func _test_roll_weights() -> void:
-	# Every kind must be reachable, or a drop table entry is silently dead.
+	# Every kind in the pool must be reachable, or a drop table entry is
+	# silently dead. HEAL 刻意不在池里（只由精英怪极低概率掉落），所以这里
+	# 断言的是"池内种类全可达 + HEAL 永不从池里滚出来"。
 	var seen: Dictionary = {}
 	for i in range(4000):
 		seen[PickupItem.roll_kind()] = true
 	var missing: Array[String] = []
-	for k in PickupItem.Kind.values():
+	for k in PickupItem.DROP_WEIGHTS.keys():
 		if not seen.has(k):
 			missing.append(str(k))
 	if missing.is_empty():
-		_ok("roll", "all %d kinds reachable" % PickupItem.Kind.size())
+		_ok("roll", "all %d pooled kinds reachable" % PickupItem.DROP_WEIGHTS.size())
 	else:
 		_fail("roll", "kinds never rolled: %s" % ", ".join(missing))
+	if seen.has(PickupItem.Kind.HEAL):
+		_fail("roll", "HEAL rolled from the normal pool — it must be elite-only")
+	else:
+		_ok("roll", "HEAL never rolls from the normal pool (elite-only)")
 
 # --- Collection path ---
 
@@ -109,6 +117,35 @@ func _test_shield() -> void:
 	else:
 		_ok("shield", "damage resumes once the charges run out")
 
+## 护盾**不可叠加**：已有护盾时再捡不加层，add_shield 返回 false，层数不变。
+## 这条是防"囤护盾等于永久无敌"的回归闸门。
+func _test_shield_no_stack() -> void:
+	_clear_shield()
+	var first: bool = GameState.add_shield(PickupItem.SHIELD_CHARGES, PickupItem.SHIELD_SECONDS)
+	var after_first: int = GameState.shield_charges
+	if not first or after_first != PickupItem.SHIELD_CHARGES:
+		_fail("shield_stack", "first shield did not apply (ok=%s charges=%d)" % [first, after_first])
+		return
+	# 第二次必须被拒绝，且层数不涨。
+	var second: bool = GameState.add_shield(PickupItem.SHIELD_CHARGES, PickupItem.SHIELD_SECONDS)
+	if second:
+		_fail("shield_stack", "add_shield() returned true while a shield was active")
+	elif GameState.shield_charges != after_first:
+		_fail("shield_stack", "charges stacked %d -> %d" % [after_first, GameState.shield_charges])
+	else:
+		_ok("shield_stack", "second pickup refused, charges stay at %d" % GameState.shield_charges)
+	# 用光之后必须能重新获得（不可叠加 ≠ 一局只能一次）。
+	for i in range(PickupItem.SHIELD_CHARGES):
+		_hit(10.0)
+	if GameState.shield_charges != 0:
+		_fail("shield_stack", "charges not drained: %d" % GameState.shield_charges)
+		return
+	if GameState.add_shield(PickupItem.SHIELD_CHARGES, PickupItem.SHIELD_SECONDS):
+		_ok("shield_stack", "a fresh shield is grantable once the old one is spent")
+	else:
+		_fail("shield_stack", "could not re-shield after the charges were spent")
+	_clear_shield()
+
 func _test_shield_expiry() -> void:
 	# The shield is a window to fight in, not a bank. Four separate rules, each
 	# of which has its own way of silently reverting to "permanent shield".
@@ -153,22 +190,20 @@ func _test_shield_expiry() -> void:
 	else:
 		_ok("shield_time", "damage resumes once the window closes")
 
-	# 3. A second pickup refreshes to the LONGER window and never shortens an
-	#    active one — but stacking charges must not stretch it either.
+	# 3. 护盾不可叠加，所以"第二次捡"既不加层也不刷新时长 —— 被整发拒绝。
+	#    （旧规则是"叠层 + 取更长窗口"，护盾改成不可叠加后那条已作废；
+	#    真正的叠加闸门在 _test_shield_no_stack。）
 	_clear_shield()
 	GameState.add_shield(1, 5.0)
-	GameState.add_shield(1, 0.5)
-	if GameState.shield_charges != 2:
-		_fail("shield_time", "stacking gave %d charges, expected 2" % GameState.shield_charges)
-	elif GameState.shield_left < 4.5:
-		_fail("shield_time", "a shorter pickup cut the window to %.2fs" % GameState.shield_left)
-	else:
-		_ok("shield_time", "charges stack and the window keeps the longer of the two (%.1fs)" % GameState.shield_left)
+	var left_after_first: float = GameState.shield_left
 	GameState.add_shield(1, 20.0)
-	if GameState.shield_left < 19.5:
-		_fail("shield_time", "a longer pickup did not extend the window (%.2fs)" % GameState.shield_left)
+	if GameState.shield_charges != 1:
+		_fail("shield_time", "a second pickup changed charges to %d" % GameState.shield_charges)
+	elif absf(GameState.shield_left - left_after_first) > 0.2:
+		_fail("shield_time", "a second pickup moved the window %.2fs -> %.2fs" % [
+			left_after_first, GameState.shield_left])
 	else:
-		_ok("shield_time", "a longer pickup extends the window")
+		_ok("shield_time", "a second pickup neither stacks charges nor extends the window")
 
 	# 4. Spending the last charge ends the effect, so the countdown has to stop
 	#    with it — otherwise the HUD ticks down a shield that is already gone.

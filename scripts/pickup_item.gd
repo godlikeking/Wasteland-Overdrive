@@ -14,14 +14,11 @@ class_name PickupItem
 
 enum Kind { HEAL, WEAPON, BOMB, TIME_STOP, SHIELD, MAGNET }
 
-## Roll weights. Heal is the most common consumable because it is the effect
-## that keeps a run alive. The weapon drop is still the heaviest single entry —
-## the 3-into-1 merge is the only way a weapon levels, so a run has to be able
-## to accumulate copies — but it is tuned so weapons stay an event rather than a
-## stream: trash drops an item 12% of the time and 36/132 of those rolls are
-## weapons, i.e. roughly one weapon per 30 kills.
+## Roll weights for the normal item pool. **HEAL 补血不在这个池里** —— 它只从
+## 精英怪极低概率掉落（见 enemy.gd 的 ELITE_HEAL_CHANCE），普通怪/其余敌人
+## 永远不掉血。其余种类照常加权：weapon 最重（3-1 合并是武器唯一的升级路径），
+## trash 掉落 12% 时 36/132 是武器，约 30 杀一把。
 const DROP_WEIGHTS: Dictionary = {
-	Kind.HEAL: 24,
 	Kind.SHIELD: 22,
 	Kind.BOMB: 20,
 	Kind.TIME_STOP: 16,
@@ -144,8 +141,11 @@ func _apply_effect(player: Node2D) -> void:
 			GameState.start_time_stop(TIME_STOP_SECONDS)
 			_label("时间暂停 %.0fs" % TIME_STOP_SECONDS, Color(0.6, 0.9, 1.0))
 		Kind.SHIELD:
-			GameState.add_shield(SHIELD_CHARGES, SHIELD_SECONDS)
-			_label("护盾 +%d (%ds)" % [SHIELD_CHARGES, int(SHIELD_SECONDS)], Color(0.5, 1.0, 1.0))
+			if GameState.add_shield(SHIELD_CHARGES, SHIELD_SECONDS):
+				_label("护盾 +%d (%ds)" % [SHIELD_CHARGES, int(SHIELD_SECONDS)], Color(0.5, 1.0, 1.0))
+			else:
+				# 护盾不可叠加：已有护盾时再捡被拒绝。
+				_label("护盾已激活", Color(0.6, 0.95, 1.0))
 		Kind.MAGNET:
 			_effect_magnet(player)
 

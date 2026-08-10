@@ -145,16 +145,21 @@ func start_time_stop(seconds: float) -> void:
 ## matter its damage, and any charge still unspent when the timer runs out is
 ## lost. `seconds` is required rather than defaulted: a caller that forgets it
 ## would silently mint a permanent shield, which is the bug this replaced.
-func add_shield(charges: int, seconds: float) -> void:
+##
+## 护盾**不可叠加**：已有护盾（shield_charges>0）时再捡护盾不再加层，避免囤成
+## 近似永久无敌。返回 true 表示真的生效，false 表示已有护盾被拒绝（供 UI 提示
+## "护盾已激活"）。
+func add_shield(charges: int, seconds: float) -> bool:
 	if charges <= 0:
-		return
-	shield_charges += charges
-	# Refresh to the longer of the two, matching `start_time_stop`: a second
-	# pickup can never shorten an active shield, and stacking charges can never
-	# stretch the window into an effectively permanent one.
+		return false
+	if shield_charges > 0:
+		shield_changed.emit(shield_charges)
+		return false
+	shield_charges = charges
 	shield_left = maxf(shield_left, maxf(0.0, seconds))
 	shield_changed.emit(shield_charges)
 	shield_time_changed.emit(shield_left)
+	return true
 
 ## Spend one shield charge. Returns true if a hit was absorbed, which is the
 ## caller's cue to skip the health loss.

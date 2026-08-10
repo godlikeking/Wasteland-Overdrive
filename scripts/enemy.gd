@@ -870,23 +870,35 @@ func _die() -> void:
 ## config rather than by "was this camp-spawned", so a time-based ELITE WAVE
 ## elite drops exactly like a camp elite does. `item_drop_chance` gates the whole
 ## drop so trash mobs can carry a small chance instead of a guaranteed pile.
+##
+## 补血道具**只从精英怪极低概率掉落**：HEAL 已从 roll_kind 的普通池移除，普通
+## 怪/其余敌人永远不掉血；这里在正常掉落之后再对精英怪额外掷一次极低概率补血。
+const ELITE_HEAL_CHANCE: float = 0.06
 func _drop_items() -> void:
-	if config == null or config.item_drop_count <= 0 or config.item_drop_scene == null:
+	if config == null or config.item_drop_scene == null:
 		return
-	if randf() > config.item_drop_chance:
-		return
-	var n: int = config.item_drop_count
-	for i in range(n):
-		var item: Node = config.item_drop_scene.instantiate()
-		if item is Node2D:
-			# Spread the drops on a ring so several items never stack into one
-			# unreadable pile.
-			var ang: float = TAU * float(i) / float(n) + randf() * 0.5
-			var dist: float = 0.0 if n == 1 else randf_range(24.0, 44.0)
-			(item as Node2D).global_position = global_position + Vector2(cos(ang), sin(ang)) * dist
-		if item.has_method("setup"):
-			item.setup(PickupItem.roll_kind())
-		_add_to_scene(item)
+	if config.item_drop_count > 0 and randf() <= config.item_drop_chance:
+		var n: int = config.item_drop_count
+		for i in range(n):
+			var item: Node = config.item_drop_scene.instantiate()
+			if item is Node2D:
+				# Spread the drops on a ring so several items never stack into one
+				# unreadable pile.
+				var ang: float = TAU * float(i) / float(n) + randf() * 0.5
+				var dist: float = 0.0 if n == 1 else randf_range(24.0, 44.0)
+				(item as Node2D).global_position = global_position + Vector2(cos(ang), sin(ang)) * dist
+			if item.has_method("setup"):
+				item.setup(PickupItem.roll_kind())
+			_add_to_scene(item)
+	# 补血：只有精英怪才有极低概率额外掉一个（独立于 item_drop_chance 掷骰）。
+	if config.behavior == EnemyConfig.Behavior.ELITE and randf() < ELITE_HEAL_CHANCE:
+		var heal: Node = config.item_drop_scene.instantiate()
+		if heal is Node2D:
+			(heal as Node2D).global_position = global_position \
+				+ Vector2(randf_range(-18, 18), randf_range(-18, 18))
+		if heal.has_method("setup"):
+			heal.setup(PickupItem.Kind.HEAL)
+		_add_to_scene(heal)
 
 ## 把节点挂到当前场景。**必须在关卡切换的瞬间也能安全调用**：杀 BOSS 触发
 ## _advance_to_level → change_scene 时，_die() 还在往下走（掉宝石、掉道具、
