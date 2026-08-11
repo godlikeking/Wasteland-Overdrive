@@ -107,12 +107,14 @@ const WEAPON_CATALOG := {
 		"weight": 7,
 		"config": "res://data/weapons/flamethrower.tres",
 		"scene": "res://scenes/weapons/flamethrower.tscn",
+		"elite_only": true,
 	},
 "laser_lance": {
 			"name": "磁轨激光",
 			"weight": 4,
 			"config": "res://data/weapons/laser_lance.tres",
 			"scene": "res://scenes/weapons/laser_lance.tscn",
+			"elite_only": true,
 		},
 		"mine_layer": {
 			"name": "地雷布设器",
@@ -322,27 +324,19 @@ func owned_weapon_ids() -> Array[String]:
 	return out
 
 ## Used by the weapon pickup item. Grants a weapon and returns its id. Copies
-## are allowed, so this draws from all 8 base ids rather than only unowned ones —
+## are allowed, so this draws from all base ids rather than only unowned ones —
 ## that is what lets duplicates accumulate toward a merge.
 ##
 ## The draw is weighted by rarity (see WEAPON_CATALOG), so a strong weapon is a
-## rarer sight than a common one.
+## rarer sight than a common one. `allow_elite_only` opens the two elite-only
+## weapons (磁轨激光 / 火焰喷射器); trash mobs must pass false.
 ##
 ## When the arsenal is full, only ids that can immediately complete a merge are
 ## granted (that hand frees 2 slots). Rarity still applies within that filtered
 ## pool. Returns "" when nothing could be granted so the caller can say
 ## "武器槽已满" instead of silently swallowing the drop.
-func grant_random_weapon() -> String:
-	var pool: Array[String] = []
-	if is_full():
-		# Full: only a merge-completing id is worth accepting.
-		for id in WEAPON_CATALOG.keys():
-			if _can_complete_merge(String(id)):
-				pool.append(String(id))
-	else:
-		for id in WEAPON_CATALOG.keys():
-			pool.append(String(id))
-	var id: String = _roll_weighted_id(pool)
+func grant_random_weapon(allow_elite_only: bool = false) -> String:
+	var id: String = roll_weapon_id(allow_elite_only)
 	if id == "":
 		return ""
 	add_weapon_by_id(id)
@@ -350,6 +344,54 @@ func grant_random_weapon() -> String:
 	if count_of(id) == 0:
 		return ""
 	return id
+
+## 掉落时**先决定是哪把武器**（不真的装上），供 PickupItem 用对应武器的图标画
+## 在地上。以前是捡起来那一刻才掷骰，所以地上永远只能画一个通用武器图标。
+##
+## `allow_elite_only` = 这次掉落是否来自精英/BOSS：磁轨激光和火焰喷射器标了
+## elite_only，普通杂兵的掉落池里不出现它们。
+func roll_weapon_id(allow_elite_only: bool = false) -> String:
+	var pool: Array[String] = []
+	for id in WEAPON_CATALOG.keys():
+		var sid: String = String(id)
+		if is_elite_only(sid) and not allow_elite_only:
+			continue
+		# 满槽时只接受能立刻凑成合并的（那一手净腾出 2 格）。
+		if is_full() and not _can_complete_merge(sid):
+			continue
+		pool.append(sid)
+	return _roll_weighted_id(pool)
+
+## 装上指定 id 的武器（掉落物落地时已经决定好是哪把）。返回真正装上的 id，
+## 装不上返回 ""。
+##
+## 满槽且这把凑不成合并时**退回按池重掷**：地上的图标会和实际拿到的不一致，
+## 但那只发生在满槽这个边角情形，比白扔一个掉落物好。
+func grant_weapon_id(id: String, allow_elite_only: bool = false) -> String:
+	if id == "" or not WEAPON_CATALOG.has(id):
+		return grant_random_weapon(allow_elite_only)
+	if is_full() and not _can_complete_merge(id):
+		return grant_random_weapon(allow_elite_only)
+	add_weapon_by_id(id)
+	if count_of(id) == 0:
+		return ""
+	return id
+
+## 这把武器是否只从精英/BOSS 掉落。
+func is_elite_only(id: String) -> bool:
+	var entry: Dictionary = WEAPON_CATALOG.get(id, {})
+	return bool(entry.get("elite_only", false))
+
+## 武器的图标贴图（掉落物在地上就用它）。找不到返回 null，调用方退回通用图标。
+func icon_of(id: String) -> Texture2D:
+	var entry: Dictionary = WEAPON_CATALOG.get(id, {})
+	var path: String = String(entry.get("config", ""))
+	if path == "":
+		return null
+	var cfg: Resource = ResourceLoader.load(path)
+	if cfg is WeaponConfig:
+		return (cfg as WeaponConfig).icon
+	return null
 
 ## Weighted draw from `pool` using each id's WEAPON_CATALOG weight. Returns ""
 ## for an empty pool.

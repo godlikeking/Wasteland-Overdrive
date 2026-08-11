@@ -35,8 +35,98 @@ func _ready() -> void:
 	await _test_weapon()
 	await _test_magnet()
 	await _test_magnet_no_stack()
+	await _clear_arsenal()
+	_test_elite_only_weapons()
+	await _test_weapon_drop_shows_its_own_icon()
 	print("=== pickup selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
+
+## 清空武器库。前面的 _test_weapon 会把 12 个槽全部填满，而满槽时候选池只留
+## "能立刻凑成合并的 id" —— 不清空的话下面两条掉落池断言量的其实是满槽逻辑，
+## 而不是掉落池本身。
+func _clear_arsenal() -> void:
+	WeaponDirector._reset()
+	for c in player.get_children():
+		if c is BaseWeapon:
+			c.queue_free()
+	await _advance(0.1)
+
+## 磁轨激光 / 火焰喷射器**只从精英档（精英 + BOSS）掉落**。
+## 杂兵的掉落池里必须一次都不出现，否则"稀有武器"就退化成普通掉落。
+func _test_elite_only_weapons() -> void:
+	var elite_only: Array[String] = ["laser_lance", "flamethrower"]
+	for id in elite_only:
+		if not WeaponDirector.is_elite_only(id):
+			_fail("elite_weapon", "%s is not marked elite_only" % id)
+			return
+	# 杂兵池：采样足够多次，这两把一次都不该出现。
+	var trash_hits: Dictionary = {}
+	for i in range(4000):
+		var id: String = WeaponDirector.roll_weapon_id(false)
+		trash_hits[id] = int(trash_hits.get(id, 0)) + 1
+	var leaked: Array[String] = []
+	for id in elite_only:
+		if int(trash_hits.get(id, 0)) > 0:
+			leaked.append("%s x%d" % [id, int(trash_hits[id])])
+	if leaked.is_empty():
+		_ok("elite_weapon", "trash drops never roll 磁轨激光/火焰喷射器 (4000 draws)")
+	else:
+		_fail("elite_weapon", "trash pool leaked elite-only weapons: %s" % ", ".join(leaked))
+	# 杂兵池不能被掏空：其余武器还得照常出。
+	if trash_hits.size() < 3:
+		_fail("elite_weapon", "trash pool collapsed to %d distinct ids" % trash_hits.size())
+	else:
+		_ok("elite_weapon", "trash pool still offers %d other weapons" % trash_hits.size())
+	# 精英池：两把都必须可达。
+	var elite_hits: Dictionary = {}
+	for i in range(6000):
+		var id: String = WeaponDirector.roll_weapon_id(true)
+		elite_hits[id] = int(elite_hits.get(id, 0)) + 1
+	var missing: Array[String] = []
+	for id in elite_only:
+		if int(elite_hits.get(id, 0)) == 0:
+			missing.append(id)
+	if missing.is_empty():
+		_ok("elite_weapon", "elite drops can roll both elite-only weapons")
+	else:
+		_fail("elite_weapon", "elite pool never rolled: %s" % ", ".join(missing))
+
+## 武器掉落物在地上画的是**那把武器自己的图标**，而不是通用武器图标；
+## 并且捡起来拿到的就是图标上那把（落地时就定下来了）。
+func _test_weapon_drop_shows_its_own_icon() -> void:
+	var item: PickupItem = PICKUP_SCENE.instantiate() as PickupItem
+	add_child(item)
+	item.global_position = Vector2(4000, 4000)   # 远离玩家，别被吸走
+	item.weapon_id = "laser_lance"
+	item.setup(PickupItem.Kind.WEAPON, true)
+	await get_tree().process_frame
+	var want: Texture2D = WeaponDirector.icon_of("laser_lance")
+	if want == null:
+		_fail("weapon_icon", "laser_lance has no icon in its WeaponConfig")
+		item.queue_free()
+		return
+	if item.sprite.texture != want:
+		_fail("weapon_icon", "drop shows '%s', expected the laser_lance icon '%s'" % [
+			item.sprite.texture.resource_path if item.sprite.texture else "<none>",
+			want.resource_path])
+	else:
+		_ok("weapon_icon", "a laser_lance drop shows the laser_lance icon on the ground")
+	item.queue_free()
+	await get_tree().process_frame
+	# 落地即定：setup 后 weapon_id 必须已经有值（否则图标无从可画）。
+	var rolled: PickupItem = PICKUP_SCENE.instantiate() as PickupItem
+	add_child(rolled)
+	rolled.global_position = Vector2(4200, 4200)
+	rolled.setup(PickupItem.Kind.WEAPON, false)
+	await get_tree().process_frame
+	if rolled.weapon_id == "":
+		_fail("weapon_icon", "a weapon drop left weapon_id empty — it would fall back to the generic icon")
+	elif WeaponDirector.is_elite_only(rolled.weapon_id):
+		_fail("weapon_icon", "a trash weapon drop picked the elite-only %s" % rolled.weapon_id)
+	else:
+		_ok("weapon_icon", "a weapon drop decides its weapon (%s) at drop time" % rolled.weapon_id)
+	rolled.queue_free()
+	await get_tree().process_frame
 
 # --- Kind roll ---
 

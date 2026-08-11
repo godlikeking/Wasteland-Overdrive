@@ -192,7 +192,9 @@ func _test_full_slot_refuses() -> void:
 		_fail(t, "setup did not fill the arsenal (%d slots)" % WeaponDirector.slots_used())
 		return
 	var before: int = WeaponDirector.slots_used()
-	var granted: String = WeaponDirector.grant_random_weapon()
+	# 传 true（精英档掉落）让候选池包含全部 id，elite_only 的两把也算进来 ——
+	# "满槽且没有能凑合并的就拒绝" 这条必须对最宽的池子也成立。
+	var granted: String = WeaponDirector.grant_random_weapon(true)
 	if granted != "":
 		_fail(t, "full arsenal granted %s (no pair to complete) — slots %d" % [granted, WeaponDirector.slots_used()])
 		return
@@ -294,7 +296,9 @@ func _test_full_slot_accepts_rare_pair() -> void:
 		_fail(t, "_can_complete_merge(laser_lance) false with 2 Lv%d copies" % lv)
 		return
 	var before: int = WeaponDirector.slots_used()
-	var granted: String = WeaponDirector.grant_random_weapon()
+	# laser_lance 是 elite_only（只从精英/BOSS 掉落），所以这里必须以精英档
+	# 掉落的身份去掷，否则它压根不在候选池里。
+	var granted: String = WeaponDirector.grant_random_weapon(true)
 	if granted != "laser_lance":
 		_fail(t, "full arsenal granted '%s', want laser_lance (the only mergeable id)" % granted)
 		return

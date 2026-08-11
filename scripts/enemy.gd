@@ -877,6 +877,11 @@ const ELITE_HEAL_CHANCE: float = 0.06
 func _drop_items() -> void:
 	if config == null or config.item_drop_scene == null:
 		return
+	# 精英档掉落（精英 / BOSS）：磁轨激光和火焰喷射器只在这一档的武器掉落里
+	# 出现，杂兵永远掉不出这两把（见 WeaponDirector 的 elite_only）。
+	var elite_tier: bool = config.behavior == EnemyConfig.Behavior.ELITE \
+		or config.behavior == EnemyConfig.Behavior.BOSS \
+		or config.behavior == EnemyConfig.Behavior.GOBOT
 	if config.item_drop_count > 0 and randf() <= config.item_drop_chance:
 		var n: int = config.item_drop_count
 		for i in range(n):
@@ -888,7 +893,7 @@ func _drop_items() -> void:
 				var dist: float = 0.0 if n == 1 else randf_range(24.0, 44.0)
 				(item as Node2D).global_position = global_position + Vector2(cos(ang), sin(ang)) * dist
 			if item.has_method("setup"):
-				item.setup(PickupItem.roll_kind())
+				item.setup(PickupItem.roll_kind(), elite_tier)
 			_add_to_scene(item)
 	# 补血：只有精英怪才有极低概率额外掉一个（独立于 item_drop_chance 掷骰）。
 	if config.behavior == EnemyConfig.Behavior.ELITE and randf() < ELITE_HEAL_CHANCE:
@@ -897,7 +902,7 @@ func _drop_items() -> void:
 			(heal as Node2D).global_position = global_position \
 				+ Vector2(randf_range(-18, 18), randf_range(-18, 18))
 		if heal.has_method("setup"):
-			heal.setup(PickupItem.Kind.HEAL)
+			heal.setup(PickupItem.Kind.HEAL, true)
 		_add_to_scene(heal)
 
 ## 把节点挂到当前场景。**必须在关卡切换的瞬间也能安全调用**：杀 BOSS 触发

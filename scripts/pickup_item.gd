@@ -38,6 +38,9 @@ const SHIELD_SECONDS: float = 15.0
 
 const SPRITE_DIR: String = "res://assets/sprites/pickups/"
 const SPRITE_SCALE: float = 2.0
+## 武器掉落物用武器自己的挂件图标（mount_*.png，约 22-32px 宽的横条）。比通用
+## 道具图标的 2.0 小一档，否则一条长枪躺在地上会盖住半个屏幕。
+const WEAPON_ICON_SCALE: float = 1.5
 ## Idle bob, so an item lying in the grass is visible without being loud.
 const BOB_HEIGHT: float = 4.0
 const BOB_TIME: float = 0.7
@@ -53,6 +56,12 @@ const BLINK_LEAD: float = 5.0
 @onready var sprite: Sprite2D = $Sprite2D
 
 var kind: int = Kind.HEAL
+## WEAPON 掉落物具体是哪把武器。**落地时就决定**，这样地上画的就是那把武器的
+## 图标，而不是一个看不出内容的通用武器图标。空字符串 = 没指定（自检里直接
+## setup(Kind.WEAPON) 的旧路径），捡起来时退回随机掷骰。
+var weapon_id: String = ""
+## 这次掉落是否来自精英/BOSS。磁轨激光和火焰喷射器只在精英掉落里出现。
+var elite_drop: bool = false
 var _seeking: bool = false
 var _target: Node2D
 var _velocity: Vector2 = Vector2.ZERO
@@ -70,8 +79,12 @@ static func roll_kind() -> int:
 			return int(k)
 	return Kind.HEAL
 
-func setup(p_kind: int) -> void:
+func setup(p_kind: int, p_elite_drop: bool = false) -> void:
 	kind = p_kind
+	elite_drop = p_elite_drop
+	# 武器掉落：现在就决定是哪一把，图标才能画成那把武器。
+	if kind == Kind.WEAPON and weapon_id == "":
+		weapon_id = WeaponDirector.roll_weapon_id(elite_drop)
 	if is_node_ready():
 		_apply_sprite()
 
@@ -161,7 +174,9 @@ func _effect_heal(player: Node2D) -> void:
 		_label("生命已满", Color(0.7, 0.7, 0.7))
 
 func _effect_weapon() -> void:
-	var granted: String = WeaponDirector.grant_random_weapon()
+	# 装上落地时就决定好的那把（图标画的就是它）。weapon_id 为空时退回随机掷骰。
+	var granted: String = WeaponDirector.grant_weapon_id(weapon_id, elite_drop) \
+		if weapon_id != "" else WeaponDirector.grant_random_weapon(elite_drop)
 	if granted == "":
 		# Slots full and nothing here can complete a merge — the director already
 		# tried; refuse rather than silently wasting the drop.
@@ -223,6 +238,19 @@ func _label(text: String, color: Color) -> void:
 func _apply_sprite() -> void:
 	if sprite == null:
 		return
+	# 武器掉落物：画**那把武器自己的图标**（和玩家身上挂件同一张 mount_*.png），
+	# 这样地上一眼能看出捡的是什么。拿不到图标（未知 id / 资源缺失）时退回下面
+	# 的通用 weapon.png。
+	if kind == Kind.WEAPON and weapon_id != "":
+		var wtex: Texture2D = WeaponDirector.icon_of(weapon_id)
+		if wtex != null:
+			sprite.texture = wtex
+			# 武器图标是横向长条（枪口朝 +X），比 16x16 的道具图标窄。放大到和
+			# 其它掉落物差不多的视觉体量，并居中（掉落物不像挂件那样绕枪柄转）。
+			sprite.scale = Vector2(WEAPON_ICON_SCALE, WEAPON_ICON_SCALE)
+			sprite.offset = Vector2.ZERO
+			sprite.modulate = Color(1, 1, 1)
+			return
 	# Guarded with `exists` because a bare `load()` on a missing path spams the
 	# error log every single drop, which would drown a headless self-test run.
 	var path: String = SPRITE_DIR + _sprite_name()
