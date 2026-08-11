@@ -101,8 +101,9 @@ func _find_nearest_enemy(max_range: float = 0.0) -> Node2D:
 ## 武器能否在墙外看见敌人：第二关（工厂房间）里隔着墙的敌人不能被锁定，
 ## 否则所有武器都会隔墙射击，房间战就失去了意义。第一关噪声地形不启用
 ## （那里本来就该全图自由开火）。
-## 射线走 World 层（1），只挡一次墙。没有世界物理空间（自检场景）时
-## 退化为"看得见"。
+## 射线走**挡弹层**（TilemapBuilder.WALL_LAYER_BIT = 32），和子弹被什么挡住
+## 保持同一套规则：只有金属墙挡，瓦砾/废铁/地坑不挡 —— 子弹本来就能飞过它们，
+## 瞄准也就不该被它们挡住。没有世界物理空间（自检场景）时退化为"看得见"。
 func _has_line_of_sight(target: Node2D) -> bool:
 	if not is_instance_valid(_owner) or GameState.current_level != 2:
 		return true
@@ -111,7 +112,7 @@ func _has_line_of_sight(target: Node2D) -> bool:
 		return true
 	var q := PhysicsRayQueryParameters2D.create(
 		_owner.global_position, target.global_position)
-	q.collision_mask = 1  # World only
+	q.collision_mask = TilemapBuilder.WALL_LAYER_BIT
 	q.hit_from_inside = false
 	return space.intersect_ray(q).is_empty()
 

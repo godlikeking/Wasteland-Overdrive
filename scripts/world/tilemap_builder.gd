@@ -31,6 +31,16 @@ const T_CAMP := 5
 const T_METAL_WALL := 6
 const T_FACTORY_FLOOR := 7
 
+## 挡弹层的物理层位（物理层 6 = 位 32）。项目已用的位：1=World、2=Player、
+## 4=PlayerBullet、8=Enemy、16=Pickup，所以这里取下一个空位。
+##
+## 子弹/敌弹的 collision_mask 和 weapon.gd 的视线射线都要 mask 这个位：
+##   bullet.tscn          mask = 8(Enemy) | 32 = 40
+##   enemy_projectile.tscn mask = 2(Player) | 32 = 34
+##   weapon._has_line_of_sight  q.collision_mask = 32
+## .tscn 里只能写字面量、引用不到这个常量，所以改动时三处要一起对。
+const WALL_LAYER_BIT := 32
+
 # Atlased tileset: 8 columns x 1 row, each 64x64.
 const ATLAS_COLS := 8
 const ATLAS_W := TS * ATLAS_COLS
@@ -125,10 +135,19 @@ func camp_centers() -> Array[Vector2]:
 func _build_tileset() -> void:
 	var ts: TileSet = TileSet.new()
 	ts.tile_size = Vector2(TS, TS)
-	# Physics layer 0 = blockers (rubble, scrap, pit). Swamp is NOT here.
+	# Physics layer 0 = 挡**移动**的地形（瓦砾、废铁、地坑、金属墙）。Swamp is NOT here.
 	ts.add_physics_layer()
 	ts.set_physics_layer_collision_layer(0, 1)        # on layer 1 = World
 	ts.set_physics_layer_collision_mask(0, 1)          # collides with layer 1
+	# Physics layer 1 = 挡**子弹和瞄准视线**的地形，只有金属墙在这层。
+	#
+	# 为什么要单开一层：子弹以前 mask 了 World(1)，而 World 层上挂着所有挡路
+	# 地形，于是第一关的瓦砾/废铁/地坑也把子弹吃掉了 —— 一堆半人高的碎石不该
+	# 拦下枪线。分层之后"挡人"和"挡弹"是两件独立的事：地形挡路但子弹飞过去，
+	# 只有真正的墙（第二关房间舱壁）既挡人又挡弹。
+	ts.add_physics_layer()
+	ts.set_physics_layer_collision_layer(1, WALL_LAYER_BIT)
+	ts.set_physics_layer_collision_mask(1, 0)          # 只被查询，不主动撞谁
 	# Navigation layer 0 = same blocker set; baked into navmesh.
 	ts.add_navigation_layer()
 	var atlas: TileSetAtlasSource = TileSetAtlasSource.new()
@@ -153,6 +172,10 @@ func _build_tileset() -> void:
 		if tid == T_RUBBLE or tid == T_SCRAP or tid == T_PIT or tid == T_METAL_WALL:
 			td.set_collision_polygons_count(0, 1)
 			td.set_collision_polygon_points(0, 0, _square_polygon())
+		# 挡弹层：**只有金属墙**。瓦砾/废铁/地坑刻意不在这层，子弹从它们上面飞过。
+		if tid == T_METAL_WALL:
+			td.set_collision_polygons_count(1, 1)
+			td.set_collision_polygon_points(1, 0, _square_polygon())
 		# Per-tile navigation: **walkable** tiles get nav polygons — the
 		# navigation mesh is the FLOOR, not the walls. Godot 4 tile nav
 		# polygons mark where agents may walk; putting them on blockers made

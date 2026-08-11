@@ -51,8 +51,9 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node) -> void:
-	# 撞墙消失：第二关房间墙挡敌弹（和玩家弹同一套规则），否则敌人隔着
-	# 墙打人。TileMap 的 physics body 会在这里先于玩家检查被拦下。
+	# 撞墙消失：和玩家弹同一套规则。只会因为**金属墙**触发 ——
+	# enemy_projectile.tscn 的 mask 是 34 = Player(2) | 挡弹层(32)，挡弹层上
+	# 只有金属墙，瓦砾/废铁/地坑（只在 World 层）敌弹一样飞过去。
 	if body is TileMap:
 		queue_free()
 		return

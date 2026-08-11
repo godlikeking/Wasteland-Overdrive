@@ -15,8 +15,75 @@ func _ready() -> void:
 	await _test_seal_open()
 	_test_factory_scene_declares_level_two()
 	await _test_level_two_bullet_is_an_orb()
+	_test_only_walls_block_bullets()
 	print("=== boss_arena selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
+
+## 子弹只被**墙**挡，别的地形一律飞过去。
+##
+## 挡人和挡弹是两件独立的事，分别挂在两个物理层上：
+##   物理层 0（World, 位 1）    瓦砾/废铁/地坑/金属墙 —— 挡移动
+##   物理层 1（位 32）          只有金属墙            —— 挡子弹和瞄准视线
+## 以前两件事共用 World 层，于是第一关半人高的碎石也把子弹吃掉了。这条断言
+## 从两头钉：TileSet 每个瓦片挂在哪层，以及出厂的子弹场景 mask 了哪些位 ——
+## 任一头改回去，"地形吃子弹"就会悄悄复活。
+func _test_only_walls_block_bullets() -> void:
+	var ts: TileSet = world.get_tilemap().tile_set
+	if ts.get_physics_layers_count() < 2:
+		_fail("bullet_layers", "tileset has %d physics layer(s), need a separate wall layer" % ts.get_physics_layers_count())
+		return
+	var wall_layer: int = -1
+	for i in range(ts.get_physics_layers_count()):
+		if ts.get_physics_layer_collision_layer(i) == TilemapBuilder.WALL_LAYER_BIT:
+			wall_layer = i
+			break
+	if wall_layer < 0:
+		_fail("bullet_layers", "no physics layer carries the wall bit %d" % TilemapBuilder.WALL_LAYER_BIT)
+		return
+	var src: TileSetAtlasSource = ts.get_source(0) as TileSetAtlasSource
+	# 金属墙：两层都要有（既挡人又挡弹）。
+	var wall_td: TileData = src.get_tile_data(Vector2i(TilemapBuilder.T_METAL_WALL, 0), 0)
+	if wall_td.get_collision_polygons_count(0) < 1 or wall_td.get_collision_polygons_count(wall_layer) < 1:
+		_fail("bullet_layers", "metal wall must block both movement and bullets")
+	else:
+		_ok("bullet_layers", "metal wall blocks movement AND bullets")
+	# 其余地形：挡人，但**不**挡弹。
+	var pass_through: Array[int] = [
+		TilemapBuilder.T_RUBBLE, TilemapBuilder.T_SCRAP, TilemapBuilder.T_PIT,
+	]
+	var bad: String = ""
+	for tid in pass_through:
+		var td: TileData = src.get_tile_data(Vector2i(tid, 0), 0)
+		if td.get_collision_polygons_count(0) < 1:
+			bad = "tile %d stopped blocking movement" % tid
+			break
+		if td.get_collision_polygons_count(wall_layer) > 0:
+			bad = "tile %d is on the bullet-blocking layer — bullets would die on it" % tid
+			break
+	if bad == "":
+		_ok("bullet_layers", "rubble/scrap/pit block movement but let bullets through")
+	else:
+		_fail("bullet_layers", bad)
+	# 出厂场景的 mask：必须 mask 挡弹层，且**不**再 mask World。
+	_check_projectile_mask("res://scenes/bullet.tscn", 8, "player bullet")
+	_check_projectile_mask("res://scenes/enemy_projectile.tscn", 2, "enemy bullet")
+
+func _check_projectile_mask(path: String, want_target_bit: int, label: String) -> void:
+	var ps: PackedScene = load(path) as PackedScene
+	if ps == null:
+		_fail("bullet_layers", "cannot load %s" % path)
+		return
+	var node: Node = ps.instantiate()
+	var mask: int = int(node.get("collision_mask"))
+	node.queue_free()
+	if mask & TilemapBuilder.WALL_LAYER_BIT == 0:
+		_fail("bullet_layers", "%s mask %d does not include the wall layer — walls would not stop it" % [label, mask])
+	elif mask & 1 != 0:
+		_fail("bullet_layers", "%s mask %d still includes World(1) — every blocking terrain would eat it" % [label, mask])
+	elif mask & want_target_bit == 0:
+		_fail("bullet_layers", "%s mask %d lost its target layer %d" % [label, mask, want_target_bit])
+	else:
+		_ok("bullet_layers", "%s masks wall+target only (mask=%d)" % [label, mask])
 
 ## 敌弹贴图跟着关卡走：第二关电球、第一关红紫等离子。
 ##

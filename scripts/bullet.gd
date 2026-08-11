@@ -123,9 +123,12 @@ func _on_area_entered(area: Area2D) -> void:
 	_try_hit(area)
 
 func _try_hit(node: Node) -> void:
-	# 撞墙：子弹消失，**不消耗穿透**。第二关房间墙必须挡子弹，否则隔着
-	# 墙打人；第一关的瓦砾/废铁/地坑同样挡。TileMap 作为 body 进来时
-	# 会先于敌人组检查被拦下。
+	# 撞墙：子弹消失，**不消耗穿透**。
+	#
+	# 这里只会因为**金属墙**触发：bullet.tscn 的 mask 是 40 = Enemy(8) |
+	# 挡弹层(32)，而挡弹层上只有金属墙（见 tilemap_builder._build_tileset）。
+	# 瓦砾/废铁/地坑只在 World(1) 层上，子弹不 mask 它，所以会直接飞过去 ——
+	# 半人高的碎石不该拦下枪线，只有第二关的房间舱壁该。
 	if node is TileMap:
 		queue_free()
 		return

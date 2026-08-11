@@ -15,7 +15,7 @@ height = 8
 
 [node name="EnemyProjectile" type="Area2D"]
 collision_layer = 8
-collision_mask = 3
+collision_mask = 34
 script = ExtResource("1_eproj")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
