@@ -33,6 +33,7 @@ fill_to = Vector2(0.5, 1)
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_game")
+level_index = 2
 
 [node name="World" type="Node2D" parent="."]
 script = ExtResource("14_world")

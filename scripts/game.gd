@@ -11,6 +11,18 @@ extends Node2D
 @onready var shop_ui: Node = get_node_or_null("Shop")
 @onready var pause_menu: Node = get_node_or_null("PauseMenu")
 
+## 本场景是第几关（1 = 废土，2 = 机器人工厂）。**场景自己声明**，而不是靠
+## GameState.queued_level 传送带推断。
+##
+## 为什么必须这样：所有"第二关专属"行为都在读 GameState.current_level ——
+## 敌弹电球贴图（enemy_projectile）、墙体挡锁敌视线（weapon）。而
+## queued_level 只有走"杀第一关 BOSS → _advance_to_level"这条路才会变成 2；
+## 在编辑器里直接 F6 跑 game_factory.tscn 时它还是 1，于是那些第二关特性
+## 全部**静默退回第一关行为**（子弹变回红紫等离子、武器能穿墙锁敌），看起来
+## 就像"改好的东西又变回来了"，而且不报任何错。场景编号是场景的固有属性，
+## 让它自己说。
+@export var level_index: int = 1
+
 var _pending_level_ups: int = 0
 var _weapon_director: Node
 
@@ -22,9 +34,10 @@ func _ready() -> void:
 
 	GameState.reset()
 	GameState.is_running = true
-	# 第二关由 _advance_to_level 置 queued_level 后换场景而来：新场景的
-	# reset() 会把 current_level 拨回 1，这里从传送带恢复。
-	GameState.current_level = GameState.queued_level
+	# 关卡编号以场景自己的 level_index 为准，直接运行某一关也成立。
+	# queued_level 同步跟上，让关间切换/重开读到的是同一个值。
+	GameState.current_level = level_index
+	GameState.queued_level = level_index
 	# 关间切换可能带走一个未结束的 hit-stop：_on_hit_stop 先把
 	# Engine.time_scale 压到 0.05，再 await 一个挂在 FxManager 上的计时器
 	# 恢复——FxManager 随换场景被 free 后那句恢复永不执行，time_scale 就卡在
@@ -150,8 +163,8 @@ func _on_boss_defeated() -> void:
 ## 只有地图和刷怪节奏重置。
 func _advance_to_level(level: int) -> void:
 	GameState.current_level = level
-	# 传送带：新场景 _ready 里 reset() 会把 current_level 拨回 1，
-	# 必须靠 queued_level 记住目标关卡（见 game.gd 头部）。
+	# 目标关卡的场景自己会用 level_index 声明它是第几关（见头部注释），这里
+	# 同步 queued_level 只是为了换场景那一帧之间两个字段不打架。
 	GameState.queued_level = level
 	GameState.time_alive = 0.0
 	# 清掉上一关的敌人和掉落，避免它们跟着场景切换悬空。
@@ -177,17 +190,28 @@ func _end_run(victory: bool) -> void:
 	game_over_ui.show_result(victory)
 
 func _on_restart_requested() -> void:
-	GameState.queued_level = 1
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	_restart_from_level_one()
 
 ## 从头开始：清空元进度存档（废金属/累计统计/已购模块），再重开一局。
 func _on_fresh_start_requested() -> void:
 	if MetaProgress:
 		MetaProgress.wipe()
+	_restart_from_level_one()
+
+## 重开一局，回到第一关。
+##
+## 以前这里是 `queued_level = 1` + `reload_current_scene()`，两句互相矛盾：
+## 在第二关按重开会**原地重载工厂场景**，而不是回废土 —— 一局全新的、没有
+## 任何武器的角色被丢在第二关地图里。现在关卡编号由场景的 level_index 决定，
+## 那句 queued_level 更是彻底失效，所以按它原本的意图老实换回第一关场景。
+## 第一关仍走 reload_current_scene，保住 main.tscn 那层外壳不被换掉。
+func _restart_from_level_one() -> void:
 	GameState.queued_level = 1
 	get_tree().paused = false
-	get_tree().reload_current_scene()
+	if level_index == 1:
+		get_tree().reload_current_scene()
+	else:
+		get_tree().change_scene_to_file("res://scenes/game.tscn")
 
 func _on_open_shop() -> void:
 	if game_over_ui and game_over_ui.has_method("open_shop"):

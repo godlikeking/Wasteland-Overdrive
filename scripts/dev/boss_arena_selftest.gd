@@ -13,8 +13,75 @@ func _ready() -> void:
 	print("=== boss_arena selftest ===")
 	await _test_carved()
 	await _test_seal_open()
+	_test_factory_scene_declares_level_two()
+	await _test_level_two_bullet_is_an_orb()
 	print("=== boss_arena selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
+
+## 敌弹贴图跟着关卡走：第二关电球、第一关红紫等离子。
+##
+## 上面那条只验证场景声明了 level_index，这条验证**玩家真正看到的东西** ——
+## 贴图是在 _ready 里按 GameState.current_level 选的，所以两头都要断言，
+## 否则"声明对了但选图逻辑写反了"照样是静默回退。
+func _test_level_two_bullet_is_an_orb() -> void:
+	var before: int = GameState.current_level
+	var lvl2: String = await _bullet_texture_at_level(2)
+	var lvl1: String = await _bullet_texture_at_level(1)
+	GameState.current_level = before
+	if lvl2.ends_with("enemy_orb.png"):
+		_ok("bullet_art", "level 2 enemy bullets use the orb sprite")
+	else:
+		_fail("bullet_art", "level 2 bullet used '%s', expected enemy_orb.png" % lvl2)
+	if lvl1.ends_with("enemy_bullet.png"):
+		_ok("bullet_art", "level 1 enemy bullets keep the plasma sprite")
+	else:
+		_fail("bullet_art", "level 1 bullet used '%s', expected enemy_bullet.png" % lvl1)
+
+func _bullet_texture_at_level(lvl: int) -> String:
+	GameState.current_level = lvl
+	var ps: PackedScene = load("res://scenes/enemy_projectile.tscn") as PackedScene
+	if ps == null:
+		return "<no enemy_projectile.tscn>"
+	var proj: Node = ps.instantiate()
+	add_child(proj)
+	await get_tree().process_frame
+	var path: String = "<no texture>"
+	var spr: Sprite2D = proj.get_node_or_null("Sprite2D") as Sprite2D
+	if spr != null and spr.texture != null:
+		path = spr.texture.resource_path
+	proj.queue_free()
+	return path
+
+## 第二关场景必须自己声明 level_index = 2。
+##
+## 所有"第二关专属"行为都在读 GameState.current_level：敌弹电球贴图
+## （enemy_projectile._apply_sprite）、墙体挡锁敌视线（weapon._has_line_of_sight）。
+## 这个声明一旦丢了，current_level 会退回 1，那些特性全部**静默回到第一关行为**
+## —— 子弹变回红紫等离子、武器能穿墙锁敌，而且不报任何错，只能靠肉眼发现
+## "改好的东西又变回来了"。所以在这里把它钉住。
+##
+## 读 PackedScene 的 SceneState 而不是实例化整个 game_factory.tscn：那会连
+## 玩家/刷怪/HUD 一起拉起来，对一条属性断言来说太重。
+func _test_factory_scene_declares_level_two() -> void:
+	var ps: PackedScene = load("res://scenes/game_factory.tscn") as PackedScene
+	if ps == null:
+		_fail("level_index", "cannot load res://scenes/game_factory.tscn")
+		return
+	var st: SceneState = ps.get_state()
+	if st.get_node_count() <= 0:
+		_fail("level_index", "game_factory.tscn has no nodes")
+		return
+	var declared: int = -1
+	for i in range(st.get_node_property_count(0)):
+		if st.get_node_property_name(0, i) == "level_index":
+			declared = int(st.get_node_property_value(0, i))
+			break
+	if declared == 2:
+		_ok("level_index", "game_factory.tscn declares level_index = 2")
+	elif declared == -1:
+		_fail("level_index", "game_factory.tscn does not set level_index — it would default to 1, silently disabling the level-2 orb sprite and wall LOS")
+	else:
+		_fail("level_index", "game_factory.tscn declares level_index = %d, expected 2" % declared)
 
 func _test_carved() -> void:
 	var b: TilemapBuilder = world.get_builder()
