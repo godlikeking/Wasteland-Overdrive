@@ -136,3 +136,30 @@ enum Behavior { CHASER, SHOOTER, DASHER, ELITE, BOSS, GOBOT }
 @export var gobot_stomp_recover: float = 0.5          # 落地硬直
 @export var gobot_stomp_cooldown: float = 6.0         # 震地冷却
 @export var gobot_stomp_radius: float = 150.0         # 震地范围
+
+## 巨型机器人的三招进阶技，**按阶段解锁**（见 Enemy.gobot_attack_unlocked）：
+## 电球 P1 起、多道长条闪电 P2 起、扔地雷 P3 起。冷却同样吃阶段缩放。
+# --- 电球：飞到落点炸开成小电球 ---
+@export var gobot_orb_damage: float = 45.0            # 炸开时的范围伤害
+@export var gobot_orb_burst_radius: float = 130.0     # 炸开范围
+@export var gobot_orb_speed: float = 260.0            # 飞行速度（慢，可以走开躲）
+@export var gobot_orb_shard_count: int = 8            # 炸开喷出的小电球数
+@export var gobot_orb_shard_damage: float = 12.0      # 单颗小电球伤害
+@export var gobot_orb_shard_speed: float = 300.0      # 小电球飞行速度
+@export var gobot_orb_cooldown: float = 5.0           # 电球冷却
+# --- 多道长条闪电 ---
+@export var gobot_bolt_damage: float = 35.0           # 命中伤害（多道重叠也只结算一次）
+@export var gobot_bolt_count: int = 5                 # 闪电道数
+@export var gobot_bolt_windup: float = 0.9            # 蓄力时长（定脚+预警线）
+@export var gobot_bolt_length: float = 900.0          # 每道长度
+@export var gobot_bolt_width: float = 44.0            # 每道宽度（细长）
+@export var gobot_bolt_spread: float = 1.5            # 扇形总张角（弧度）
+@export var gobot_bolt_cooldown: float = 7.0          # 闪电冷却
+# --- 扔地雷 ---
+@export var gobot_mine_damage: float = 50.0           # 地雷爆炸伤害
+@export var gobot_mine_count: int = 4                 # 每次扔几颗
+@export var gobot_mine_radius: float = 140.0          # 爆炸范围
+@export var gobot_mine_arm: float = 0.8               # 布防延迟（这之前踩上去不炸）
+@export var gobot_mine_life: float = 9.0              # 到期自爆
+@export var gobot_mine_scatter: float = 260.0         # 在玩家周围多大范围内散点
+@export var gobot_mine_cooldown: float = 8.0          # 扔雷冷却

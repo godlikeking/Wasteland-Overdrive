@@ -74,6 +74,13 @@ var _gobot_stomp_wind_left: float = 0.0
 var _gobot_stomp_air_left: float = 0.0
 var _gobot_stomp_recover_left: float = 0.0
 var _gobot_stomp_hit_done: bool = false
+# 进阶三招（按阶段解锁）：电球 P1 起、多道闪电 P2 起、扔地雷 P3 起。
+var _gobot_orb_accum: float = 0.0
+var _gobot_bolt_accum: float = 0.0
+var _gobot_bolt_wind_left: float = 0.0
+var _gobot_bolt_angles: PackedFloat32Array = PackedFloat32Array()
+var _gobot_bolt_fx: Node2D = null
+var _gobot_mine_accum: float = 0.0
 ## BOSS 竞技场（第二关）活动范围，世界坐标。空矩形 = 不牵制。
 ## 由 SpawnDirector 在竞技场刷 BOSS 时设置，防止玩家未进门前 BOSS 追出房间。
 var arena_rect: Rect2 = Rect2()
@@ -465,6 +472,12 @@ func _behavior_gobot(delta: float) -> void:
 		velocity = Vector2.ZERO
 		if _gobot_laser_wind_left <= 0.0:
 			_gobot_laser_strike()
+	elif _gobot_bolt_wind_left > 0.0:
+		# 多道闪电蓄力：定脚（和激光同一套否决逻辑），到点齐射。
+		_gobot_bolt_wind_left -= delta
+		velocity = Vector2.ZERO
+		if _gobot_bolt_wind_left <= 0.0:
+			_gobot_bolt_strike()
 	elif _gobot_stomp_wind_left > 0.0:
 		_gobot_stomp_wind_left -= delta
 		velocity = Vector2.ZERO
@@ -508,6 +521,25 @@ func _behavior_gobot(delta: float) -> void:
 				_gobot_stomp_wind_left = config.gobot_stomp_windup
 				_gobot_laser_facing = to_player.normalized()
 				GameState.request_camera_shake.emit(2.0, 0.12)
+			# --- 进阶三招，按阶段解锁（见 gobot_attack_unlocked）---
+			# 电球（P1 起）：即时发射，飞到落点炸开。
+			if gobot_attack_unlocked(ATK_ORB, _boss_phase):
+				_gobot_orb_accum += delta
+				if _gobot_orb_accum >= config.gobot_orb_cooldown * phase_cd:
+					_gobot_orb_accum = 0.0
+					_gobot_fire_orb(_player.global_position)
+			# 多道长条闪电（P2 起）：起手锁方向 + 生成预警线，蓄力结束才结算。
+			if gobot_attack_unlocked(ATK_BOLTS, _boss_phase):
+				_gobot_bolt_accum += delta
+				if _gobot_bolt_accum >= config.gobot_bolt_cooldown * phase_cd:
+					_gobot_bolt_accum = 0.0
+					_gobot_bolt_windup_start(to_player.normalized())
+			# 扔地雷（P3 起）：即时在玩家周围散点布雷。
+			if gobot_attack_unlocked(ATK_MINES, _boss_phase):
+				_gobot_mine_accum += delta
+				if _gobot_mine_accum >= config.gobot_mine_cooldown * phase_cd:
+					_gobot_mine_accum = 0.0
+					_gobot_throw_mines(_player.global_position)
 	# 竞技场牵制：把 BOSS 位置钳回竞技场内（内缩其碰撞半径），避免玩家未进门前
 	# BOSS 追出房间。arena_rect 空矩形 = 不牵制（第一关废土 BOSS 不受影响）。
 	if arena_rect.size != Vector2.ZERO:
@@ -519,21 +551,134 @@ func _behavior_gobot(delta: float) -> void:
 	_apply_contact_damage()
 
 ## 激光命中帧。宽光束沿锁定方向，对矩形内的玩家造成伤害。
+## 长条矩形那段数学在 GobotBolts.in_beam 里（和多道闪电共用的纯函数）。
 func _gobot_laser_strike() -> void:
 	_gobot_laser_wind_left = 0.0
 	if _player == null or not is_instance_valid(_player):
 		return
-	var to_player: Vector2 = _player.global_position - global_position
-	var proj: float = to_player.dot(_gobot_laser_facing)
-	if proj < 0.0 or proj > config.gobot_laser_length:
-		return
-	var perp: float = absf(_gobot_laser_facing.rotated(PI * 0.5).dot(to_player))
-	if perp > config.gobot_laser_width * 0.5:
+	if not GobotBolts.in_beam(global_position, _gobot_laser_facing,
+			_player.global_position, config.gobot_laser_length, config.gobot_laser_width):
 		return
 	if _player.has_method("take_damage"):
 		_player.take_damage(config.gobot_laser_damage)
 	GameState.request_camera_shake.emit(5.0, 0.2)
 	SfxPlayer.play("boom")
+
+# --- 进阶三招（按阶段解锁）---
+
+## 招式编号，给 gobot_attack_unlocked 用。
+const ATK_ORB: int = 0
+const ATK_BOLTS: int = 1
+const ATK_MINES: int = 2
+
+## 某招在某阶段是否解锁。纯函数，让"解锁节奏"能被自检直接断言 ——
+## 否则要验证它得真打一场把 BOSS 血量刷到对应阶段。
+##
+## 电球 P1 起、多道闪电 P2 起、扔地雷 P3 起：战斗逐阶升级，不会一上来
+## 就 6 招齐发糊成一片。未知招式返回 false（宁可不发动，也不要靠"默认解锁"
+## 让打错的编号变成一招凭空出现的攻击）。
+static func gobot_attack_unlocked(attack: int, phase: int) -> bool:
+	match attack:
+		ATK_ORB: return phase >= 1
+		ATK_BOLTS: return phase >= 2
+		ATK_MINES: return phase >= 3
+	return false
+
+## 电球：朝**此刻**玩家所在的点发射（不追踪，走开能躲），抵达后炸开成小电球。
+func _gobot_fire_orb(target: Vector2) -> void:
+	var scene: PackedScene = load("res://scenes/fx/gobot_orb.tscn") as PackedScene
+	if scene == null:
+		return
+	var orb: Node = scene.instantiate()
+	_add_to_scene(orb)
+	if not is_instance_valid(orb) or not orb.is_inside_tree():
+		return
+	if orb is Node2D:
+		(orb as Node2D).global_position = global_position
+	if orb.has_method("setup"):
+		orb.setup(target, config.gobot_orb_speed, config.gobot_orb_damage,
+			config.gobot_orb_burst_radius, config.gobot_orb_shard_count,
+			config.gobot_orb_shard_damage, config.gobot_orb_shard_speed,
+			config.projectile_scene)
+	GameState.request_camera_shake.emit(1.5, 0.1)
+	SfxPlayer.play("fire")
+
+## 多道闪电起手：锁方向、算好每道的角度、生成预警线。锁定之后再转向就没有
+## 可躲性了，所以角度在这一刻定死，命中帧直接用同一份。
+func _gobot_bolt_windup_start(facing: Vector2) -> void:
+	var dir: Vector2 = facing if facing.length_squared() > 0.0 else Vector2.RIGHT
+	_gobot_bolt_angles = GobotBolts.bolt_angles(dir.angle(),
+		config.gobot_bolt_count, config.gobot_bolt_spread)
+	_gobot_bolt_wind_left = config.gobot_bolt_windup
+	var fx := GobotBolts.new()
+	fx.setup(_gobot_bolt_angles, config.gobot_bolt_length,
+		config.gobot_bolt_width, config.gobot_bolt_windup)
+	add_child(fx)
+	_gobot_bolt_fx = fx
+	GameState.request_camera_shake.emit(1.5, 0.12)
+
+## 多道闪电命中帧：逐道做长条判定，**命中也只结算一次伤害**（多道重叠不叠伤，
+## 否则站在扇形中心会被 5 道同时打成瞬杀）。
+func _gobot_bolt_strike() -> void:
+	_gobot_bolt_wind_left = 0.0
+	if _gobot_bolt_fx != null and is_instance_valid(_gobot_bolt_fx) \
+			and _gobot_bolt_fx.has_method("strike"):
+		_gobot_bolt_fx.strike()
+	_gobot_bolt_fx = null
+	GameState.request_camera_shake.emit(5.0, 0.22)
+	SfxPlayer.play("boom")
+	if _player == null or not is_instance_valid(_player):
+		return
+	for a in _gobot_bolt_angles:
+		if GobotBolts.in_beam(global_position, Vector2(cos(a), sin(a)),
+				_player.global_position, config.gobot_bolt_length, config.gobot_bolt_width):
+			if _player.has_method("take_damage"):
+				_player.take_damage(config.gobot_bolt_damage)
+			return   # 只结算一次
+
+## 扔地雷：在玩家周围散点布 N 颗。落点避开墙 —— 扔进墙里的雷玩家永远踩不到，
+## 那一颗就白扔了。
+func _gobot_throw_mines(around: Vector2) -> void:
+	var scene: PackedScene = load("res://scenes/fx/gobot_mine.tscn") as PackedScene
+	if scene == null:
+		return
+	var n: int = maxi(1, config.gobot_mine_count)
+	for i in range(n):
+		var pos: Vector2 = _gobot_pick_mine_spot(around, i, n)
+		var mine: Node = scene.instantiate()
+		_add_to_scene(mine)
+		if not is_instance_valid(mine) or not mine.is_inside_tree():
+			return
+		if mine is Node2D:
+			(mine as Node2D).global_position = pos
+		if mine.has_method("setup"):
+			mine.setup(config.gobot_mine_radius, config.gobot_mine_damage,
+				config.gobot_mine_arm, config.gobot_mine_life)
+	GameState.request_camera_shake.emit(2.0, 0.12)
+	SfxPlayer.play("fire")
+
+## 第 i 颗雷的落点：以 around 为中心均匀铺一圈 + 抖动，撞墙就往里收几次。
+func _gobot_pick_mine_spot(around: Vector2, i: int, n: int) -> Vector2:
+	var base_ang: float = TAU * float(i) / float(n) + randf() * 0.4
+	var world: Node = _gobot_world()
+	for attempt in range(4):
+		# 每次重试把半径往内收，越靠近玩家越可能是空地（玩家脚下必然可站）。
+		var r: float = config.gobot_mine_scatter * (1.0 - 0.22 * float(attempt)) \
+			* randf_range(0.45, 1.0)
+		var p: Vector2 = around + Vector2(cos(base_ang), sin(base_ang)) * r
+		if world == null or not world.is_solid(p):
+			return p
+	return around
+
+## 地图（"world" 组），用来查落点是否在墙里。自检场景没有 World，必须干净地
+## 退化成"不做过滤"而不是报错。
+func _gobot_world() -> Node:
+	if not is_inside_tree():
+		return null
+	for w in get_tree().get_nodes_in_group("world"):
+		if w != null and w.has_method("is_solid"):
+			return w
+	return null
 
 ## 五发导弹齐射，扇形散开。
 func _gobot_fire_missiles(facing: Vector2) -> void:
