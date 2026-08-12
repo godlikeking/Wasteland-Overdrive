@@ -1,76 +1,61 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene format=3 uid="uid://dbjvfu3jbtfoq"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://cxc7at5kmetl6" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
-[ext_resource type="Script" path="res://scripts/spawn_director.gd" id="3_spawn"]
+[ext_resource type="Script" uid="uid://b0cxcj6waxbdk" path="res://scripts/spawn_director.gd" id="3_spawn"]
 [ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="4_enemy"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/level_up.tscn" id="6_lvlup"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_over.tscn" id="7_gameover"]
-[ext_resource type="Script" path="res://scripts/fx_manager.gd" id="8_fx"]
+[ext_resource type="Script" uid="uid://bicmakthhqg6m" path="res://scripts/fx_manager.gd" id="8_fx"]
 [ext_resource type="PackedScene" path="res://scenes/fx/floating_label.tscn" id="9_floatlabel"]
 [ext_resource type="PackedScene" path="res://scenes/fx/enemy_death_particles.tscn" id="10_edeath"]
 [ext_resource type="PackedScene" path="res://scenes/fx/bullet_hit_particles.tscn" id="11_bhit"]
 [ext_resource type="PackedScene" path="res://scenes/xp_gem.tscn" id="12_xp"]
 [ext_resource type="PackedScene" path="res://scenes/enemy_projectile.tscn" id="13_eproj"]
-[ext_resource type="Script" path="res://scripts/world/world.gd" id="14_world"]
-[ext_resource type="Resource" path="res://data/world/factory_world.tres" id="15_wcfg"]
+[ext_resource type="Script" uid="uid://d3kmi1otcxrak" path="res://scripts/world/world.gd" id="14_world"]
+[ext_resource type="Resource" uid="uid://lxhhctbf1blv" path="res://data/world/factory_world.tres" id="15_wcfg"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop.tscn" id="16_shop"]
 [ext_resource type="PackedScene" path="res://scenes/pickup_item.tscn" id="18_pickup"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="19_pause"]
-[ext_resource type="Script" path="res://scripts/world/boss_arena.gd" id="20_bossarena"]
+[ext_resource type="Script" uid="uid://br0c6qs2jdini" path="res://scripts/world/boss_arena.gd" id="20_bossarena"]
 
-[sub_resource type="Gradient" id="Gradient_ground"]
-offsets = PackedFloat32Array(0, 1)
-colors = PackedColorArray(0.18, 0.2, 0.24, 1, 0.1, 0.11, 0.14, 1)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_ground"]
-gradient = SubResource("Gradient_ground")
-width = 2048
-height = 2048
-fill_from = Vector2(0.5, 0)
-fill_to = Vector2(0.5, 1)
-
-[node name="Game" type="Node2D"]
+[node name="Game" type="Node2D" unique_id=188438934]
 script = ExtResource("1_game")
 level_index = 2
 
-[node name="World" type="Node2D" parent="."]
+[node name="World" type="Node2D" parent="." unique_id=1004224867]
 script = ExtResource("14_world")
 wasteland_config = ExtResource("15_wcfg")
 
-[node name="FX" type="Node2D" parent="."]
+[node name="FX" type="Node2D" parent="." unique_id=1561182581]
 script = ExtResource("8_fx")
 camera_path = NodePath("../Player/Camera2D")
 floating_label_scene = ExtResource("9_floatlabel")
 enemy_death_particles_scene = ExtResource("10_edeath")
 bullet_hit_particles_scene = ExtResource("11_bhit")
 
-[node name="Player" parent="." instance=ExtResource("2_player")]
-position = Vector2(0, 0)
+[node name="Player" parent="." unique_id=1970895222 instance=ExtResource("2_player")]
 
-[node name="SpawnDirector" type="Node2D" parent="."]
+[node name="SpawnDirector" type="Node2D" parent="." unique_id=1132879373]
 script = ExtResource("3_spawn")
 enemy_scene = ExtResource("4_enemy")
 xp_gem_scene = ExtResource("12_xp")
 enemy_projectile_scene = ExtResource("13_eproj")
 pickup_item_scene = ExtResource("18_pickup")
 player_path = NodePath("../Player")
-base_interval = 1.2
-difficulty_ramp_time = 240.0
-burst_growth = 0.02
 spawn_padding = 200.0
 factory_mode = true
 
-[node name="HUD" parent="." instance=ExtResource("5_hud")]
+[node name="HUD" parent="." unique_id=1309751207 instance=ExtResource("5_hud")]
 
-[node name="LevelUp" parent="." instance=ExtResource("6_lvlup")]
+[node name="LevelUp" parent="." unique_id=1801476912 instance=ExtResource("6_lvlup")]
 
-[node name="GameOver" parent="." instance=ExtResource("7_gameover")]
+[node name="GameOver" parent="." unique_id=1347209521 instance=ExtResource("7_gameover")]
 
-[node name="Shop" parent="." instance=ExtResource("16_shop")]
+[node name="Shop" parent="." unique_id=205900593 instance=ExtResource("16_shop")]
 
-[node name="PauseMenu" parent="." instance=ExtResource("19_pause")]
+[node name="PauseMenu" parent="." unique_id=2126078518 instance=ExtResource("19_pause")]
 
-[node name="BossArena" type="Node" parent="."]
+[node name="BossArena" type="Node" parent="." unique_id=991607743]
 script = ExtResource("20_bossarena")

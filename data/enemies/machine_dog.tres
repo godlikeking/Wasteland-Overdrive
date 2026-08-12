@@ -1,25 +1,22 @@
-[gd_resource type="Resource" script_class="EnemyConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EnemyConfig" format=3 uid="uid://cacg435xxerb4"]
 
-[ext_resource type="Script" path="res://scripts/enemy_config.gd" id="1_cfg"]
+[ext_resource type="Script" uid="uid://c73paqnk6pih7" path="res://scripts/enemy_config.gd" id="1_cfg"]
 
 [resource]
 script = ExtResource("1_cfg")
 id = "machine_dog"
 display_name = "机器狗"
 behavior = 2
-scene = null
 sprite_color = Color(0.45, 0.8, 1, 1)
 sprite_size = Vector2(16, 16)
 collision_radius = 11.0
 max_hp = 18.0
-speed = 80.0
+speed = 100.0
 contact_damage = 14.0
 contact_cooldown = 0.7
 xp_value = 3.0
-xp_gem_scene = null
 dash_interval = 1.8
 dash_speed_multiplier = 3.5
-dash_duration = 0.35
 jump_damage = 18.0
 jump_windup = 0.3
 jump_speed = 500.0
@@ -31,4 +28,3 @@ jump_max_range = 200.0
 jump_impact_radius = 50.0
 item_drop_count = 1
 item_drop_chance = 0.12
-item_drop_scene = null
