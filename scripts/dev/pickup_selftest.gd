@@ -31,6 +31,8 @@ func _ready() -> void:
 	await _test_shield_expiry()
 	await _test_shield_ring_flash()
 	await _test_time_stop()
+	await _test_time_stop_freezes_enemy_hazards()
+	_test_time_stop_boss_halved()
 	await _test_bomb()
 	await _test_weapon()
 	await _test_magnet()
@@ -391,6 +393,106 @@ func _test_time_stop() -> void:
 			_ok("time_stop", "enemy resumes chasing after the freeze (%.1fpx)" % moved_thawed)
 	enemy.queue_free()
 	await _advance(0.1)
+
+## 时停必须停住**敌人扔出来的一切**，不只是敌人本体。
+##
+## 敌弹早就有这道闸门，但毒团（BOSS 抛的毒液）和毒池没有：时停期间毒团照飞、
+## 照落地、照生成会伤人的毒池，玩家看到的就是"时停没停住敌人的东西"。
+func _test_time_stop_freezes_enemy_hazards() -> void:
+	GameState.time_stop_left = 0.0
+	GameState.time_stop_total = 0.0
+	player.hp = player.max_hp
+
+	# (1) 敌弹：冻结期间既不动，寿命也不烧（回归门 —— 这条以前没有测试）。
+	var proj_scene: PackedScene = load("res://scenes/enemy_projectile.tscn") as PackedScene
+	var proj: Node2D = proj_scene.instantiate() as Node2D
+	add_child(proj)
+	proj.global_position = Vector2(5000, 5000)      # 远离玩家，免得当帧命中自毁
+	proj.setup(Vector2(400, 0), 5.0, 0.6)           # 0.6s 寿命
+	GameState.start_time_stop(4.0)
+	var pos_before: Vector2 = proj.global_position
+	await _advance(0.9)                              # 比寿命还久
+	if not is_instance_valid(proj) or proj.is_queued_for_deletion():
+		_fail("ts_hazard", "a frozen enemy bullet still burned through its lifetime")
+	elif proj.global_position.distance_to(pos_before) > 1.0:
+		_fail("ts_hazard", "a frozen enemy bullet still moved %.1fpx" %
+			proj.global_position.distance_to(pos_before))
+	else:
+		_ok("ts_hazard", "enemy bullets hang in the air and their lifetime freezes too")
+	if is_instance_valid(proj):
+		proj.queue_free()
+
+	# (2) 毒团：冻结期间不飞、也不落地（落地会生成一片伤人的毒池）。
+	var glob := PoisonGlob.new()
+	glob.origin = Vector2(5200, 5000)
+	glob.target = Vector2(5200, 5000)   # 落点就在起点，不冻的话立刻就该落地
+	glob.flight = 0.2
+	add_child(glob)
+	await _advance(0.6)                 # 远超飞行时间
+	if not is_instance_valid(glob) or glob.is_queued_for_deletion():
+		_fail("ts_hazard", "a frozen poison glob still landed and spawned its pool")
+	else:
+		_ok("ts_hazard", "poison globs stop mid-flight instead of landing")
+	if is_instance_valid(glob):
+		glob.queue_free()
+
+	# (3) 毒池：冻结期间不跳伤害，存留时间也不走（否则时停变成"免费清毒池"）。
+	var pool := PoisonPool.new()
+	pool.setup(200.0, 50.0, 0.1, 0.4)   # 0.1s 一跳、0.4s 寿命，都比等待窗口短
+	add_child(pool)
+	pool.global_position = player.global_position
+	var hp_before: float = player.hp
+	await _advance(0.7)
+	if player.hp < hp_before:
+		_fail("ts_hazard", "a frozen poison pool still ticked %.1f damage" % (hp_before - player.hp))
+	elif not is_instance_valid(pool) or pool.is_queued_for_deletion():
+		_fail("ts_hazard", "a frozen poison pool expired — the freeze cleared it for free")
+	else:
+		_ok("ts_hazard", "poison pools stop ticking and stop expiring")
+	if is_instance_valid(pool):
+		pool.queue_free()
+
+	GameState.time_stop_left = 0.0
+	GameState.time_stop_total = 0.0
+	await _advance(0.1)
+
+## BOSS 抗时停：只被冻住一半时长。纯逻辑断言（读 GameState 的判定），不用真
+## 刷一只 8 万血的 BOSS 站在那里等。
+func _test_time_stop_boss_halved() -> void:
+	GameState.time_stop_left = 0.0
+	GameState.time_stop_total = 0.0
+	GameState.start_time_stop(4.0)
+	# 刚开始：两者都冻。
+	if not GameState.is_time_stopped() or not GameState.is_time_stopped_for_boss():
+		_fail("ts_boss", "at t=0 both trash and boss should be frozen")
+		return
+	_ok("ts_boss", "the freeze starts on both trash and boss")
+	# 过半（剩 1.9s / 总 4s）：杂兵还冻，BOSS 已解冻。
+	GameState.time_stop_left = 1.9
+	if not GameState.is_time_stopped():
+		_fail("ts_boss", "trash unfroze too early")
+	elif GameState.is_time_stopped_for_boss():
+		_fail("ts_boss", "the boss is still frozen past the halfway point")
+	else:
+		_ok("ts_boss", "the boss thaws at the halfway point while trash stays frozen")
+	# 全部结束后两者都解冻。
+	GameState.time_stop_left = 0.0
+	if GameState.is_time_stopped() or GameState.is_time_stopped_for_boss():
+		_fail("ts_boss", "something stayed frozen after the window closed")
+	else:
+		_ok("ts_boss", "both thaw once the window closes")
+	# 续期：总长要跟着涨，否则 BOSS 的减半窗口按旧总长算会立刻失效。
+	GameState.time_stop_total = 0.0
+	GameState.start_time_stop(2.0)
+	GameState.time_stop_left = 0.5      # 已经过了大半
+	GameState.start_time_stop(6.0)      # 续一个更长的
+	if not GameState.is_time_stopped_for_boss():
+		_fail("ts_boss", "a longer second pickup did not re-freeze the boss (total=%.1f left=%.1f)" % [
+			GameState.time_stop_total, GameState.time_stop_left])
+	else:
+		_ok("ts_boss", "extending the freeze re-freezes the boss for the new window's first half")
+	GameState.time_stop_left = 0.0
+	GameState.time_stop_total = 0.0
 
 func _test_bomb() -> void:
 	var enemies: Array[Node2D] = []

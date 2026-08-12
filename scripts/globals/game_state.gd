@@ -103,6 +103,13 @@ var shield_left: float = 0.0
 ## untouched, which is why this never goes near `Engine.time_scale`
 ## (fx_manager's hit-stop owns that and would fight us for it).
 var time_stop_left: float = 0.0
+## 本次时停的总时长，用来算 BOSS 的减半窗口（见 is_time_stopped_for_boss）。
+## 必须单独记：`time_stop_left` 一直在往下走，光看它算不出"过了一半没有"。
+var time_stop_total: float = 0.0
+## BOSS 抗时停：只被冻住 `TIME_STOP_BOSS_FACTOR` 那一段。
+## 时停本来是"清屏 + 白打一轮"的道具，对着 8 万血的 BOSS 全额生效等于每次
+## 捡到就送一段无风险输出窗口；减半让它仍然有用，但不再是 BOSS 战的万能解。
+const TIME_STOP_BOSS_FACTOR: float = 0.5
 
 func _process(delta: float) -> void:
 	# Ticked outside the `is_running` guard: time-stop is a real-time effect and
@@ -111,6 +118,8 @@ func _process(delta: float) -> void:
 	if time_stop_left > 0.0:
 		time_stop_left = maxf(0.0, time_stop_left - delta)
 		time_stop_changed.emit(time_stop_left)
+		if time_stop_left <= 0.0:
+			time_stop_total = 0.0
 	# Same reasoning for the shield. Expiry drops the unspent charges, so the
 	# count signal has to fire too or the HUD and the ring would keep showing a
 	# shield that no longer absorbs anything.
@@ -135,10 +144,23 @@ func _process(delta: float) -> void:
 func is_time_stopped() -> bool:
 	return time_stop_left > 0.0
 
+## BOSS 专用的时停判定：只在**前半段**为真，也就是冻结时长减半。
+##
+## 用"剩余 > 总长的一半"而不是另开一个计时器：时停可以被第二个道具续期
+## （start_time_stop 取更长的那个），两个计时器会立刻对不上，而这个比值天然
+## 跟着续期后的窗口走。
+func is_time_stopped_for_boss() -> bool:
+	if time_stop_left <= 0.0:
+		return false
+	return time_stop_left > time_stop_total * (1.0 - TIME_STOP_BOSS_FACTOR)
+
 ## Start (or extend) the enemy freeze. Extending takes the longer of the two so
 ## a second pickup can never shorten an active freeze.
 func start_time_stop(seconds: float) -> void:
 	time_stop_left = maxf(time_stop_left, seconds)
+	# 续期后总长必须跟着涨，否则 BOSS 的减半窗口会按旧总长算，
+	# 变成"续了期但 BOSS 早就解冻了"。
+	time_stop_total = maxf(time_stop_total, time_stop_left)
 	time_stop_changed.emit(time_stop_left)
 
 ## Add shield charges lasting `seconds`. Each charge absorbs a full hit, no
@@ -202,6 +224,7 @@ func reset() -> void:
 	shield_charges = 0
 	shield_left = 0.0
 	time_stop_left = 0.0
+	time_stop_total = 0.0
 	taken_upgrades.clear()
 	shield_changed.emit(0)
 	shield_time_changed.emit(0.0)

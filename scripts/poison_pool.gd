@@ -40,6 +40,13 @@ func _ready() -> void:
 	_wobble = randf() * TAU
 
 func _physics_process(delta: float) -> void:
+	# 时停：毒池停止跳伤害，存留时间也一起冻住。
+	#
+	# 两头都要冻**才**自洽：只冻伤害的话，玩家可以站在毒池里靠时停把它耗光
+	# （时停变成"免费清毒池"）；只冻寿命的话，时停期间照样掉血，玩家会觉得
+	# 时停对敌人留下的东西无效。和敌弹/毒团同一条规则。
+	if GameState.is_time_stopped() or get_tree().paused:
+		return
 	_age += delta
 	if _age >= life:
 		queue_free()

@@ -37,6 +37,12 @@ func _ready() -> void:
 	global_position = origin
 
 func _physics_process(delta: float) -> void:
+	# 时停：毒团停在空中，飞行计时也一起冻住 —— 和敌弹同一条规则
+	# （见 enemy_projectile.gd）。以前这里没有这道闸门，于是时停期间毒团照飞、
+	# 照落地，还会生成一片会伤人的毒池 —— 玩家看到的就是"时停没停住敌人扔出来
+	# 的东西"。
+	if GameState.is_time_stopped() or get_tree().paused:
+		return
 	_age += delta
 	var t: float = clampf(_age / flight, 0.0, 1.0)
 	global_position = origin.lerp(target, t)

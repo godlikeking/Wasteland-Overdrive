@@ -161,6 +161,19 @@ func _apply_visuals() -> void:
 		# 路径次优但不会错，比重写一套 BOSS 专用寻路安全。
 		set_collision_mask_value(1, false)
 
+## 这只敌人此刻是否被时停冻住。BOSS 走减半窗口，其余敌人走全额。
+func _time_stopped_for_me() -> bool:
+	if config != null and (config.behavior == EnemyConfig.Behavior.BOSS
+			or config.behavior == EnemyConfig.Behavior.GOBOT):
+		return GameState.is_time_stopped_for_boss()
+	return GameState.is_time_stopped()
+
+## 挂在身上的预警特效（爪击/冲刺/闪电预警）要跟着主人一起冻，所以对外暴露。
+## 它们不能自己查 GameState：BOSS 的冻结窗口是减半的，而 DashTelegraph 也被
+## 突袭者/机器狗用着（全额窗口）—— 只有主人知道自己冻没冻。
+func is_frozen() -> bool:
+	return _frozen
+
 ## BOSS 精灵的放大倍数：想要的上屏尺寸 ÷ 贴图原生尺寸。
 ##
 ## 纯函数，所以"换了贴图还能不能正确上屏"这件事能被自检直接断言 —— 这正是
@@ -196,7 +209,11 @@ func _physics_process(delta: float) -> void:
 	# Time-stop item: freeze in place, keep the hitbox so the player can farm
 	# frozen enemies. Cooldown timers are deliberately NOT ticked, so the freeze
 	# does not hand out free attack windups either.
-	if GameState.is_time_stopped():
+	#
+	# BOSS（含巨型机器人）抗时停，只被冻住一半时长：全额生效等于每次捡到时停
+	# 就送一段无风险输出窗口，对着 8 万血的 BOSS 会变成 BOSS 战的万能解。
+	# 减半窗口由 GameState 按"剩余 / 总长"算（见 is_time_stopped_for_boss）。
+	if _time_stopped_for_me():
 		if not _frozen:
 			_frozen = true
 			velocity = Vector2.ZERO

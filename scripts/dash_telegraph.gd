@@ -41,6 +41,16 @@ func strike() -> void:
 	queue_redraw()
 
 func _process(delta: float) -> void:
+	# 主人被时停冻住时，预警也跟着停住。
+	#
+	# 不这么做的话：冻结期间 BOSS 的蓄力计时不走（enemy.gd 早退），但这里的
+	# _age 照走，预警会长完、并在 windup+0.5 时把自己清掉；解冻后 BOSS 接着
+	# 蓄力完成直接命中 —— 一次完全看不见的攻击。
+	# 冻结判定问主人而不是问 GameState：BOSS 的冻结窗口是减半的，而本节点
+	# （DashTelegraph）还被突袭者/机器狗用着，走的是全额窗口。
+	var host: Node = get_parent()
+	if host != null and host.has_method("is_frozen") and host.is_frozen():
+		return
 	_age += delta
 	queue_redraw()
 	if _striking and _age >= STRIKE_TIME:
