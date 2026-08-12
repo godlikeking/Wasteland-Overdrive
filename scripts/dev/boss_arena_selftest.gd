@@ -51,6 +51,8 @@ func _test_arena_owns_boss_trigger() -> void:
 		_fail("boss_trigger", "spawn_boss_now() produced %d bosses, expected 1" % after_first)
 		return
 	_ok("boss_trigger", "spawn_boss_now() drops the boss immediately")
+	# 顺手验一眼真实节点的上屏尺寸：纯函数对不代表 _apply_visuals 真的调了它。
+	_check_spawned_boss_size()
 	# (3) 重复调用不刷第二只。
 	sd.spawn_boss_now()
 	sd.spawn_boss_now()
@@ -63,6 +65,29 @@ func _test_arena_owns_boss_trigger() -> void:
 		e.queue_free()
 	GameState.time_alive = 0.0
 	await _advance(0.1)
+
+## 刚刷出来的那只 BOSS，实际上屏尺寸必须等于 config.sprite_size。
+##
+## gobot_selftest 里断言的是放大倍数那个纯函数，这里断言的是**活节点** ——
+## 倍数算对但 _apply_visuals 忘了用（或者又被写回硬编码）时，只有这条会红。
+func _check_spawned_boss_size() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var cfg: EnemyConfig = e.get("config") as EnemyConfig
+		if cfg == null or cfg.id != "giant_robot":
+			continue
+		var spr: Sprite2D = e.get_node_or_null("Sprite2D") as Sprite2D
+		if spr == null or spr.texture == null:
+			_fail("boss_size", "the spawned boss has no sprite texture")
+			return
+		var on_screen: float = spr.texture.get_size().x * spr.scale.x
+		if absf(on_screen - cfg.sprite_size.x) > 1.0:
+			_fail("boss_size", "boss renders at %.0fpx (%.0fpx art x %.2f), config wants %.0fpx" % [
+				on_screen, spr.texture.get_size().x, spr.scale.x, cfg.sprite_size.x])
+		else:
+			_ok("boss_size", "the live boss renders at %.0fpx (%.0fpx art x %.2f)" % [
+				on_screen, spr.texture.get_size().x, spr.scale.x])
+		return
+	_fail("boss_size", "no giant_robot found to measure")
 
 func _count_bosses() -> int:
 	var n: int = 0

@@ -1,4 +1,4 @@
-"""生成 4 张敌人贴图（assets/sprites/enemies/{machine_dog,robot,decay_knight,giant_robot}.png）。
+"""生成 3 张敌人贴图（assets/sprites/enemies/{machine_dog,robot,decay_knight}.png）。
 
 用法（仓库根目录执行，需要 Pillow）：
     python tools/gen_enemies.py            # 写入素材目录并校验
@@ -6,6 +6,13 @@
 
 和 gen_bullets.py 同一个模式：BLOCK = 1（原生 16×16 分辨率，一个字符一个像素）。
 朝向必须烘进 PNG：enemy.gd 不旋转，全部朝 +X（右）。所以字符画一律**面朝右**。
+
+giant_robot.png 已**退出本脚本管理**：它换成了 160×160 的外部美术素材，不再由
+字符画生成。原来那份 16×16 字符画留在生成表里会是个陷阱 —— 只要有人不带
+--check 跑一次本脚本，就会把 160×160 的成品覆盖成 16×16 的占位图，而且一声
+不响。所以从 ART 里删掉了它，改在 EXTERNAL 里留一条尺寸校验：enemy.gd 是按
+sprite_size ÷ 贴图原生尺寸算放大倍数的，原生尺寸一变，上屏大小就跟着静默变
+（16px 那版曾经把它渲染成 4480px）。
 """
 import argparse
 import os
@@ -94,25 +101,13 @@ ART = {
 .0ddddddddd0....
 .0000000000000..
 """,
-    # 巨型机器人（BOSS）：深红/金/钢，宽肩大盒，面朝右
-    "giant_robot": """
-................
-.00000000000000.
-.0cccccccccccc0.
-.0cccaaaaaccc0..
-.0caaaaaaaaac0..
-.0caaaaaaaaac0..
-.0cccaaaaaccc0..
-.0cccccccccccc0.
-.05555555555550.
-.05555555555550.
-.0aaaaaaaaaaaa0.
-.0aaaaaaaaaaaa0.
-.0a000000000aa0.
-.0a0ccccccc0aa0.
-.0a0ccccccc0aa0.
-.00000000000000.
-""",
+    # 巨型机器人（BOSS）已退出本脚本管理 —— 见模块开头。原来那份 16×16 字符画
+    # 已删除，避免它把 160×160 的外部素材覆盖掉；旧图仍在 git 历史里可查。
+}
+
+## 不由本脚本生成、但仍要盯住尺寸的外部素材：文件名 -> 期望尺寸。
+EXTERNAL = {
+    "giant_robot": (160, 160),
 }
 
 OUT_DIR = os.path.join("assets", "sprites", "enemies")
@@ -180,8 +175,28 @@ def verify(path):
     return bad
 
 
+def verify_external(path, want_size):
+    """外部素材只校验"能用"的底线：存在、RGBA、尺寸没变。
+
+    刻意**不**查调色板和同色块 —— 那两条是给字符画生成物定的规矩，手绘素材
+    本来就不该守。尺寸必须查：enemy.gd 按 sprite_size ÷ 原生尺寸算放大倍数。
+    """
+    bad = []
+    if not os.path.exists(path):
+        return ["文件不存在"]
+    im = Image.open(path)
+    if im.mode != "RGBA":
+        bad.append("mode=%s 不是 RGBA" % im.mode)
+    if im.size != want_size:
+        bad.append("尺寸 %dx%d != %dx%d（会静默改变 BOSS 上屏大小）"
+                   % (im.size[0], im.size[1], want_size[0], want_size[1]))
+    if im.getbbox() is None:
+        bad.append("全透明 — 图是空的")
+    return bad
+
+
 def main():
-    ap = argparse.ArgumentParser(description="生成 4 张敌人贴图")
+    ap = argparse.ArgumentParser(description="生成 3 张敌人贴图（另校验 1 张外部素材）")
     ap.add_argument("--check", action="store_true", help="只校验不写盘")
     args = ap.parse_args()
 
@@ -207,7 +222,18 @@ def main():
             if args.check:
                 print(" OK")
 
-    total = len(ART)
+    # 外部素材：只校验，永不写盘（写盘就等于覆盖掉美术给的成品）。
+    for name, want_size in EXTERNAL.items():
+        path = os.path.join(out_dir, "%s.png" % name)
+        print("  EXTERNAL %s.png" % name, end="")
+        problems = verify_external(path, want_size)
+        if problems:
+            print("  FAIL %s.png: %s" % (name, "; ".join(problems)))
+        else:
+            ok += 1
+            print(" OK %dx%d（不由本脚本生成）" % want_size)
+
+    total = len(ART) + len(EXTERNAL)
     print("%d/%d 通过" % (ok, total))
     sys.exit(0 if ok == total else 1)
 

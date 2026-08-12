@@ -113,10 +113,19 @@ func _apply_visuals() -> void:
 	var path: String = _sprite_path_for(config.id)
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-		# Boss is 28× (448px), elites stay 3× (48px) with a red tint.
+		# BOSS 上屏 config.sprite_size（448px），杂兵/精英固定 3×（16px → 48px）。
+		#
+		# BOSS 的倍数**从贴图原生尺寸算**，不写死：这里原来是硬编码 28×，那是
+		# 按 16×16 素材算的（16 × 28 = 448）。giant_robot.png 换成 160×160 之后
+		# 那个 28 直接把它渲染成 4480px —— 十倍大，而且不报任何错。换算成
+		# sprite_size ÷ 原生尺寸就自愈了：16px 素材得 28×、160px 素材得 2.8×，
+		# 两者上屏都是 448px，判定框（collision_radius 224）不用跟着动。
+		# 杂兵**不**能这么算：它们的 sprite_size 是遗留占位值（16~20），不是
+		# 想要的上屏尺寸，按它算会把杂兵缩到 20px。
 		if config.behavior == EnemyConfig.Behavior.BOSS \
 				or config.behavior == EnemyConfig.Behavior.GOBOT:
-			sprite.scale = Vector2(28.0, 28.0)
+			sprite.scale = Vector2.ONE * boss_sprite_scale(
+				config.sprite_size.x, sprite.texture.get_size().x)
 			sprite.modulate = Color(1.2, 0.6, 0.6)
 		elif config.behavior == EnemyConfig.Behavior.ELITE:
 			sprite.scale = Vector2(3.0, 3.0)
@@ -151,6 +160,16 @@ func _apply_visuals() -> void:
 		# 寻路照旧：NavigationAgent 绕的是它现在已经能踩过去的障碍，
 		# 路径次优但不会错，比重写一套 BOSS 专用寻路安全。
 		set_collision_mask_value(1, false)
+
+## BOSS 精灵的放大倍数：想要的上屏尺寸 ÷ 贴图原生尺寸。
+##
+## 纯函数，所以"换了贴图还能不能正确上屏"这件事能被自检直接断言 —— 这正是
+## 硬编码 28× 那版悄悄坏掉的地方（素材从 16px 换成 160px，渲染成了 4480px，
+## 没有任何报错）。原生尺寸为 0（贴图缺失）时退回 1.0 而不是除零。
+static func boss_sprite_scale(want_px: float, native_px: float) -> float:
+	if native_px <= 0.0:
+		return 1.0
+	return maxf(0.01, want_px) / native_px
 
 ## HUD 的 BOSS 血条用：第一关是废土巨兽，第二关是巨型机器人。
 func get_boss_display_name() -> String:

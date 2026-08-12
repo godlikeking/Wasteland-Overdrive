@@ -28,6 +28,7 @@ func _ready() -> void:
 	_test_bolt_angles()
 	_test_phase_unlocks()
 	_test_config_filled()
+	_test_boss_sprite_scale()
 	await _test_orb_burst()
 	await _test_mine_hits_player()
 	await _test_mine_arming()
@@ -163,8 +164,41 @@ func _test_config_filled() -> void:
 	else:
 		_fail("config", "zero/missing in giant_robot.tres: %s" % ", ".join(zero))
 
-# --- 集成：电球炸开 ---
+## BOSS 上屏尺寸必须等于 config.sprite_size，**不管素材原生多大**。
+##
+## 这条是那次真实事故的闸门：放大倍数原来硬编码 28×（按 16px 素材算的），
+## giant_robot.png 换成 160×160 后直接渲染成 4480px —— 十倍大，不报任何错。
+## 现在倍数由 boss_sprite_scale 从原生尺寸推出来，两关的 BOSS 都要落在 448px。
+func _test_boss_sprite_scale() -> void:
+	# 纯函数本身：16px 素材要 28×，160px 素材要 2.8×，两者都得到 448。
+	var s16: float = ENEMY.boss_sprite_scale(448.0, 16.0)
+	var s160: float = ENEMY.boss_sprite_scale(448.0, 160.0)
+	if absf(s16 - 28.0) > 0.001 or absf(s160 - 2.8) > 0.001:
+		_fail("boss_scale", "scale math off: 16px -> %.3fx (want 28), 160px -> %.3fx (want 2.8)" % [s16, s160])
+	else:
+		_ok("boss_scale", "16px art scales 28x, 160px art scales 2.8x — both land on 448px")
+	# 除零兜底：贴图缺失时不能崩，也不能返回 inf。
+	var s0: float = ENEMY.boss_sprite_scale(448.0, 0.0)
+	if s0 != 1.0:
+		_fail("boss_scale", "a missing texture gave scale %f, expected 1.0" % s0)
+	else:
+		_ok("boss_scale", "a zero-size texture degrades to 1.0 instead of dividing by zero")
+	# 真实素材：两关的 BOSS 贴图各自乘完倍数都必须是 sprite_size。
+	for id in ["giant_robot", "boss"]:
+		var cfg: EnemyConfig = load("res://data/enemies/%s.tres" % id) as EnemyConfig
+		var tex: Texture2D = load("res://assets/sprites/enemies/%s.png" % id) as Texture2D
+		if cfg == null or tex == null:
+			_fail("boss_scale", "cannot load %s config/texture" % id)
+			continue
+		var native: float = tex.get_size().x
+		var on_screen: float = native * ENEMY.boss_sprite_scale(cfg.sprite_size.x, native)
+		if absf(on_screen - cfg.sprite_size.x) > 0.5:
+			_fail("boss_scale", "%s renders at %.0fpx, config wants %.0fpx" % [id, on_screen, cfg.sprite_size.x])
+		else:
+			_ok("boss_scale", "%s: %.0fpx art -> %.0fpx on screen (matches its config)" % [
+				id, native, on_screen])
 
+# --- 集成：电球炸开 ---
 ## 电球抵达落点必须做两件事：范围内伤玩家一次 + 喷出 N 颗小电球。
 ## 两件事分两次测：小电球是**打玩家的**弹，落点压在玩家身上时它们会在生成的
 ## 同一瞬间命中并自毁，数出来永远是 0 —— 第一版就踩了这个坑。
