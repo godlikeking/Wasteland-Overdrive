@@ -1,8 +1,11 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/dev/boss_arena_selftest.gd" id="1_selftest"]
 [ext_resource type="Script" path="res://scripts/world/world.gd" id="2_world"]
 [ext_resource type="Resource" path="res://data/world/factory_world.tres" id="3_wcfg"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4_player"]
+[ext_resource type="Script" path="res://scripts/spawn_director.gd" id="5_spawn"]
+[ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="6_enemy"]
 
 [node name="BossArenaSelfTest" type="Node2D"]
 script = ExtResource("1_selftest")
@@ -10,3 +13,14 @@ script = ExtResource("1_selftest")
 [node name="World" type="Node2D" parent="."]
 script = ExtResource("2_world")
 wasteland_config = ExtResource("3_wcfg")
+
+[node name="Player" parent="." instance=ExtResource("4_player")]
+
+[node name="SpawnDirector" type="Node2D" parent="."]
+script = ExtResource("5_spawn")
+enemy_scene = ExtResource("6_enemy")
+player_path = NodePath("../Player")
+base_interval = 9999.0
+elite_interval = 9999.0
+boss_spawn_time = 180.0
+factory_mode = true

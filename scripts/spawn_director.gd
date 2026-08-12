@@ -153,16 +153,35 @@ func _process(delta: float) -> void:
 		var player_pos: Vector2 = _player.global_position
 		_spawn_label(player_pos, "ELITE WAVE", Color(1, 0.4, 0.4), 30, 1.4)
 
-	# --- Boss check (5 min, once per run) ---
-	if not _boss_spawned:
+	# --- Boss check (once per run) ---
+	# 第二关有 BOSS 竞技场时，出场时机**由竞技场接管**（玩家踏进房间即刻降临，
+	# 见 boss_arena.gd），这里不再看时间，也不播倒计时 —— 否则玩家还在图里逛，
+	# BOSS 就自己在空房间里刷出来了，那条倒计时横幅也纯属误导。
+	if not _boss_spawned and not arena_owns_boss_trigger():
 		if t >= boss_spawn_time:
-			_boss_spawned = true
-			GameState.boss_incoming.emit(0.0)
-			var boss_cfg: EnemyConfig = _find_config("giant_robot" if factory_mode else "boss")
-			if boss_cfg:
-				_spawn_boss(boss_cfg)
+			spawn_boss_now()
 		else:
 			_tick_boss_warning(boss_spawn_time - t)
+
+## BOSS 的出场时机是否由竞技场接管（第二关工厂）。没有 World / 没有竞技场
+## （第一关、以及自检里裸构造的 director）都返回 false，退回原来的计时出场。
+func arena_owns_boss_trigger() -> bool:
+	if not factory_mode:
+		return false
+	var world: Node = _map_world()
+	return world != null and world.has_method("has_boss_arena") and world.has_boss_arena()
+
+## 立刻刷 BOSS。竞技场在玩家进门时调它；没有竞技场时由 `_process` 的计时调。
+## 重复调用无效（`_boss_spawned` 一局只放一次），所以竞技场每帧误触也不会
+## 刷出第二只。
+func spawn_boss_now() -> void:
+	if _boss_spawned:
+		return
+	_boss_spawned = true
+	GameState.boss_incoming.emit(0.0)
+	var boss_cfg: EnemyConfig = _find_config("giant_robot" if factory_mode else "boss")
+	if boss_cfg:
+		_spawn_boss(boss_cfg)
 
 ## Per-tick spawn count at `t` seconds alive, capped by `max_burst`. Pure so the
 ## cap can be asserted at times the game would take five minutes to reach.

@@ -16,8 +16,69 @@ func _ready() -> void:
 	_test_factory_scene_declares_level_two()
 	await _test_level_two_bullet_is_an_orb()
 	_test_only_walls_block_bullets()
+	await _test_arena_owns_boss_trigger()
 	print("=== boss_arena selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
+
+## BOSS 出场时机由竞技场接管：**进门即刻降临**，不再等 3 分钟计时。
+##
+## 三条性质各自对应一种真实的写坏方式：
+## 1. 有竞技场时，计时到点也**不**刷 —— 否则玩家还在图里逛，BOSS 就自己在空
+##    房间里刷出来了。
+## 2. spawn_boss_now() 真的能刷出来（不然进门就变成什么都没发生）。
+## 3. 重复调用不刷第二只 —— 竞技场是在 _process 里判定的，多触发一帧很正常。
+func _test_arena_owns_boss_trigger() -> void:
+	var sd: Node = $SpawnDirector
+	if not sd.has_method("arena_owns_boss_trigger") or not sd.has_method("spawn_boss_now"):
+		_fail("boss_trigger", "SpawnDirector is missing the arena trigger API")
+		return
+	if not sd.arena_owns_boss_trigger():
+		_fail("boss_trigger", "factory + arena should hand the boss trigger to the arena")
+		return
+	_ok("boss_trigger", "the arena owns the boss trigger in factory mode")
+	# (1) 计时到点也不刷。
+	GameState.time_alive = sd.boss_spawn_time + 60.0
+	await _advance(0.3)
+	if _count_bosses() > 0:
+		_fail("boss_trigger", "the %ds timer still spawned the boss despite the arena" % int(sd.boss_spawn_time))
+		return
+	_ok("boss_trigger", "the timer no longer spawns the boss when an arena exists")
+	# (2) 进门触发（直接调竞技场用的那个入口）。
+	sd.spawn_boss_now()
+	await _advance(0.2)
+	var after_first: int = _count_bosses()
+	if after_first != 1:
+		_fail("boss_trigger", "spawn_boss_now() produced %d bosses, expected 1" % after_first)
+		return
+	_ok("boss_trigger", "spawn_boss_now() drops the boss immediately")
+	# (3) 重复调用不刷第二只。
+	sd.spawn_boss_now()
+	sd.spawn_boss_now()
+	await _advance(0.2)
+	if _count_bosses() != 1:
+		_fail("boss_trigger", "repeat calls spawned %d bosses" % _count_bosses())
+	else:
+		_ok("boss_trigger", "repeat calls never spawn a second boss")
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+	GameState.time_alive = 0.0
+	await _advance(0.1)
+
+func _count_bosses() -> int:
+	var n: int = 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e == null or e.is_queued_for_deletion():
+			continue
+		var cfg: EnemyConfig = e.get("config") as EnemyConfig
+		if cfg != null and cfg.id == "giant_robot":
+			n += 1
+	return n
+
+func _advance(seconds: float) -> void:
+	var t: float = 0.0
+	while t < seconds:
+		await get_tree().process_frame
+		t += get_process_delta_time()
 
 ## 子弹只被**墙**挡，别的地形一律飞过去。
 ##
@@ -111,12 +172,17 @@ func _bullet_texture_at_level(lvl: int) -> String:
 		return "<no enemy_projectile.tscn>"
 	var proj: Node = ps.instantiate()
 	add_child(proj)
+	# 挪离玩家：这颗弹的 mask 里有 Player，落在玩家身上会当帧命中并自毁，
+	# 下一帧再去读它的 Sprite2D 就是"访问已释放实例"。
+	if proj is Node2D:
+		(proj as Node2D).global_position = Vector2(6000, 6000)
 	await get_tree().process_frame
 	var path: String = "<no texture>"
-	var spr: Sprite2D = proj.get_node_or_null("Sprite2D") as Sprite2D
-	if spr != null and spr.texture != null:
-		path = spr.texture.resource_path
-	proj.queue_free()
+	if is_instance_valid(proj) and not proj.is_queued_for_deletion():
+		var spr: Sprite2D = proj.get_node_or_null("Sprite2D") as Sprite2D
+		if spr != null and spr.texture != null:
+			path = spr.texture.resource_path
+		proj.queue_free()
 	return path
 
 ## 第二关场景必须自己声明 level_index = 2。
