@@ -47,11 +47,9 @@ func _fire() -> void:
 	if _mines.size() >= maxi(1, config.mine_max_active):
 		return
 	var mine: Node = config.mine_scene.instantiate()
-	if mine is Node2D:
-		# Slight scatter, so a stationary player lays a small field instead of
-		# stacking every mine on one pixel.
-		var jitter := Vector2(randf_range(-14.0, 14.0), randf_range(-14.0, 14.0))
-		(mine as Node2D).global_position = _owner.global_position + jitter
+	# Slight scatter, so a stationary player lays a small field instead of
+	# stacking every mine on one pixel.
+	var jitter := Vector2(randf_range(-14.0, 14.0), randf_range(-14.0, 14.0))
 	if mine.has_method("setup"):
 		mine.setup(
 			config.mine_blast_radius * float(GameState.weapon_range_mult),
@@ -59,8 +57,19 @@ func _fire() -> void:
 			config.mine_arm_time,
 			config.mine_lifetime
 		)
-	get_tree().current_scene.add_child(mine)
+	# 挂到 World 名下而不是场景根：World 的子节点在 z=0 上紧跟 TileMap 之后
+	# 绘制，压在地图上、又压在玩家/敌人（World 的后继兄弟）之下 —— 这才是让
+	# 雷"躺在地上"的正确做法。以前挂场景根 + z_index=-1，负 z 被整张地图盖掉，
+	# 雷根本看不见。和 poison_pool 同一套。没有 World 就退回场景根。
+	var worlds: Array = get_tree().get_nodes_in_group("world")
+	if worlds.is_empty():
+		get_tree().current_scene.add_child(mine)
+	else:
+		worlds[0].add_child(mine)
+	# 落点在**挂上去之后**才设：挂到 World 名下时 global_position 才算得准，
+	# 挂之前设的是无父节点的局部坐标（World 一旦不在原点就会偏）。
 	if mine is Node2D:
+		(mine as Node2D).global_position = _owner.global_position + jitter
 		_mines.append(mine as Node2D)
 
 ## Drop refs to mines that already blew up. Checked before every lay so the cap

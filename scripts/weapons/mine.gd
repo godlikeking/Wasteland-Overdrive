@@ -38,7 +38,10 @@ func setup(p_radius: float, p_damage: float, p_arm_time: float, p_life: float) -
 
 func _ready() -> void:
 	add_to_group("mines")
-	z_index = -1   # under the enemies, so it reads as lying on the ground
+	# 躺在地上，但**不能用负 z**：TileMap 在 z=0，负 z 会被整张地图盖掉，雷就
+	# 彻底看不见、只剩爆炸那一下。想画在角色下面靠的是"挂在 World 名下"
+	# （见 mine_layer._lay），不是负 z。毒池踩过同一个坑（以前用 -5）。
+	z_index = 0
 	body_entered.connect(_on_touch)
 	area_entered.connect(_on_touch)
 

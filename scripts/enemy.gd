@@ -682,7 +682,7 @@ func _gobot_throw_mines(around: Vector2) -> void:
 	for i in range(n):
 		var pos: Vector2 = _gobot_pick_mine_spot(around, i, n)
 		var mine: Node = scene.instantiate()
-		_add_to_scene(mine)
+		_add_to_world_or_scene(mine)
 		if not is_instance_valid(mine) or not mine.is_inside_tree():
 			return
 		if mine is Node2D:
@@ -1100,6 +1100,24 @@ func _add_to_scene(node: Node) -> void:
 		node.queue_free()
 		return
 	tree.current_scene.add_child(node)
+
+## 把"躺在地上"的东西（地雷之类）挂到 World 名下，让它压在地图上、又压在
+## 玩家/敌人之下。
+##
+## 为什么不能只靠 z_index：TileMap 在 z=0，想画在角色下面就只能用负 z，而负 z
+## 会被整张地图盖掉（雷彻底看不见，只剩爆炸）。World 的子节点在同一个 z=0 上
+## 按树序紧跟 TileMap 之后绘制，而玩家/敌人是 World 的**后继兄弟**，所以自然
+## 排在更上面 —— 这正是 poison_pool 的做法。
+## 没有 World（自检之类的裸场景）就退回 _add_to_scene。
+func _add_to_world_or_scene(node: Node) -> void:
+	if not is_inside_tree():
+		node.queue_free()
+		return
+	for w in get_tree().get_nodes_in_group("world"):
+		if w != null and w.is_inside_tree():
+			w.add_child(node)
+			return
+	_add_to_scene(node)
 
 # --- Navigation ---
 

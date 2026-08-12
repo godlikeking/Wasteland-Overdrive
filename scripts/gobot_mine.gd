@@ -37,8 +37,13 @@ func setup(p_radius: float, p_damage: float, p_arm_time: float, p_life: float) -
 
 func _ready() -> void:
 	add_to_group("gobot_mines")
-	# 躺在地上：画在敌人/玩家下面。
-	z_index = -1
+	# 躺在地上，但**不能用负 z**：TileMap 在 z=0，z=-1 会被整张地图盖掉，
+	# 结果是雷完全看不见、只看到最后那朵爆炸 —— 这个坑毒池踩过一次
+	# （以前用 -5），poison_pool.gd 那条注释就是它的墓志铭。
+	# z=0 + 挂在 World 名下（见 enemy._add_to_world_or_scene）才对：World 先画
+	# TileMap，雷作为它的后继子节点紧随其后压在图上，又在玩家/敌人
+	# （World 的后继兄弟）之下。
+	z_index = 0
 	body_entered.connect(_on_touch)
 
 func _physics_process(delta: float) -> void:

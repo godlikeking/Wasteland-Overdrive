@@ -32,6 +32,7 @@ func _ready() -> void:
 	await _test_orb_burst()
 	await _test_mine_hits_player()
 	await _test_mine_arming()
+	await _test_mine_is_visible_above_the_map()
 	print("=== gobot selftest failures: %d ===" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -296,8 +297,34 @@ func _test_mine_arming() -> void:
 	player.global_position = Vector2.ZERO
 	await get_tree().process_frame
 
-# --- helpers ---
+## 地雷必须画在地图**上面**，否则玩家只看得到最后那朵爆炸。
+##
+## 这是本仓库第三次踩同一个坑：TileMap 在 z=0，任何想"躺在地上"的东西一旦用
+## 负 z 就被整张地图盖掉（毒池曾经用 -5、两种地雷都曾经用 -1）。所以这条断言
+## 盯住的是那个具体的错法：**负 z**。想画在角色下面要靠挂在 World 名下的树序，
+## 不是靠负 z。
+func _test_mine_is_visible_above_the_map() -> void:
+	var checks := {
+		"gobot mine": MINE_SCENE,
+		"player mine": load("res://scenes/weapons/mine.tscn") as PackedScene,
+	}
+	for label in checks.keys():
+		var ps: PackedScene = checks[label]
+		if ps == null:
+			_fail("mine_z", "cannot load the %s scene" % label)
+			continue
+		var m: Node2D = ps.instantiate() as Node2D
+		add_child(m)
+		await get_tree().process_frame
+		var z: int = m.z_index
+		m.queue_free()
+		if z < 0:
+			_fail("mine_z", "%s sits at z=%d — the TileMap (z=0) would cover it completely" % [label, z])
+		else:
+			_ok("mine_z", "%s draws at z=%d, above the map" % [label, z])
+	await get_tree().process_frame
 
+# --- helpers ---
 ## 小电球是 enemy_projectile.tscn 的实例，由电球挂到 current_scene 下（也就是
 ## 这个自检的根节点）。**按脚本认而不是按节点名**：add_child 遇到重名会给出
 ## `@EnemyProjectile@12345` 这种内部名，按名字前缀数 8 颗只能数到 1 颗 ——
