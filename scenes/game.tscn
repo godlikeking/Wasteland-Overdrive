@@ -37,6 +37,7 @@ script = ExtResource("1_game")
 [node name="World" type="Node2D" parent="."]
 script = ExtResource("14_world")
 wasteland_config = ExtResource("15_wcfg")
+randomize_terrain = true
 
 [node name="FX" type="Node2D" parent="."]
 script = ExtResource("8_fx")

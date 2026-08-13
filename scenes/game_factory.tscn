@@ -27,6 +27,7 @@ level_index = 2
 [node name="World" type="Node2D" parent="." unique_id=1004224867]
 script = ExtResource("14_world")
 wasteland_config = ExtResource("15_wcfg")
+randomize_terrain = true
 
 [node name="FX" type="Node2D" parent="." unique_id=1561182581]
 script = ExtResource("8_fx")

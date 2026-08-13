@@ -196,11 +196,15 @@ func _bullet_texture_at_level(lvl: int) -> String:
 	if ps == null:
 		return "<no enemy_projectile.tscn>"
 	var proj: Node = ps.instantiate()
+	# 关掉碰撞再挂进树，而不是"停到图外"。
+	#
+	# 原来是丢到 Vector2(6000,6000)，靠"那里在 128 格地图之外所以没有瓦片"来
+	# 让它活过一帧。地图一放大到 192 格（半径 6144px），那个点就变成图内的金属
+	# 墙，弹当帧自毁，下一帧读 Sprite2D 报"访问已释放实例"，而失败信息看起来
+	# 像贴图回归 —— 排查方向全错。mask=0 之后它撞不到任何东西，和地图尺寸解耦。
+	if proj is CollisionObject2D:
+		(proj as CollisionObject2D).collision_mask = 0
 	add_child(proj)
-	# 挪离玩家：这颗弹的 mask 里有 Player，落在玩家身上会当帧命中并自毁，
-	# 下一帧再去读它的 Sprite2D 就是"访问已释放实例"。
-	if proj is Node2D:
-		(proj as Node2D).global_position = Vector2(6000, 6000)
 	await get_tree().process_frame
 	var path: String = "<no texture>"
 	if is_instance_valid(proj) and not proj.is_queued_for_deletion():

@@ -8,6 +8,14 @@ extends Node2D
 class_name WorldRoot
 
 @export var wasteland_config: WastelandConfig
+## 每局随机地形。开着 = 开局抽一个随机种子，地图每局都不一样；关着 = 用配置里
+## 的 `seed_value`，同一张固定的图。
+##
+## 这个开关放在 **World 节点**上而不是配置资源里，是为了让自检保持确定性：
+## 只有 game.tscn / game_factory.tscn 把它打开，自检场景的 World 用默认值 false，
+## 于是"同 seed 同营地"之类的断言不会变成概率性红灯，也不用给测试单独复制一份
+## 配置（复制会漂移）。
+@export var randomize_terrain: bool = false
 
 var tilemap: TileMap
 var builder: TilemapBuilder
@@ -24,7 +32,7 @@ func _ready() -> void:
 	builder = TilemapBuilder.new()
 	builder.name = "TilemapBuilder"
 	add_child(builder)
-	builder.build(tilemap, wasteland_config)
+	builder.build(tilemap, wasteland_config, randi() if randomize_terrain else -1)
 	print("[World] ready, %dx%d px" % [
 		wasteland_config.map_size_tiles * wasteland_config.tile_size,
 		wasteland_config.map_size_tiles * wasteland_config.tile_size,

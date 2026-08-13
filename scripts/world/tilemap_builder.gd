@@ -53,6 +53,9 @@ const CAMP_ANGLE_JITTER := 0.08
 
 var config: WastelandConfig
 var tilemap: TileMap
+## 本次生成实际用的随机种子。**不写回 config** —— .tres 是全进程共享的缓存
+## 资源，写它会污染其它场景甚至存盘。想复现某张图就看开局打印的这个值。
+var seed_used: int = 0
 var swamp_cells: Dictionary = {}     # Vector2i -> true
 var elite_camps: Array[Vector2i] = []  # camp centre cells
 ## BOSS 竞技场（第二关）：房间矩形（格）和门洞格子。封门/开门只动门洞。
@@ -61,12 +64,19 @@ var boss_arena_door: Array[Vector2i] = []
 
 # --- Public API ---
 
-func build(p_tilemap: TileMap, p_config: WastelandConfig) -> void:
+## 生成整张地图。
+##
+## `p_seed`：本次用的随机种子。< 0 表示"用 config.seed_value"（固定图，自检
+## 场景走这条），>= 0 表示调用方指定（World 在 randomize_terrain 开启时传
+## randi()，于是每局地形都不同）。种子只在这里落到 `seed_used`，全程只读 ——
+## 绝不写 config。
+func build(p_tilemap: TileMap, p_config: WastelandConfig, p_seed: int = -1) -> void:
 	tilemap = p_tilemap
 	config = p_config
 	if tilemap == null or config == null:
 		push_error("[TilemapBuilder] missing tilemap or config")
 		return
+	seed_used = p_seed if p_seed >= 0 else config.seed_value
 	_build_tileset()
 	if config.map_style == 1:
 		_paint_rooms()
@@ -75,8 +85,9 @@ func build(p_tilemap: TileMap, p_config: WastelandConfig) -> void:
 	# Camps come last so they can carve obstacles/swamp out of their arena. There
 	# is no border pass any more (see the class docs), so nothing overwrites them.
 	_place_elite_camps()
-	print("[TilemapBuilder] %dx%d map painted. Swamp cells: %d, elite camps: %d" % [
-		config.map_size_tiles, config.map_size_tiles, swamp_cells.size(), elite_camps.size()
+	print("[TilemapBuilder] %dx%d map painted (seed %d). Swamp cells: %d, elite camps: %d" % [
+		config.map_size_tiles, config.map_size_tiles, seed_used,
+		swamp_cells.size(), elite_camps.size()
 	])
 
 func is_swamp(world_pos: Vector2) -> bool:
@@ -404,9 +415,9 @@ func _paint_map() -> void:
 	#   - obstacle_field: same idea, with `rubble+scrap+pit` density. We
 	#     multiply it by a "clustering" mask derived from a cellular noise
 	#     so obstacles bunch up instead of scattering.
-	var swamp_field: FastNoiseLite = _make_density_noise(config.seed_value, config.swamp_cluster_scale)
-	var obstacle_field: FastNoiseLite = _make_density_noise(config.seed_value + 100, config.obstacle_cluster_scale)
-	var cluster_mask: FastNoiseLite = _make_cluster_mask(config.seed_value + 200, config.obstacle_cluster_scale)
+	var swamp_field: FastNoiseLite = _make_density_noise(seed_used, config.swamp_cluster_scale)
+	var obstacle_field: FastNoiseLite = _make_density_noise(seed_used + 100, config.obstacle_cluster_scale)
+	var cluster_mask: FastNoiseLite = _make_cluster_mask(seed_used + 200, config.obstacle_cluster_scale)
 	# Center the noise around world origin so the spawn point sits in the
 	# middle of the noise field (more interesting terrain around player).
 	var half: int = size / 2
@@ -433,21 +444,28 @@ func _paint_map() -> void:
 				# Explicitly paint SAND so it has visual + a tile presence.
 				tilemap.set_cell(0, cell, 0, _atlas(T_SAND))
 
-## 第二关：机器人工厂 —— BSP 房间分割。
+## 第二关：机器人工厂 —— 网格房间分割。
 ##
-## 把地图切成 room_grid × room_grid 的网格，每个格子递归二分出小房间，
-## 房间之间用走廊相连，走廊宽 corridor_width 格（保证敌人能走）。
+## 把地图切成 room_grid × room_grid 的网格，每格内挖一个房间，相邻房间用 L 形
+## 走廊相连，走廊宽 corridor_width 格（保证敌人能走）。
 ## 墙壁用 T_METAL_WALL（物理阻挡、不可走），地板用 T_FACTORY_FLOOR
 ## （可走、有导航多边形）。
 ##
+## 布局**按 seed_used 随机**：房间在自己格子里做尺寸/位置抖动，走廊随机先横后
+## 纵或先纵后横。以前这里一行随机都没有（纯网格算术），所以第二关每局长得一模
+## 一样，换 seed 也没用。
+##
 ## 关键约束：
-## - 玩家出生点 (0,0) 周围 spawn_clear_radius 格必须清空（不能生在水箱里）
+## - 玩家出生点 (0,0) 周围 spawn_clear_radius 格必须清空（不能生在水箱里），
+##   而且必须**连得出去** —— 见结尾那条从出生点接到最近房间的走廊。
 ## - 走廊宽度 >= 2 格：NavigationAgent 的 agent 半径约 12px = 0.19 格，
 ##   1 格走廊太窄，拐角会卡住。
 func _paint_rooms() -> void:
 	var size: int = config.map_size_tiles
 	tilemap.position = Vector2.ZERO
 	var half: int = size / 2
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_used
 
 	# 先全图铺墙，再挖房间和走廊 —— 墙就是"没被挖掉的地"。
 	for y in range(-half, half):
@@ -462,11 +480,17 @@ func _paint_rooms() -> void:
 		for gx in range(grid):
 			var x0: int = gx * cell_w - half
 			var y0: int = gy * cell_w - half
-			var inset: int = maxi(1, cell_w / 4)
-			var rx0: int = x0 + inset
-			var ry0: int = y0 + inset
-			var rx1: int = x0 + cell_w - 1 - inset
-			var ry1: int = y0 + cell_w - 1 - inset
+			# 内缩量四边各自随机：房间因此在格子里有大有小、偏上偏下。
+			# 上限留够 room_min_size，免得抖出一个负尺寸的房间。
+			var max_inset: int = maxi(1, (cell_w - config.room_min_size) / 2)
+			var il: int = rng.randi_range(1, max_inset)
+			var ir: int = rng.randi_range(1, max_inset)
+			var it: int = rng.randi_range(1, max_inset)
+			var ib: int = rng.randi_range(1, max_inset)
+			var rx0: int = x0 + il
+			var ry0: int = y0 + it
+			var rx1: int = x0 + cell_w - 1 - ir
+			var ry1: int = y0 + cell_w - 1 - ib
 			if rx1 - rx0 < config.room_min_size:
 				rx1 = rx0 + config.room_min_size - 1
 			if ry1 - ry0 < config.room_min_size:
@@ -477,7 +501,8 @@ func _paint_rooms() -> void:
 	for r in rooms:
 		_paint_rect(r, T_FACTORY_FLOOR)
 
-	# 走廊：每对相邻房间中心连一条 L 形走廊（先横后竖），宽 corridor_width。
+	# 走廊：每对相邻房间中心连一条 L 形走廊，宽 corridor_width。
+	# 拐法（先横后纵 / 先纵后横）随机，走廊网络因此不再是规整的十字格。
 	var cw: int = maxi(1, config.corridor_width)
 	for gy in range(grid):
 		for gx in range(grid):
@@ -490,19 +515,36 @@ func _paint_rooms() -> void:
 				var other: Rect2i = rooms[gy * grid + gx + 1]
 				var ox: int = other.get_center().x
 				var oy: int = other.get_center().y
-				_carve_corridor(cx, cy, ox, oy, cw)
+				_carve_corridor(cx, cy, ox, oy, cw, rng.randf() < 0.5)
 			# 连下方邻居
 			if gy + 1 < grid:
 				var other: Rect2i = rooms[(gy + 1) * grid + gx]
 				var ox: int = other.get_center().x
 				var oy: int = other.get_center().y
-				_carve_corridor(cx, cy, ox, oy, cw)
+				_carve_corridor(cx, cy, ox, oy, cw, rng.randf() < 0.5)
 
 	# 出生点安全区：清掉周围 spawn_clear_radius 格的墙。
 	var clear: int = config.spawn_clear_radius
 	for y in range(-clear, clear + 1):
 		for x in range(-clear, clear + 1):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
+
+	# 出生点必须**连得出去**：把它接到最近那个房间的中心。
+	#
+	# 光清空 ±clear 是不够的 —— 那只保证脚下不是墙，不保证走得出去。以前能连上
+	# 纯属巧合：cell_w 正好是 16 时中心房间刚好盖住 ±5。地图一放大（cell_w 变
+	# 24）中心房间就退开了，出生区会变成四周全是墙的孤岛；房间尺寸现在还是随机
+	# 的，更不能靠巧合。所以显式挖一条。
+	var nearest: Rect2i = rooms[0]
+	var best_d: int = 1 << 30
+	for r in rooms:
+		var c: Vector2i = r.get_center()
+		var d: int = c.x * c.x + c.y * c.y
+		if d < best_d:
+			best_d = d
+			nearest = r
+	var nc: Vector2i = nearest.get_center()
+	_carve_corridor(0, 0, nc.x, nc.y, maxi(2, cw), rng.randf() < 0.5)
 
 	# BOSS 竞技场：独立大房间（右上角），封门/开门由 boss_arena.gd 控制。
 	_carve_boss_arena(half)
@@ -513,13 +555,19 @@ func _paint_rect(r: Rect2i, tid: int) -> void:
 		for x in range(r.position.x, r.position.x + r.size.x):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(tid))
 
-## L 形走廊：先沿 X 走到底再沿 Y 走，宽 cw 格。
-func _carve_corridor(x0: int, y0: int, x1: int, y1: int, cw: int) -> void:
+## L 形走廊，宽 cw 格。`vertical_first` = 先沿 Y 走再沿 X 走（否则先 X 后 Y）。
+## 拐法由调用方随机，走廊网络因此不再是规整的十字格。
+func _carve_corridor(x0: int, y0: int, x1: int, y1: int, cw: int,
+		vertical_first: bool = false) -> void:
 	var w: int = cw / 2
-	for y in range(y0 - w, y0 + w + 1):
+	# 横段：vertical_first 时贴在终点那一行，否则贴在起点那一行 —— 两种拐法的
+	# 区别就在横竖两段各自走哪一条线上。
+	var row: int = y1 if vertical_first else y0
+	var col: int = x0 if vertical_first else x1
+	for y in range(row - w, row + w + 1):
 		for x in range(mini(x0, x1), maxi(x0, x1) + 1):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
-	for x in range(x1 - w, x1 + w + 1):
+	for x in range(col - w, col + w + 1):
 		for y in range(mini(y0, y1), maxi(y0, y1) + 1):
 			tilemap.set_cell(0, Vector2i(x, y), 0, _atlas(T_FACTORY_FLOOR))
 
@@ -614,7 +662,7 @@ func _is_swamp_cell(cell: Vector2i, noise_val: float) -> bool:
 	# Direct density gate: swamp_density = 0.05 -> 5% of cells. simplex
 	# noise's [-1,1] range is unreliable for tight thresholds, so use a
 	# deterministic hash on (cell.x, cell.y) against density.
-	var n: float = _hash2(cell.x + 53, cell.y + 71, 11)
+	var n: float = _hash2(cell.x + 53, cell.y + 71, 11 + seed_used)
 	return n < config.swamp_density
 
 func _is_obstacle_cell(cell: Vector2i, noise_val: float, cluster: float) -> bool:
@@ -633,14 +681,14 @@ func _is_obstacle_cell(cell: Vector2i, noise_val: float, cluster: float) -> bool
 	# AND a deterministic hash falls below `total`.
 	if cluster > 0.5:
 		return false
-	var n: float = _hash2(cell.x + 17, cell.y + 31, 7)
+	var n: float = _hash2(cell.x + 17, cell.y + 31, 7 + seed_used)
 	return n < total
 
 func _pick_obstacle_tile(cell: Vector2i) -> Vector2i:
 	var total: float = config.rubble_density + config.scrap_density + config.pit_density
 	if total <= 0.0:
 		return _atlas(T_RUBBLE)
-	var n: float = _hash2(cell.x + 1000, cell.y + 1000, 17)
+	var n: float = _hash2(cell.x + 1000, cell.y + 1000, 17 + seed_used)
 	var r_share: float = config.rubble_density / total
 	var s_share: float = config.scrap_density / total
 	if n < r_share:
@@ -689,8 +737,8 @@ func _place_elite_camps() -> void:
 		# The geometry above makes attempt 0 valid in practice; the extra
 		# attempts only matter if a config edit makes the sectors tight.
 		for attempt in range(24):
-			var h_ang: float = _hash2(config.seed_value + i, 613 + attempt, 41)
-			var h_rad: float = _hash2(config.seed_value + i, 977 + attempt, 43)
+			var h_ang: float = _hash2(seed_used + i, 613 + attempt, 41)
+			var h_rad: float = _hash2(seed_used + i, 977 + attempt, 43)
 			var ang: float = sector * (float(i) + (h_ang * 2.0 - 1.0) * CAMP_ANGLE_JITTER)
 			var rad: float = lerpf(r_min, r_max, h_rad)
 			var cell := Vector2i(
